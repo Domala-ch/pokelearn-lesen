@@ -220,6 +220,7 @@ main{flex:1;overflow-y:auto;padding-block:18px 24px;padding-left:max(16px,env(sa
 .ptprev{display:flex;gap:8px;flex-wrap:wrap}.ptprev img{width:96px;height:128px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
 .gapword{display:inline-block;margin-top:8px;font-family:ui-monospace,Menlo,monospace;font-size:26px;letter-spacing:.18em;color:var(--teal)}
 .gradepill{font:inherit;font-weight:800;font-size:14px;padding:6px 12px;border-radius:999px;border:1.5px solid var(--teal);background:var(--surface);color:var(--teal);cursor:pointer;white-space:nowrap}
+.vtab{width:100%;border-collapse:collapse;font-size:16px}.vtab th{text-align:left;font-size:12px;color:var(--muted);padding:4px 6px;border-bottom:1px solid var(--line)}.vtab td{padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}.vtab td:first-child{font-weight:700}.vtab td.cov{color:transparent;background:var(--surface-2);border-radius:6px;cursor:pointer;user-select:none}.vtab td{position:relative}.vtab td.cov::after{content:"antippen";color:var(--muted);font-size:12px;font-weight:600;position:absolute;left:8px;top:9px}.vtab .qsay{font-size:18px;background:none;border:0;padding:2px 4px}
 .lvtile.focus{border:2px solid var(--gold);box-shadow:0 0 0 3px rgba(240,180,41,.18)}.focusbadge{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.02em;background:var(--gold);color:var(--gold-ink);border-radius:999px;padding:2px 8px;vertical-align:middle;margin-right:2px}
 .gsheet{position:fixed;inset:0;z-index:80;background:rgba(10,20,40,.45);display:grid;place-items:end center;padding:12px}
 .gsheetin{width:min(560px,100%);display:grid;gap:12px;max-height:92vh;overflow:auto}
@@ -544,7 +545,7 @@ label.f{display:grid;gap:4px;font-weight:700;font-size:14px}
         <input type="file" id="photo" accept="image/*" capture="environment" style="max-width:260px">
       </div>
       <img id="photoPrev" class="preview" hidden alt="Vorschau des Fotos">
-      <label class="f">Welches Fach? <select id="heftSubject"><option value="de">Deutsch</option><option value="fr">Französisch</option><option value="en">Englisch</option><option value="ma">Mathe</option></select></label>
+      <label class="f">Welches Fach? <select id="heftSubject"><option value="auto">Fach automatisch erkennen</option><option value="de">Deutsch</option><option value="fr">Französisch</option><option value="en">Englisch</option><option value="ma">Mathe</option></select></label>
       <button class="btn primary" id="scanBtn" disabled>Mit Claude auslesen</button>
       <div id="scanStatus" class="muted" hidden></div>
       <div id="scanResult" style="display:none;gap:10px;flex-direction:column"></div>
@@ -1124,10 +1125,10 @@ function topicsFor(subj){
   if(gradeOf()===6&&["de","fr","en","ma"].includes(subj)&&!topicsFor._in){topicsFor._in=true;try{const base=topicsFor(subj);const extra=subj==="de"?CUR_DE6.concat(BOOK_DE6):subj==="ma"?CUR_MA6:null;
    const mk=t=>({key:"lp6"+subj+"_"+t.key,name:t.name,desc:t.desc,ids:[],lp:6,yr:subj==="fr"?langYear("fr",6):subj==="en"?langYear("en",6):0,ai:true});
    const add=extra?extra.map(mk):lpTopics(subj,6).concat(subj==="fr"?BOOK_FR6.map(mk):[]);return base.concat(add)}finally{topicsFor._in=false}}
-  if(subj==="de")return Object.entries(DE).map(([k,v])=>({key:k,name:v.name,ids:v.items.map((_,i)=>`de:${k}:${i}`)}));
-  if(subj==="fr")return Object.entries(FR).map(([k,v])=>({key:k,name:FRT[k],ids:v.map((_,i)=>`fr:${k}:${i}`)}));
-  if(subj==="en")return Object.entries(EN).map(([k,v])=>({key:k,name:ENT[k],ids:v.map((_,i)=>`en:${k}:${i}`)}));
-  if(subj==="ma")return Object.entries(MA).map(([k,v])=>({key:k,name:v.name,ids:[`ma:${k}`],gen:true}));
+  if(subj==="de")return Object.entries(DE).map(([k,v])=>({key:k,name:v.name,ids:v.items.map((_,i)=>`de:${k}:${i}`)})).concat(heftTopicsOf("de"));
+  if(subj==="fr")return Object.entries(FR).map(([k,v])=>({key:k,name:FRT[k],ids:v.map((_,i)=>`fr:${k}:${i}`)})).concat(heftTopicsOf("fr"));
+  if(subj==="en")return Object.entries(EN).map(([k,v])=>({key:k,name:ENT[k],ids:v.map((_,i)=>`en:${k}:${i}`)})).concat(heftTopicsOf("en"));
+  if(subj==="ma")return Object.entries(MA).map(([k,v])=>({key:k,name:v.name,ids:[`ma:${k}`],gen:true})).concat(heftTopicsOf("ma"));
   if(subj==="heft"){const g={};S.deck.forEach(d=>{const k=d.subj+"|"+unitOf(d);(g[k]=g[k]||[]).push(d)});
     return Object.keys(g).sort((a,b)=>a.localeCompare(b,"de",{numeric:true})).map(k=>{const[sj,u]=k.split("|"),v=g[k];return{key:k.replace("|",":"),name:SUBJ[sj].name+(u?" · "+u:" (Heft)"),ids:v.map(d=>`heft:${d.id}`)}})}
   return [];
@@ -1135,6 +1136,20 @@ function topicsFor(subj){
 // current school topics (Eltern › Aktuelle Schulthemen): shown first, marked, and weighted in mixed rounds
 const isFocus=key=>!!((S.focus||{})[key]);
 function focusSort(ts){return ts.slice().sort((a,b)=>(isFocus(b.key)-isFocus(a.key)))}
+// entries photographed from the exercise book, grouped by title, inside their subject
+function heftTopicsOf(sj){const g={};(S.deck||[]).forEach(d=>{if(d.subj!==sj)return;const u=unitOf(d);(g[u]=g[u]||[]).push(d)});
+ return Object.keys(g).sort((a,b)=>a.localeCompare(b,"de",{numeric:true})).map(u=>({key:"heft:"+sj+":"+u,name:"Aus dem Heft"+(u?" · "+u:""),ids:g[u].map(d=>`heft:${d.id}`),heft:true}))}
+// word list of a topic (foreign word | German), for looking at and learning
+function vocabRows(t){const rows=[];(t.ids||[]).forEach(id=>{const m=id.match(/^(fr|en):([^:]+):(\d+)$/);if(m){const L=(m[1]==="fr"?FR:EN)[m[2]];const it=L&&L[+m[3]];if(it){const[a,b]=it.split("|");rows.push({a,b,lang:m[1],id})}return}
+ if(id.startsWith("heft:")){const d=(S.deck||[]).find(x=>"heft:"+x.id===id);if(d&&d.front)rows.push({a:d.front,b:d.back||"",lang:d.subj==="fr"||d.subj==="en"?d.subj:"de",id,type:d.type})}});return rows}
+function vocabSheet(t,k){const rows=vocabRows(t);if(!rows.length)return;const old=document.getElementById("vocabSheet");if(old)old.remove();const el=document.createElement("div");el.id="vocabSheet";el.className="gsheet";let hide=0;const lang=rows[0].lang,LN=lang==="de"?"Deutsch":LANGN[lang];
+ const draw=()=>{el.innerHTML=`<div class="card gsheetin" role="dialog" aria-label="Wörterliste" style="max-height:92vh;display:grid;grid-template-rows:auto auto 1fr;gap:10px"><div class="row" style="justify-content:space-between;align-items:center"><div><p class="eyebrow" style="margin:0">Wörterliste · ${rows.length} Einträge</p><h2 style="font-size:20px;margin:0">${esc(t.name)}</h2></div><button class="btn small ghost" data-vs="close" aria-label="Schliessen">✕</button></div>
+  <div class="row" style="gap:6px"><button class="btn small ${hide===0?"teal":""}" data-vs="h0">Beides zeigen</button>${lang!=="de"?`<button class="btn small ${hide===2?"teal":""}" data-vs="h2">Deutsch verdecken</button><button class="btn small ${hide===1?"teal":""}" data-vs="h1">${esc(LN)} verdecken</button>`:`<button class="btn small ${hide===2?"teal":""}" data-vs="h2">Antwort verdecken</button>`}</div>
+  <div style="overflow:auto;min-height:0"><table class="vtab"><thead><tr><th>${lang==="de"?"Frage / Wort":esc(LN)}</th><th>${lang==="de"?"Antwort":"Deutsch"}</th><th></th></tr></thead><tbody>${rows.map((r,i)=>`<tr data-row="${i}"><td class="${hide===1?"cov":""}">${esc(r.a)}</td><td class="${hide===2?"cov":""}">${esc(r.b)}</td><td>${lang!=="de"||r.type!=="rule"?`<button class="qsay" data-vs="say" data-row="${i}" aria-label="Vorlesen">🔊</button>`:""}</td></tr>`).join("")}</tbody></table></div>
+  <p class="muted" style="margin:0;font-size:13px">Tipp: Erst verdecken und selbst sagen, dann antippen und prüfen – so bleibt es besser hängen als nur lesen.</p></div>`};
+ draw();document.body.appendChild(el);
+ el.addEventListener("click",e=>{const b=e.target.closest("[data-vs]");if(b){const a=b.dataset.vs;if(a==="close"){el.remove();return}if(a==="h0"){hide=0;draw();return}if(a==="h1"){hide=1;draw();return}if(a==="h2"){hide=2;draw();return}if(a==="say"){const r=rows[+b.dataset.row];acUnlock();try{speechSynthesis.cancel()}catch(x){}speak(r.a,r.lang,.85);return}}
+  const td=e.target.closest("td.cov");if(td){td.classList.remove("cov");return}if(e.target===el)el.remove()})}
 function dueCount(ids){const n=Date.now();return ids.filter(id=>{const p=S.progress[id];return p&&p.due<=n&&p.box<5}).length}
 function newCount(ids){return ids.filter(id=>!S.progress[id]).length}
 function masteryPct(ids){if(!ids.length)return 0;return Math.round(ids.reduce((s,id)=>s+(S.progress[id]?.box||0),0)/(ids.length*5)*100)}
@@ -1431,12 +1446,13 @@ document.getElementById("photo").onchange=e=>{photoFile=e.target.files[0]||null;
   if(photoFile){img.src=URL.createObjectURL(photoFile);img.hidden=false;document.getElementById("scanBtn").disabled=!sample}};
 document.getElementById("scanBtn").onclick=async()=>{
   if(!photoFile||!sample)return;const st=document.getElementById("scanStatus");st.hidden=false;st.innerHTML='<span class="spin"></span> Claude liest die Seite…';
-  const subj=document.getElementById("heftSubject").value;const btn=document.getElementById("scanBtn");btn.disabled=true;
-  const prompt=`Das Bild zeigt eine Seite aus dem Schulheft eines Kindes der ${gradeOf()}. Klasse in der Schweiz, Fach: ${SUBJ[subj].name}. Lies die Seite und extrahiere Lernstoff als Übungseinträge.
+  const subj0=document.getElementById("heftSubject").value,auto=subj0==="auto",subj=auto?"de":subj0;const btn=document.getElementById("scanBtn");btn.disabled=true;
+  const prompt=`Das Bild zeigt eine Seite aus dem Schulheft eines Kindes der ${gradeOf()}. Klasse in der Schweiz${auto?"":", Fach: "+SUBJ[subj].name}. Lies die Seite und extrahiere Lernstoff als Übungseinträge.
+Bestimme für jeden Eintrag das Fach: "fr" (Französisch-Wörter oder -Sätze), "en" (Englisch), "de" (Deutsch: Rechtschreibung, Grammatik, Wörter), "ma" (Mathematik), "nmg" (Natur, Mensch, Gesellschaft).
 Regeln: Fremdsprachen-Wörterlisten → type "vocab", front = Fremdwort (mit Artikel, wenn vorhanden), back = deutsche Bedeutung. Deutsche Merkwörter/Rechtschreibwörter → type "spell", front = Wort (richtig geschrieben), back = "". Regeln, Definitionen, Merksätze, Mathe-Formeln → type "rule", front = kurze Frage dazu, back = die Antwort (ein Satz). Schweizer Rechtschreibung (kein ß). Höchstens 40 Einträge, nur was wirklich auf der Seite steht.
-Antworte NUR mit einem JSON-Array von Objekten {"type":"vocab"|"spell"|"rule","front":"...","back":"..."}. Beispiel: [{"type":"vocab","front":"le chat","back":"die Katze"}]`;
+Antworte NUR mit einem JSON-Array von Objekten {"subj":"fr"|"en"|"de"|"ma"|"nmg","type":"vocab"|"spell"|"rule","front":"...","back":"..."}. Beispiel: [{"subj":"fr","type":"vocab","front":"le chat","back":"die Katze"}]`;
   try{const arr=await sample.json(prompt,{images:[photoFile],cache:false});
-    scanned=(Array.isArray(arr)?arr:[]).filter(x=>x&&x.front).map(x=>({type:["vocab","spell","rule"].includes(x.type)?x.type:"vocab",front:String(x.front).trim(),back:String(x.back||"").trim(),subj}));
+    scanned=(Array.isArray(arr)?arr:[]).filter(x=>x&&x.front).map(x=>({type:["vocab","spell","rule"].includes(x.type)?x.type:"vocab",front:String(x.front).trim(),back:String(x.back||"").trim(),subj:auto?(["de","fr","en","ma","nmg"].includes(x.subj)?x.subj:"de"):subj}));
     st.hidden=true;renderScan()}
   catch(e){st.textContent={not_granted:"Claude wurde für diese Seite nicht erlaubt.",rate_limited:"Zu viele Anfragen, bitte gleich nochmal.",invalid_json:"Die Antwort war unlesbar. Versuch es mit einem schärferen Foto.",image_rejected:"Das Bild ging nicht. Nimm ein JPG oder PNG.",refused:"Diese Seite konnte nicht gelesen werden."}[e.code]||"Das hat gerade nicht geklappt. Nochmal versuchen?"}
   btn.disabled=false;
@@ -1515,9 +1531,9 @@ function openTopics(k){setTimeout(()=>{if(k!=="heft")return;const l=document.get
   if(ts.length){const tot=ts.length*3,dn=ts.reduce((s,t)=>s+tdDoneCount(k,t),0);const hd=document.createElement("p");hd.className="muted";hd.style.cssText="margin:0 0 4px;font-size:14px";
    hd.innerHTML=`<b style="color:var(--ink)">${dn} von ${tot} Stufen geschafft.</b> Grün = geschafft (ab ${DONEPCT} % richtig), gelb = geübt, aber noch nicht geschafft.`;l.appendChild(hd)}
   focusSort(ts).forEach(t=>{const b=document.createElement("div");b.className="tile lvtile"+(isFocus(t.key)?" focus":"");const fr=t.gen||t.ai;const m=fr?null:masteryPct(t.ids);const due=fr?0:dueCount(t.ids);const dc=tdDoneCount(k,t);
-    b.innerHTML=`<div class="bar"><div class="row" style="justify-content:space-between;gap:8px"><h3>${isFocus(t.key)?'<span class="focusbadge" title="Aktuelles Schulthema">Jetzt in der Schule</span> ':""}${t.name}${k!=="heft"&&k!=="mix"&&ixList(k,t.key)?` <span class="ixbadge" title="Mit Aufgaben zum Antippen, Ziehen, Zeichnen oder Programmieren">${IXHEAVY.has(ixBase(t.key))||IXONLY.has(ixBase(t.key))?"🤖":"🖐️"}</span>`:""}</h3><span class="lvdone">${dc===3?"★ alle 3 geschafft":dc?`✓ ${dc}/3`:""}</span></div><small class="muted">${fr?(t.desc?esc(t.desc.length>110?t.desc.slice(0,108)+" …":t.desc):"Immer neue Aufgaben"):`${t.ids.length} Einträge · ${due} fällig · ${m} % gelernt`}</small>${fr?"":`<div class="meter"><i style="width:${m}%"></i></div>`}</div>
+    b.innerHTML=`<div class="bar"><div class="row" style="justify-content:space-between;gap:8px"><h3>${isFocus(t.key)?'<span class="focusbadge" title="Aktuelles Schulthema">Jetzt in der Schule</span> ':""}${t.name}${k!=="heft"&&k!=="mix"&&ixList(k,t.key)?` <span class="ixbadge" title="Mit Aufgaben zum Antippen, Ziehen, Zeichnen oder Programmieren">${IXHEAVY.has(ixBase(t.key))||IXONLY.has(ixBase(t.key))?"🤖":"🖐️"}</span>`:""}</h3><span class="lvdone">${dc===3?"★ alle 3 geschafft":dc?`✓ ${dc}/3`:""}</span></div>${(!fr&&vocabRows(t).length)?`<button class="btn small ghost" data-vlist style="justify-self:start;margin-top:4px">📖 Wörterliste ansehen</button>`:""}<small class="muted">${fr?(t.desc?esc(t.desc.length>110?t.desc.slice(0,108)+" …":t.desc):"Immer neue Aufgaben"):`${t.ids.length} Einträge · ${due} fällig · ${m} % gelernt`}</small>${fr?"":`<div class="meter"><i style="width:${m}%"></i></div>`}</div>
      <div class="lvrow">${LEVELS.map(lv=>{const r=tdGet(k,t,lv),ok=r&&r.best>=DONEPCT;return`<button class="lvbtn ${ok?"done":r?"tried":""}" data-tlv="${lv}" aria-label="${t.name} ${RLV[lv].label}${ok?", geschafft":r?", geübt":""}"><b>${ok?"✓ ":""}${RLV[lv].label}</b><small>${r?`${r.best} %${r.n>1?` · ${r.n}×`:""}`:"offen"}</small></button>`}).join("")}</div>`;
-    b.querySelectorAll("[data-tlv]").forEach(x=>x.onclick=()=>startRound(k,t,x.dataset.tlv));l.appendChild(b)});
+    b.querySelectorAll("[data-tlv]").forEach(x=>x.onclick=()=>startRound(k,t,x.dataset.tlv));const vl=b.querySelector("[data-vlist]");if(vl)vl.onclick=()=>vocabSheet(t,k);l.appendChild(b)});
   const all=document.createElement("button");all.className="btn teal";all.textContent=k==="de"?"Deutsch-Mix: alle Themen durcheinander":"Alles Fällige in "+SUBJ[k].name;all.onclick=()=>startRound(k,{name:"Alles",ids:k==="de"?Object.keys(DEGEN).map(x=>"de:"+x):ts.flatMap(t=>t.gen?[]:t.ids)});if(ts.length&&k!=="ma"&&(k==="heft"||(gradeOf()===6&&["de","fr","en"].includes(k))))l.appendChild(all);
   show("topics")}
 function renderAlbum(){const a=document.getElementById("album");a.innerHTML="";const own=Object.keys(S.cards).length;
