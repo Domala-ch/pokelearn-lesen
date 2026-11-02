@@ -347,10 +347,10 @@ textarea{resize:vertical;font-size:17px;line-height:1.5}
 @media (prefers-reduced-motion:reduce){.lw.now{animation:none}}
 .lsfocus{position:fixed;left:0;right:0;top:0;height:100%;z-index:45;background:var(--bg);display:flex;flex-direction:column;gap:8px;padding-top:max(8px,env(safe-area-inset-top,0px));padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
 .lsstrip{flex:none;display:grid;grid-template-columns:minmax(0,1fr);min-width:0;gap:8px;align-items:center;background:var(--surface);border-radius:14px;padding:8px;box-shadow:var(--shadow)}
-.lsheard{font-size:19px;line-height:1.35;font-weight:700;min-height:54px;padding:8px 10px;border-radius:10px;background:var(--surface-2);overflow-wrap:anywhere;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.lsheard .muted{font-weight:600;font-size:14px}.lsheard .micdot{flex:none}
+.lsheard{font-size:18px;line-height:1.3;font-weight:700;height:60px;overflow:hidden;padding:5px 10px;border-radius:10px;background:var(--surface-2);overflow-wrap:anywhere;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.lsheard .muted{font-weight:600;font-size:14px}.lsheard .micdot{flex:none}
 .lsstrip.live textarea{display:none}.lsbtns{display:flex;gap:8px;flex-wrap:wrap}.lsbtns .primary{flex:1}
 .lsstrip textarea{min-height:44px;max-height:44px;font-size:16px;min-width:0;padding:8px 10px;resize:none;overflow:hidden;line-height:1.3}
-.lsmini{flex:none;display:flex;gap:14px;flex-wrap:wrap;font-size:13px;font-weight:800;color:var(--muted);padding:0 4px}
+.lsmini{flex:none;display:flex;gap:12px;flex-wrap:nowrap;overflow:hidden;white-space:nowrap;font-size:13px;font-weight:800;color:var(--muted);padding:0 4px;height:20px}
 .lsmini b{color:var(--ink);font-variant-numeric:tabular-nums}
 .lsscroll{position:relative;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 4px 45vh;overscroll-behavior:contain}
 .lsscroll .lstext{font-size:20px;line-height:1.9}
@@ -2867,7 +2867,7 @@ function lsBeep(good){try{const c=acGet();if(!c)return;if(c.state!=="running"){c
  if(good)tone(880,0,.18,.08);else{tone(440,0,.16,.12);tone(330,.18,.26,.12)}}catch(e){}}
 // no banner: the word itself signals the stop — yellow on the first attempt, orange on the second, red on the third (then it is read aloud)
 function lsRetryUI(){const L=LS,el=document.getElementById("lsRetry"),fx=document.getElementById("lsFocus");if(el)el.hidden=true;if(fx)fx.classList.toggle("stopped",!!L.retry)}
-function lsUpdateFromHeard(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="reading")return;const ta=document.getElementById("lsDict");if(!ta)return;const bh=document.getElementById("lsHow");if(bh&&L.srLive&&ta.readOnly){const w=ta.value.trim().split(/\s+/).slice(-8).join(" ");bh.innerHTML=w?`<span class="micdot"></span><span class="muted">Ich höre:</span> ${esc(w)}`:'<span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.'}
+function lsUpdateFromHeard(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="reading")return;const ta=document.getElementById("lsDict");if(!ta)return;const bh=document.getElementById("lsHow");if(bh&&L.srLive&&ta.readOnly){const w=ta.value.trim().split(/\s+/).slice(-5).join(" ");bh.innerHTML=w?`<span class="micdot"></span><span class="muted">Ich höre:</span> ${esc(w)}`:'<span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.'}
  if(!L.t0&&!L.ms&&ta.value.trim()){L.t0=Date.now();L.timer=L.timer||setInterval(lsClock,500)}
  const heard=heardTokens(ta.value);lsAdvance(heard);L.lastHeard=Date.now();lsPaint();lsRetryUI();
  if(document.getElementById("lsFocus"))lsKeepWord();else{const now=document.querySelector("#lsText .lw.now");if(now&&!L._scrollLock){L._scrollLock=true;now.scrollIntoView({block:"center"});setTimeout(()=>L._scrollLock=false,400)}}
@@ -2968,18 +2968,22 @@ function lsFit(){const el=document.getElementById("lsFocus");if(!el)return;const
 // keeps the current line at a fixed reading height, ignores tiny backward jumps, and pauses while the reader scrolls by hand.
 const lsGlide={target:0,raf:0,last:0};
 function lsKeepWord(force){const L=LS,sc=document.getElementById("lsScroll"),now=document.querySelector("#lsText .lw.now");if(!L||!sc||!now)return;
- const lh=parseFloat(getComputedStyle(now).lineHeight)||36,lineTop=Math.round(now.offsetTop/ (lh/2))*(lh/2);
- if(!force&&L._lineTop===lineTop)return;const prev=L._lineTop;L._lineTop=lineTop;
- if(!force&&prev!=null&&lineTop<prev&&prev-lineTop<lh*1.6)return;                    // recognizer stepped back a word: stay put
+ const lh=parseFloat(getComputedStyle(now).lineHeight)||36,lineTop=Math.round(now.offsetTop/(lh/2))*(lh/2);
  if(L._userScrollUntil&&Date.now()<L._userScrollUntil)return;
- const anchor=Math.min(sc.clientHeight*.26,120);lsGlideTo(sc,Math.max(0,lineTop-anchor))}
+ // teleprompter: the current line may sit anywhere in a reading band; the view only glides when the line leaves the band,
+ // never for a word the recognizer briefly stepped back to, and only once the position has held still for a moment
+ const band0=Math.min(sc.clientHeight*.18,90),band1=Math.max(band0+lh*1.2,sc.clientHeight*.42);const rel=lineTop-sc.scrollTop;
+ const want=force||rel>band1||rel<band0-lh*.5;
+ if(!want){clearTimeout(L._glideT);L._glideT=0;L._lineTop=lineTop;return}
+ if(!force){if(L._lineTop===lineTop&&L._glideT)return;L._lineTop=lineTop;clearTimeout(L._glideT);L._glideT=setTimeout(()=>{L._glideT=0;const n2=document.querySelector("#lsText .lw.now");if(!n2||!sc.isConnected)return;const lt2=Math.round(n2.offsetTop/(lh/2))*(lh/2);if(lt2!==lineTop)return lsKeepWord(false);lsGlideTo(sc,Math.max(0,lineTop-band0-lh*.2))},rel<band0?500:220);return}
+ L._lineTop=lineTop;lsGlideTo(sc,Math.max(0,lineTop-band0-lh*.2))}
 function lsGlideTo(sc,y){lsGlide.target=y;if(matchMedia("(prefers-reduced-motion: reduce)").matches){sc.scrollTop=y;return}
  if(lsGlide.raf)return;lsGlide.last=performance.now();
  const step=t=>{const dt=Math.min(64,t-lsGlide.last);lsGlide.last=t;const cur=sc.scrollTop,d=lsGlide.target-cur;
   if(Math.abs(d)<.6||!sc.isConnected){sc.scrollTop=lsGlide.target;lsGlide.raf=0;return}
-  sc.scrollTop=cur+d*(1-Math.exp(-dt/150));lsGlide.raf=requestAnimationFrame(step)};                  // exponential ease-out, retargets smoothly
+  sc.scrollTop=cur+d*(1-Math.exp(-dt/320));lsGlide.raf=requestAnimationFrame(step)};                  // exponential ease-out, retargets smoothly
  lsGlide.raf=requestAnimationFrame(step)}
-if(window.visualViewport){visualViewport.addEventListener("resize",()=>{if(document.getElementById("lsFocus"))lsFit()});visualViewport.addEventListener("scroll",()=>{if(document.getElementById("lsFocus"))lsFit()})}
+if(window.visualViewport){visualViewport.addEventListener("resize",()=>{if(document.getElementById("lsFocus"))lsFit()});visualViewport.addEventListener("scroll",()=>{const el=document.getElementById("lsFocus");if(el&&Math.abs(visualViewport.height-el.clientHeight)>40)lsFit()})}
 function lsReader(v){const L=LS,t=L.text,ph=L.phase;if(ph==="reading"&&L.mode==="mic")return lsFocusView(v);
  v.innerHTML=`<div class="row"><button class="btn small ghost" data-la="list">← Zurück</button><span class="pill">${t.level} · ${esc(t.kind||"Text")}</span>${t.gen?'<span class="pill">neu von Claude</span>':""}</div>
  <div class="lsstats"><div><b class="num" id="lsTime">0:00</b><small>Zeit</small></div><div><b class="num" id="lsWords">0</b><small>Wörter</small></div><div><b class="num" id="lsSent">1</b><small id="lsSentL">Satz</small></div><div><b class="num" id="lsErr">0</b><small>Fehler</small></div></div>
