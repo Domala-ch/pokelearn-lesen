@@ -386,6 +386,15 @@ const LSLANGFIX={iphone:"Halte auf der Tastatur die Weltkugel 🌐 gedrückt und
  windows:"Drücke Windows-Taste + Leertaste und wähle «%L» (Sprache muss unter Einstellungen › Zeit und Sprache installiert sein).",
  chromeos:"Einstellungen › Bedienungshilfen › Diktieren › Sprache «%L» wählen.",other:"Stelle die Sprache der Diktierfunktion auf «%L»."};
 const SRLANG={de:"de-CH",fr:"fr-CH",en:"en-GB"};
+// ---- Lese-Seite: the microphone works only outside the Claude frame, so reading aloud happens on PokeLearn's own reading page.
+// It gets the text in the link and hands the result back as a Lese-Code (7 characters, checksum bound to the text).
+const LESEN_URL="https://domala-ch.github.io/pokelearn-lesen/";const LESEN_B32="23456789ABCDEFGHJKLMNPQRSTUVWXYZ",LESEN_SECRET="pokelearn-lesen-2026";
+const b64u=s=>btoa(Array.from(new TextEncoder().encode(s),b=>String.fromCharCode(b)).join("")).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+function lesenLink(t){const back=location.ancestorOrigins&&location.ancestorOrigins[0]?location.ancestorOrigins[0]+"/artifact/1EEaQhhmiJz3dM96TL2pHP":"https://claude.ai/artifact/1EEaQhhmiJz3dM96TL2pHP";
+ return LESEN_URL+"#r="+b64u(JSON.stringify({v:1,id:t.id,title:t.title,text:t.text,lang:t.lang||"de",level:t.level,kind:t.kind||"",strict:S.lsStop===true,mn:S.lsMN===true,name:S.name||"",back}))}
+function lesenCode(code,id){const c=String(code||"").toUpperCase().replace(/[^2-9A-Z]/g,"").replace(/O/g,"0").replace(/[I]/g,"1");if(c.length!==7)return null;let v=0n;for(const ch of c){const i=LESEN_B32.indexOf(ch);if(i<0)return null;v=v*32n+BigInt(i)}
+ const chk=Number(v&4095n),wpm=Number((v>>12n)&511n),errs=Number((v>>21n)&127n),acc=Number((v>>28n)&127n);
+ if(parseInt(hashStr(`${LESEN_SECRET}|${id}|${acc}|${errs}|${wpm}`),36)%4096!==chk)return null;return{acc,errs,wpm,code:c}}
 let lsSRBlocked=false;
 // first choice: listen directly in the page (like the original LeseStar); falls back to device dictation if the app does not allow it
 let lsNoPhrases=false;
@@ -434,7 +443,12 @@ function lsReader(v){const L=LS,t=L.text,ph=L.phase;if(ph==="reading"&&L.mode===
  <div class="lsbar" id="lsBar"></div>`;
  lsBar();lsPaint();lsClock()}
 function lsBar(){const L=LS,b=document.getElementById("lsBar");if(!b)return;const ph=L.phase;
- if(ph==="ready")b.innerHTML=`<button class="btn primary" data-la="mic" style="font-size:19px;padding:16px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg> Mit Mikrofon lesen</button><div class="row"><button class="btn" data-la="read" style="flex:1">Ohne Mikrofon (Satz für Satz)</button><button class="btn" data-la="tts" style="flex:1">Zuerst vorlesen lassen</button></div><p class="muted" style="margin:0;font-size:13px;text-align:center">Der Text wird sichtbar, sobald du startest. Die Zeit läuft mit.</p>`;
+ if(ph==="ready")b.innerHTML=`${LESEN_URL.startsWith("http")?`<a class="btn primary" data-la="lesen" href="${esc(lesenLink(L.text))}" target="_blank" rel="noopener" style="font-size:19px;padding:16px;text-decoration:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg> Mit Mikrofon lesen</a>
+  <div class="row" id="lsCodeRow" hidden><input id="lsCode" inputmode="text" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="Lese-Code, z. B. T22-22XW" aria-label="Lese-Code" style="flex:1;font-family:var(--display);font-size:20px;letter-spacing:.08em;text-transform:uppercase"><button class="btn primary" data-la="code">OK</button></div>
+  <div class="row"><button class="btn teal" data-la="codeShow" id="lsCodeBtn" style="flex:1">Ich habe meinen Lese-Code</button><button class="btn small ghost" data-la="lesenCopy" title="Falls sich die Lese-Seite nicht öffnet: Link kopieren und in Safari einfügen">Link kopieren</button></div>
+  <details><summary class="muted" style="font-size:13px;cursor:pointer">Andere Möglichkeiten</summary><div class="row" style="margin-top:8px"><button class="btn small" data-la="mic">Tastatur-Mikrofon</button><button class="btn small" data-la="read">Ohne Mikrofon (Satz für Satz)</button><button class="btn small" data-la="tts">Zuerst vorlesen lassen</button></div></details>
+  <p class="muted" style="margin:0;font-size:13px;text-align:center">Die Lese-Seite öffnet sich im Browser und hört dir direkt zu. Am Schluss zeigt sie dir einen Lese-Code – den tippst du hier ein, dann kommen die Fragen und deine Punkte.</p>`
+ :`<button class="btn primary" data-la="mic" style="font-size:19px;padding:16px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg> Mit Mikrofon lesen</button><div class="row"><button class="btn" data-la="read" style="flex:1">Ohne Mikrofon (Satz für Satz)</button><button class="btn" data-la="tts" style="flex:1">Zuerst vorlesen lassen</button></div><p class="muted" style="margin:0;font-size:13px;text-align:center">Der Text wird sichtbar, sobald du startest. Die Zeit läuft mit.</p>`}`;
  else if(ph==="reading"&&L.mode==="mic")b.innerHTML=`<label class="f" for="lsDict" style="font-size:13px"><span><span class="micdot"></span>Tippe ins Feld, dann auf das Mikrofon <b>unten auf der Tastatur</b>, und lies laut vor:</span></label><textarea id="lsDict" class="lsdict" rows="2" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="Hier erscheint, was das Mikrofon hört …"></textarea>
   <div class="row"><button class="btn primary" data-la="micDone" style="flex:1">${IC.check} Fertig gelesen</button><button class="btn small ghost" data-la="micClear">Neu beginnen</button></div>
   <details><summary class="muted" style="font-size:13px;cursor:pointer">Kein Mikrofon auf der Tastatur?</summary><p class="muted" style="font-size:13px;margin:6px 0 0">iPhone/iPad: Einstellungen › Allgemein › Tastatur › «Diktierfunktion» einschalten, als Sprache Deutsch wählen. Android: in der Tastatur auf das Mikrofon tippen (Google-Spracheingabe). Mac: zweimal die Taste fn oder 🌐 drücken. Grün = richtig gelesen, Rot = falsch, durchgestrichen = ausgelassen.</p></details>`;
@@ -462,9 +476,9 @@ function lsResult(v){const L=LS,t=L.text,r=L.res;
  ${r.tooFast?`<p class="muted" style="margin:0">Das war zu schnell für lautes Lesen, darum zählt das Tempo diesmal nicht. Tippe erst auf «Satz gelesen», wenn du den Satz laut gelesen hast.</p>`:""}${r.wpm?`<p class="muted" style="margin:0">${r.wpm>=LSTARGET[t.level]?"Dein Lesetempo erreicht das Ziel für diese Stufe.":"Tipp: Lies den Text morgen nochmals laut. Mit jedem Mal wird das Lesen flüssiger."}</p>`:""}
  ${L.bad.size?`<div class="card"><p class="eyebrow" style="margin:0 0 8px">Diese Wörter nochmals üben</p><div class="row">${[...L.bad].map(i=>`<button class="btn small" data-lsword="${i}">${esc(L.T[i].t)} ${IC.play}</button>`).join("")}</div></div>`:""}
  <div class="row"><button class="btn primary" data-la="nextText" style="flex:1">Nächster Text</button><button class="btn teal" data-la="board" style="flex:1">Bestenliste</button></div><button class="btn ghost" data-la="list">Zur Übersicht</button>`}
-function lsComplete(){const L=LS,t=L.text,mic=L.mode==="mic",words=mic?Math.max(1,L.pos):dkWords(L.T),secs=Math.max(1,Math.round(L.ms/1000));let wpm=L.read?Math.round(words/(secs/60)):null;const tooFast=wpm!=null&&wpm>260;if(tooFast)wpm=null;   // faster than anyone reads aloud: not counted
- const q=L.qa.filter((a,i)=>a!=null&&L.order[i][a].ok).length,qn=t.q.length,errs=mic?L.wst.filter(x=>x==="bad"||x==="miss").length:L.parent?L.bad.size:null;
- if(mic){L.bad=new Set(L.W.filter((ti,k)=>L.wst[k]==="bad"||L.wst[k]==="miss"))}
+function lsComplete(){const L=LS,t=L.text,ext=L.mode==="ext"?L.ext:null,mic=L.mode==="mic"||!!ext,words=L.mode==="mic"?Math.max(1,L.pos):dkWords(L.T),secs=Math.max(1,Math.round(L.ms/1000));let wpm=ext?(ext.wpm||null):L.read?Math.round(words/(secs/60)):null;const tooFast=wpm!=null&&wpm>260;if(tooFast)wpm=null;   // faster than anyone reads aloud: not counted
+ const q=L.qa.filter((a,i)=>a!=null&&L.order[i][a].ok).length,qn=t.q.length,errs=ext?ext.errs:mic?L.wst.filter(x=>x==="bad"||x==="miss").length:L.parent?L.bad.size:null;
+ if(L.mode==="mic"){L.bad=new Set(L.W.filter((ti,k)=>L.wst[k]==="bad"||L.wst[k]==="miss"))}
  const acc=errs==null?1:Math.max(0,1-errs/words);let points=words+q*25+(wpm&&wpm>=LSTARGET[t.level]?30:0);points=Math.round(points*(errs==null?1:.6+.4*acc));
  const stars=q===qn&&(errs==null||errs<=2)?3:q>=qn-1?2:1;const gain=8+q*4+(stars===3?10:0);S.coins+=gain;
  L.res={points,wpm,q,qn,errs,words,stars,gain,tooFast,mic,acc:Math.round(acc*100),fixed:L.fixed||0,given:L.given||0};
@@ -516,6 +530,7 @@ function readyView(){const L=LS,t=L.text;view().innerHTML=`
  <div class="row" style="justify-content:space-between"><span class="pill lvl-${esc(t.level||"mittel")}">${esc(t.level||"")}${t.kind?" · "+esc(t.kind):""}</span><span class="pill">${esc(LANGN[t.lang||"de"]||"")}</span></div>
  <div class="card" style="display:grid;gap:14px;text-align:center"><p class="eyebrow">PokeLearn Lesen${P&&P.name?" · "+esc(P.name):""}</p><h1 style="font-size:26px;color:var(--accent)">${esc(t.title)}</h1>
   <button class="bigmic" data-la="mic" aria-label="Mit Mikrofon lesen">${MIC}</button>
+  <div class="row" style="justify-content:center;gap:6px"><span class="muted" style="font-size:13px">Mikrofon hört:</span>${["de","fr","en"].map(l=>`<button class="pill ${(L.srLang||t.lang||"de")===l?"good":""}" data-lang="${l}" style="font-size:13px">${LANGN[l]}</button>`).join("")}</div>
   <p style="margin:0;font-size:18px;font-weight:800">Tippe aufs Mikrofon und lies laut vor.</p>
   <p class="muted" style="margin:0;font-size:14px">${SRok()?"Beim ersten Mal fragt dich das Gerät, ob diese Seite das Mikrofon benutzen darf – tippe auf «Erlauben».":"Dieses Gerät kann hier nicht direkt zuhören – du kannst das Mikrofon der Tastatur benutzen."}</p></div>
  <div class="card"><div class="lstext blur" id="lsText">${lsTextHtml()}</div></div>
@@ -536,6 +551,7 @@ lsFinishReading=function(){const L=LS;lsStopSR(L);if(L.t0){L.ms+=Date.now()-L.t0
  const words=L.W.length,secs=Math.max(1,Math.round(L.ms/1000)),errs=L.wst.filter(x=>x==="bad"||x==="miss").length;let wpm=Math.round(Math.max(1,L.pos)/(secs/60));if(wpm>260)wpm=0;
  const acc=Math.round(Math.max(0,1-errs/words)*100),stars=errs<=2?3:errs<=6?2:1;
  L.res={words,errs,acc,wpm,stars,fixed:L.fixed||0,given:L.given||0,code:lesCode(L.text.id,acc,errs,wpm)};lsBeep(true);resultView();window.scrollTo(0,0)};
+const _lsStartSR=lsStartSR;lsStartSR=function(){const L=LS;if(L&&L.srLang)L.text.lang=L.srLang;_lsStartSR();if(L&&L.sr){const r=L.sr,oe=r.onerror;r.onerror=e=>{if(e.error==="language-not-supported"){const F={"fr-CH":"fr-FR","en-GB":"en-US","de-CH":"de-DE"}[r.lang];if(F){SRLANG[L.text.lang||"de"]=F;L.sr=null;setTimeout(lsStartSR,50);return}}oe&&oe(e)}}};
 lsRender=function(){const L=LS;if(!L)return;if(L.phase==="reading"&&L.mode==="mic")return lsReader(view());if(L.phase==="result")return resultView();readyView()};
 // keep the current strip text useful: show what is being heard, hide the keyboard field while direct listening works
 const _lsMicUI=lsMicUI;lsMicUI=function(){_lsMicUI();const L=LS,fx=document.getElementById("lsFocus"),ta=document.getElementById("lsDict"),how=document.getElementById("lsHow");if(!L||!fx)return;
@@ -548,6 +564,7 @@ function startMic(){const L=LS;acUnlock();try{speechSynthesis.cancel()}catch(e){
 view().addEventListener("click",e=>{const L=LS;
  const w=e.target.closest(".lw");if(w&&L&&L.phase==="reading"){try{speechSynthesis.cancel()}catch(x){}speak(L.T[+w.dataset.wi].t,L.text.lang||"de",.8);return}
  const sw=e.target.closest("[data-lsword]");if(sw&&L){speak(L.T[+sw.dataset.lsword].t,L.text.lang||"de",.8);return}
+ const lg0=e.target.closest("[data-lang]");if(lg0&&L){L.srLang=lg0.dataset.lang;L.text.lang=lg0.dataset.lang;LSLANG=lg0.dataset.lang;lsRender();return}
  const b=e.target.closest("[data-la]");if(!b||!L)return;const a=b.dataset.la;
  if(a==="mic")return startMic();
  if(a==="micExit"){lsStop();L.mode=null;L.phase="ready";L.ms=0;L.t0=0;L.wst=[];L.pos=0;lsRender();return}
@@ -555,7 +572,7 @@ view().addEventListener("click",e=>{const L=LS;
  if(a==="micDone"){if(!L.pos){toast("Noch nichts gehört. Lies laut vor.");return}lsFinishReading();return}
  if(a==="again"){lsStop();boot();return}
  if(a==="copy"){try{navigator.clipboard.writeText(L.res.code);toast("Code kopiert")}catch(x){toast(L.res.code)}return}
- if(a==="back"){try{window.close()}catch(x){}setTimeout(()=>{if(P&&P.back)location.href=P.back;else toast("Wechsle zurück zur PokeLearn-App.")},250);return}});
+ if(a==="back"){try{if(L.res&&navigator.clipboard)navigator.clipboard.writeText(L.res.code).catch(()=>{})}catch(x){}try{window.close()}catch(x){}setTimeout(()=>{if(P&&P.back)location.href=P.back;else toast("Wechsle zurück zur PokeLearn-App.")},250);return}});
 function boot(){P=readPayload();const t=P||DEMO;S.lsStop=t.strict!==false;S.lsMN=!!t.mn;
  lsStart({id:t.id,title:t.title||"Lesetext",text:t.text,lang:t.lang||"de",level:t.level||"mittel",kind:t.kind||"",q:[]});if(!P){const n=document.createElement("p");n.className="muted";n.style.cssText="margin:0;text-align:center;font-size:13px";n.textContent="Probetext – normalerweise öffnet PokeLearn diese Seite mit dem Text, den du lesen sollst.";view().prepend(n)}}
 window.addEventListener("hashchange",()=>{lsStop();boot()});
