@@ -1,0 +1,29 @@
+{
+ "name": "PokeLearn",
+ "short_name": "PokeLearn",
+ "description": "Üben und Pokémon-Karten verdienen",
+ "start_url": "./",
+ "scope": "./",
+ "display": "standalone",
+ "background_color": "#e9eff6",
+ "theme_color": "#ff6b35",
+ "lang": "de",
+ "icons": [
+  {
+   "src": "icons/icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png"
+  },
+  {
+   "src": "icons/icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  },
+  {
+   "src": "icons/icon-maskable-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "maskable"
+  }
+ ]
+}
