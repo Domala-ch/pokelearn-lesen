@@ -345,12 +345,14 @@ textarea{resize:vertical;font-size:17px;line-height:1.5}
 @keyframes nowp{50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--gold) 35%,transparent)}}
 @media (prefers-reduced-motion:reduce){.lw.now{animation:none}}
 .lsfocus{position:fixed;left:0;right:0;top:0;height:100%;z-index:45;background:var(--bg);display:flex;flex-direction:column;gap:8px;padding-top:max(8px,env(safe-area-inset-top,0px));padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
-.lsstrip{flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto auto;min-width:0;gap:8px;align-items:center;background:var(--surface);border-radius:14px;padding:8px;box-shadow:var(--shadow)}
+.lsstrip{flex:none;display:grid;grid-template-columns:minmax(0,1fr);min-width:0;gap:8px;align-items:center;background:var(--surface);border-radius:14px;padding:8px;box-shadow:var(--shadow)}
+.lsheard{font-size:19px;line-height:1.35;font-weight:700;min-height:54px;padding:8px 10px;border-radius:10px;background:var(--surface-2);overflow-wrap:anywhere;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.lsheard .muted{font-weight:600;font-size:14px}.lsheard .micdot{flex:none}
+.lsstrip.live textarea{display:none}.lsbtns{display:flex;gap:8px;flex-wrap:wrap}.lsbtns .primary{flex:1}
 .lsstrip textarea{min-height:44px;max-height:44px;font-size:16px;min-width:0;padding:8px 10px;resize:none;overflow:hidden;line-height:1.3}
-.lsmini{flex:none;display:flex;gap:12px;flex-wrap:wrap;font-size:13px;font-weight:800;color:var(--muted)}
+.lsmini{flex:none;display:flex;gap:14px;flex-wrap:wrap;font-size:13px;font-weight:800;color:var(--muted);padding:0 4px}
 .lsmini b{color:var(--ink);font-variant-numeric:tabular-nums}
 .lsscroll{position:relative;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 4px 45vh;overscroll-behavior:contain}
-.lsscroll .lstext{font-size:18px;line-height:1.75}
+.lsscroll .lstext{font-size:20px;line-height:1.9}
 .lsfocus{overflow:hidden;max-width:100vw}.lsscroll{overflow-x:hidden}
 .lsscroll .lw{transition:background .25s,color .25s}
 .lsscroll .lw.ok,.lsscroll .lw.badw,.lsscroll .lw.ok.soft{font-weight:inherit}  /* colour only, never width: lines must not re-wrap while reading */
@@ -1037,7 +1039,7 @@ async function initCaps(){
     if(snap.exists){const r=snap.data();if((r.updatedAt||0)>(S.updatedAt||0)){S=migrate(Object.assign(defaultState(),JSON.parse(JSON.stringify(r))));try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}renderAll()}}
     else dbRef.set(JSON.parse(JSON.stringify(S))).catch(()=>{})}}catch(e){}
   stateReady=true;gradeSheetSync();if(!gradeKnown()&&document.getElementById("home").style.display!=="none")renderHome();
-  priceListen();cardPhotoBackfill();if(STANDALONE&&SYNC.on()){SYNC.start();SYNC.pull(true)}if(STANDALONE)standOffer(false);
+  priceListen();cardPhotoBackfill();if(STANDALONE&&SYNC.on()){SYNC.start();SYNC.pull(true)}if(STANDALONE){setupFromLink().then(ok=>{if(!ok)standOffer(false)})}
   // keep every open copy of the app in sync: a newer saved state (another device, or a correction) is taken over right away
   try{if(dbRef&&!stateSub)stateSub=dbRef.onSnapshot(snap=>{if(!snap.exists)return;const r=snap.data();if((r.updatedAt||0)>(S.updatedAt||0)){S=migrate(Object.assign(defaultState(),JSON.parse(JSON.stringify(r))));try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}renderHud();gradeSheetSync();
     if(!R)renderHome();if(document.getElementById("v-wunsch")?.classList.contains("on")&&document.getElementById("proposeForm")?.hidden!==false)renderWish(curWish)}},()=>{stateSub=null})}catch(e){}
@@ -1050,7 +1052,7 @@ async function initCaps(){
 
 
 // ---- Abgleich zwischen Geräten (Website): the saved state lives in a private Gist of the parents' GitHub account ----
-const SYNC=(()=>{const K="pl-sync",FILE="pokelearn-state.json";let cfg=null;try{cfg=JSON.parse(localStorage.getItem(K)||"null")}catch(e){}
+const SYNC=(()=>{const K="pl-sync",FILE="pokelearn-state.json",SFILE="pokelearn-settings.json";let cfg=null;try{cfg=JSON.parse(localStorage.getItem(K)||"null")}catch(e){}
  let etag="",pushT=null,pulling=null,lastPushed=0,lastOk=0,deferred=null,timer=null,st={state:cfg?"idle":"off",msg:""};
  const hdr=tok=>({"Authorization":"Bearer "+tok,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"});
  const saveCfg=c=>{cfg=c;try{if(c)localStorage.setItem(K,JSON.stringify(c));else localStorage.removeItem(K)}catch(e){}};
@@ -1065,7 +1067,8 @@ const SYNC=(()=>{const K="pl-sync",FILE="pokelearn-state.json";let cfg=null;try{
   if(busy()){deferred=remote;return}deferred=null;apply(remote);toast("Fortschritt vom anderen Gerät übernommen.")}
  async function readGist(tok,id,force){const r=await fetch("https://api.github.com/gists/"+id,{headers:{...hdr(tok),...(etag&&!force?{"If-None-Match":etag}:{})}});
   if(r.status===304)return{same:true};if(r.status===401)throw err("bad_token","Token ungültig oder abgelaufen");if(r.status===404)throw err("gone","Abgleich-Speicher nicht gefunden");if(!r.ok)throw err("http","GitHub "+r.status);
-  etag=r.headers.get("etag")||"";const g=await r.json();const f=g.files&&g.files[FILE];if(!f)return{data:null};let txt=f.content;
+  etag=r.headers.get("etag")||"";const g=await r.json();const sf=g.files&&g.files[SFILE];if(sf&&sf.content){try{const o=JSON.parse(sf.content);if(o&&o.claudeKey&&!plKey()){localStorage.setItem(PL_KEYK,o.claudeKey);const h=document.getElementById("heftKeyHint");if(h)h.remove()}}catch(e){}}
+  const f=g.files&&g.files[FILE];if(!f)return{data:null};let txt=f.content;
   if(f.truncated){const rr=await fetch(f.raw_url,{headers:hdr(tok)});if(!rr.ok)throw err("http","GitHub "+rr.status);txt=await rr.text()}
   let data=null;try{data=JSON.parse(txt)}catch(e){}return{data}}
  async function connect(token){token=String(token||"").trim();if(!token)throw err("no_token","Token fehlt");
@@ -1079,7 +1082,8 @@ const SYNC=(()=>{const K="pl-sync",FILE="pokelearn-state.json";let cfg=null;try{
  async function push(){if(!cfg||!S.updatedAt||S.updatedAt===lastPushed||pushing)return;pushing=true;const at=S.updatedAt;
   try{// never overwrite newer progress from another device: look first (cheap when unchanged), then write
    try{const r=await readGist(cfg.token,cfg.gist,false);if(!r.same&&r.data&&(r.data.updatedAt||0)>at){takeRemote(r.data);return}}catch(e){if(e.code==="bad_token"||e.code==="gone"){setSt("err",e.message);return}}
-   const r=await fetch("https://api.github.com/gists/"+cfg.gist,{method:"PATCH",headers:hdr(cfg.token),body:JSON.stringify({files:{[FILE]:{content:JSON.stringify(S)}}})});
+   const files={[FILE]:{content:JSON.stringify(S)}};if(plKey())files[SFILE]={content:JSON.stringify({claudeKey:plKey(),at:Date.now()})};
+   const r=await fetch("https://api.github.com/gists/"+cfg.gist,{method:"PATCH",headers:hdr(cfg.token),body:JSON.stringify({files})});
    if(r.ok){lastPushed=at;etag=r.headers.get("etag")||"";setSt("ok")}else setSt("err",r.status===401?"Token ungültig oder abgelaufen":"GitHub "+r.status)}
   catch(e){setSt("err","offline")}finally{pushing=false;if(S.updatedAt!==lastPushed)changed()}}
  let pushing=false;
@@ -1088,18 +1092,28 @@ const SYNC=(()=>{const K="pl-sync",FILE="pokelearn-state.json";let cfg=null;try{
   document.addEventListener("visibilitychange",()=>{if(!cfg)return;if(document.visibilityState==="hidden"){clearTimeout(pushT);push()}else{if(deferred&&!busy())takeRemote(deferred);else pull(false)}});window.addEventListener("pagehide",()=>{if(cfg){clearTimeout(pushT);push()}})}
  function disconnect(){clearTimeout(pushT);clearInterval(timer);timer=null;saveCfg(null);etag="";setSt("off")}
  function idle(){if(deferred&&!busy())takeRemote(deferred)}
- return{connect,pull,push,changed,disconnect,start,idle,on:()=>!!cfg,cfg:()=>cfg,text,state:()=>st}})();
+ const setupLink=()=>cfg?location.origin+location.pathname+"?setup="+btoa(cfg.token).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""):"";
+ return{connect,pull,push,changed,disconnect,start,idle,on:()=>!!cfg,cfg:()=>cfg,text,state:()=>st,setupLink}})();
+// a setup link from another device (?setup=…) switches the sync on here without typing anything
+async function setupFromLink(){if(!STANDALONE)return false;const u=new URL(location.href);const t=u.searchParams.get("setup");if(!t)return false;u.searchParams.delete("setup");try{history.replaceState(null,"",u.pathname+(u.search||"")+u.hash)}catch(e){}
+ let tok="";try{tok=atob(t.replace(/-/g,"+").replace(/_/g,"/"))}catch(e){}if(!tok)return false;if(SYNC.on()&&SYNC.cfg().token===tok)return true;
+ toast("Abgleich wird eingerichtet …");try{await SYNC.connect(tok);S.standDone=true;save();toast("Abgleich eingeschaltet – Stand und Claude-Schlüssel übernommen.");renderAll();return true}catch(e){toast("Einrichtung fehlgeschlagen: "+(e.message||e.code));return false}}
 
 // ---- Website: a saved state shipped with the site (start/stand.json) can be taken over with one tap – on first start, via ?stand=1, or from the settings ----
-function standApply(o,src){if(!o||typeof o!=="object"||!("coins" in o)||!o.progress)return false;S=migrate(Object.assign(defaultState(),o));S.updatedAt=Date.now();save();gradeSheetSync();renderAll();toast(`Stand übernommen: ${money(S.coins)} gespart, ${S.sessions||0} Runden.`);return true}
+function standApply(o,src){if(!o||typeof o!=="object"||!("coins" in o)||!o.progress)return false;S=migrate(Object.assign(defaultState(),o));S.standDone=true;S.updatedAt=Date.now();save();gradeSheetSync();renderAll();toast(`Stand übernommen: ${money(S.coins)} gespart, ${S.sessions||0} Runden.`);return true}
 let standChecked=false;
 async function standOffer(force){if(!STANDALONE||(standChecked&&!force))return;standChecked=true;
  const fresh=!(S.sessions||(S.deck||[]).length||(S.diktate||[]).length);const u=new URL(location.href);const asked=u.searchParams.get("stand");
- if(!fresh&&!asked)return;let o=null;try{const r=await fetch("start/stand.json",{cache:"no-cache"});if(r.ok)o=await r.json()}catch(e){}if(!o||!("coins" in o))return;
+ if(asked&&asked!=="force"&&S.standDone)return;if(!fresh&&!asked)return;if(!asked&&S.standDone)return;let o=null;try{const r=await fetch("start/stand.json",{cache:"no-cache"});if(r.ok)o=await r.json()}catch(e){}if(!o||!("coins" in o))return;
  if(asked){u.searchParams.delete("stand");try{history.replaceState(null,"",u.pathname+(u.search||"")+u.hash)}catch(e){}}
  const old=document.getElementById("gradeSheet");if(old)old.remove();const el=document.createElement("div");el.className="gsheet";el.id="standSheet";
  el.innerHTML=`<div class="card gsheetin" role="dialog" aria-label="Stand übernehmen"><p class="eyebrow">Aus der Claude-App</p><h2 style="font-size:24px">Deinen bisherigen Stand übernehmen?</h2><p class="muted">${money(o.coins||0)} gespart · ${o.sessions||0} Runden · ${(o.deck||[]).length} Heft-Einträge · ${Object.keys(o.progress||{}).length} gelernte Einträge${!fresh?"<br><b>Achtung:</b> ersetzt den Stand auf diesem Gerät ("+money(S.coins)+", "+(S.sessions||0)+" Runden).":""}</p><div class="row"><button class="btn primary" id="standYes" style="flex:1">Ja, übernehmen</button><button class="btn ghost" id="standNo">Nicht jetzt</button></div></div>`;
- document.body.appendChild(el);el.querySelector("#standYes").onclick=()=>{el.remove();standApply(o);if(!gradeKnown())gradeChooser(true)};el.querySelector("#standNo").onclick=()=>{el.remove();if(!gradeKnown())gradeChooser(true)}}
+ document.body.appendChild(el);el.querySelector("#standYes").onclick=()=>{el.remove();standApply(o);if(!gradeKnown())gradeChooser(true)};el.querySelector("#standNo").onclick=()=>{el.remove();S.standDone=true;save();if(!gradeKnown())gradeChooser(true)}}
+// shown on iPhone/iPad while the site runs inside another app's browser (links tapped in a chat): storage there is wiped, Safari keeps it
+function homeHint(){const home=document.getElementById("home");if(!home||document.getElementById("homeHint"))return;const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);const sa=window.navigator.standalone===true||matchMedia("(display-mode: standalone)").matches;if(!ios||sa)return;
+ let hid=false;try{hid=sessionStorage.getItem("pl-hint")==="1"}catch(e){}if(hid)return;
+ const d=document.createElement("div");d.id="homeHint";d.className="card";d.style.cssText="display:grid;gap:8px;border:2px solid var(--gold)";d.innerHTML=`<b>Damit alles gespeichert bleibt:</b><span class="muted" style="font-size:14px">Diese Seite in <b>Safari</b> öffnen (nicht im Chat-Fenster), dann Teilen → <b>Zum Home-Bildschirm</b>. Von dort aus merkt sich die App Fortschritt, Schlüssel und Abgleich dauerhaft. Adresse: domala-ch.github.io/pokelearn-lesen</span><div class="row"><button class="btn small" id="hintCopy">Adresse kopieren</button><button class="btn small ghost" id="hintX">Verstanden</button></div>`;
+ home.prepend(d);d.querySelector("#hintX").onclick=()=>{try{sessionStorage.setItem("pl-hint","1")}catch(e){}d.remove()};d.querySelector("#hintCopy").onclick=()=>{try{navigator.clipboard.writeText("https://domala-ch.github.io/pokelearn-lesen/");toast("Adresse kopiert – in Safari einfügen.")}catch(e){}}}
 /* ========== ITEM POOL + SPACED REPETITION ========== */
 // progress[id] = {box,due,c,w}  box 0..5, intervals in days
 const INT=[0,1,3,7,14,30];
@@ -1476,7 +1490,7 @@ function renderDeck(){const l=document.getElementById("deckList");document.getEl
 /* ========== RENDER ========== */
 function renderHud(){document.getElementById("coins").textContent=money(S.coins);document.getElementById("streakN").textContent=S.streak;
   const d=S.history[today()]?.c||0;const f=Math.min(1,d/S.dailyGoal);document.getElementById("ringArc").style.strokeDashoffset=94.2*(1-f);document.getElementById("ringTxt").textContent=d}
-function renderHome(){if(STANDALONE&&typeof SYNC!=="undefined"&&!R)SYNC.idle();document.getElementById("homeName").textContent=S.name;const g=document.getElementById("subjects");g.innerHTML="";
+function renderHome(){if(STANDALONE&&typeof SYNC!=="undefined"&&!R)SYNC.idle();if(STANDALONE)setTimeout(homeHint,0);document.getElementById("homeName").textContent=S.name;const g=document.getElementById("subjects");g.innerHTML="";
   const gb=document.getElementById("gradeBtn");if(gb)gb.innerHTML=`${gradeOf()}. Klasse <span aria-hidden="true">▾</span>`;
   if(stateReady&&!gradeKnown()&&!document.getElementById("gradeSheet")&&!document.getElementById("standSheet"))setTimeout(()=>{if(stateReady&&!gradeKnown()&&!document.getElementById("gradeSheet")&&!document.getElementById("standSheet"))gradeChooser(true)},300);
   const order=[...gradeSubjects(),"heft","mix"];order.forEach(k=>{if(k==="mix"&&gradeOf()!==6&&!topicsFor("ma").some(t=>t.gen)&&!S.deck.length)return;const ts=topicsFor(k);const ids=ts.flatMap(t=>t.gen?[]:t.ids);const due=dueCount(ids),nw=newCount(ids);
@@ -1835,12 +1849,12 @@ function renderEltern(){if(!unlocked)return pinGate(renderEltern);const v=docume
   <div class="card" style="display:grid;gap:10px"><p class="eyebrow">Vorlese-Stimmen</p><p class="muted" style="font-size:13px;margin:0">Für jede Sprache wird die gewählte Stimme gespeichert und beim nächsten Diktat wieder verwendet. «Automatisch» nimmt die natürlichste installierte Stimme. Alle Stimmen dieses Geräts sind aufgelistet, nach Sprache gruppiert.${LIVE.ok()?" Die PokeLearn-Stimmen (weiblich und männlich, in allen drei Sprachen) lesen hier jeden Text – auch neue Diktate von Claude. Beim ersten Mal lädt das Gerät das Stimm-Modell (etwa 100 MB pro Sprache), danach bleibt es gespeichert.":""}</p>${ttsOK()?Object.keys(LANGN).map(l=>`<div class="row" style="align-items:flex-end"><label class="f" style="flex:1;min-width:200px">${LANGN[l]} <select data-vlang="${l}"></select></label><button class="btn small teal" data-vtest="${l}">Probehören</button></div>`).join(""):'<p class="muted" style="margin:0">Dieses Gerät kann nicht vorlesen.</p>'}<div class="row"><button class="btn small" data-vreload>Stimmen neu laden</button></div><details><summary style="cursor:pointer;font-size:14px;font-weight:700">Welche Stimmen meldet dieses Gerät?</summary><div class="list" style="margin-top:8px" data-vdiag></div></details><p class="muted" style="font-size:12px;margin:0">Die Stimmen hängen vom Gerät ab. Auf einem anderen Gerät wird dieselbe Stimme gewählt, wenn sie dort auch installiert ist, sonst die beste passende.</p></div>
   <div class="card" style="display:grid;gap:10px"><p class="eyebrow">Einstellungen</p><div class="grid2"><label class="f">Name <input id="sName" value="${esc(S.name)}"></label><label class="f">Tagesziel (richtige Antworten) <input id="sGoal" type="number" inputmode="numeric" value="${S.dailyGoal}"></label><label class="f">Neue PIN (4 Ziffern) <input id="sPin" inputmode="numeric" maxlength="4" placeholder="••••"></label><label class="f">Erspartes anpassen (${cur().name}) <input id="sCoins" type="number" inputmode="decimal" step="0.05" value="${(S.coins/S.rate).toFixed(2)}"></label></div><button class="btn teal" id="sSave">Speichern</button><button class="btn ghost" id="sReset" style="color:var(--bad)">Alles zurücksetzen</button></div>
   ${STANDALONE?`<div class="card" style="display:grid;gap:10px"><p class="eyebrow">Abgleich zwischen Geräten</p><p class="muted" style="font-size:13px;margin:0">Damit Fortschritt, Heft-Einträge, Diktate, Lesetexte und Wunschliste auf iPhone, iPad und Computer gleich sind, speichert die App alles zusätzlich in einem privaten «Gist» eures GitHub-Kontos. Dafür braucht es ein Zugriffs-Token eures GitHub-Kontos: unten auf <b>Token bei GitHub erstellen</b> tippen (Name und das Häkchen «gist» sind schon gesetzt), bei <b>Expiration</b> «No expiration» wählen, <b>Generate token</b>, das Token kopieren und hier einfügen. Dasselbe Token auf jedem Gerät eintragen. Das Gerät mit dem aktuelleren Stand gewinnt – darum am besten ein Gerät nach dem anderen benutzen.</p>
-  ${SYNC.on()?`<p class="muted" id="syncSt" style="margin:0;font-size:13px">${esc(SYNC.text())}</p><div class="row"><button class="btn teal" id="syncNow">Jetzt abgleichen</button><button class="btn ghost" id="syncOff" style="color:var(--bad)">Abgleich ausschalten</button></div>`
+  ${SYNC.on()?`<p class="muted" id="syncSt" style="margin:0;font-size:13px">${esc(SYNC.text())}</p><div class="row"><button class="btn teal" id="syncNow">Jetzt abgleichen</button><button class="btn" id="syncLink">Einrichtungs-Link für ein weiteres Gerät</button><button class="btn ghost" id="syncOff" style="color:var(--bad)">Abgleich ausschalten</button></div><p class="muted" style="margin:0;font-size:13px">Der Einrichtungs-Link schaltet auf einem anderen Gerät (iPad, Computer) den Abgleich mit einem Tipp ein – samt Fortschritt und Claude-Schlüssel. Nur an eigene Geräte schicken (AirDrop, Nachricht an dich selbst): wer den Link hat, hat Zugriff.</p>`
   :`<div class="row"><a class="btn small" href="https://github.com/settings/tokens/new?scopes=gist&description=PokeLearn" target="_blank" rel="noopener">Token bei GitHub erstellen ↗</a></div><label class="f">GitHub-Token <input id="syncTok" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ghp_…"></label><div class="row"><button class="btn teal" id="syncOn">Abgleich einschalten</button></div><p class="muted" id="syncSt" style="margin:0;font-size:13px">Noch nicht eingerichtet – der Fortschritt bleibt auf diesem Gerät.</p>`}</div>
   <div class="card" style="display:grid;gap:10px"><p class="eyebrow">Claude (KI-Funktionen)</p><p class="muted" style="font-size:13px;margin:0">Diese Web-Version spricht direkt mit Claude: Hefte und Diktatvorlagen fotografieren, neue Diktate und Lesetexte, Erklärungen bei Fehlern, Zeichnungen beurteilen und die Preissuche für Wunschkarten. Dafür braucht es einen eigenen API-Schlüssel von <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> (die Nutzung wird dort nach Verbrauch abgerechnet – bei normalem Üben wenige Rappen pro Tag). Der Schlüssel bleibt nur auf diesem Gerät gespeichert und wird ausschliesslich an api.anthropic.com gesendet.</p>
   <label class="f">API-Schlüssel <input id="sKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-ant-…" value="${esc(plKey())}"></label><div class="row"><button class="btn teal" id="sKeySave">Speichern und testen</button><button class="btn ghost" id="sKeyShow">Anzeigen</button>${plKey()?'<button class="btn ghost" id="sKeyDel" style="color:var(--bad)">Entfernen</button>':""}</div><p class="muted" id="sKeySt" style="margin:0;font-size:13px">${plKey()?"Ein Schlüssel ist gespeichert.":"Noch kein Schlüssel – die Claude-Funktionen sind bis dahin ausgeschaltet, alles andere funktioniert."}</p></div>`:""}
   <div class="card" style="display:grid;gap:10px"><p class="eyebrow">Aktuelle Schulthemen</p><p class="muted" style="font-size:13px;margin:0">Was gerade in der Schule dran ist, ankreuzen: Diese Themen stehen in der App zuoberst, sind markiert und kommen in gemischten Runden häufiger. Jederzeit änderbar – z. B. bei jeder neuen Unité oder jedem neuen Kapitel.</p>
-  ${gradeSubjects().filter(k=>["de","fr","en","ma"].includes(k)).map(k=>`<details ${topicsFor(k).some(t=>isFocus(t.key))?"open":""}><summary style="cursor:pointer;font-weight:700;font-size:14px">${SUBJ[k].name}${(n=>n?` · ${n} aktuell`:"")(topicsFor(k).filter(t=>isFocus(t.key)).length)}</summary><div class="list" style="margin-top:6px">${topicsFor(k).map(t=>`<label class="item" style="gap:10px;cursor:pointer"><input type="checkbox" data-focus="${esc(t.key)}" ${isFocus(t.key)?"checked":""}><span class="t" style="font-size:14px">${esc(t.name)}</span></label>`).join("")}</div></details>`).join("")}</div>
+  ${gradeSubjects().filter(k=>["de","fr","en","ma"].includes(k)).map(k=>`<details ${topicsFor(k).some(t=>isFocus(t.key))?"open":""}><summary style="cursor:pointer;font-weight:700;font-size:14px">${SUBJ[k].name}${(n=>n?` · ${n} aktuell`:"")(topicsFor(k).filter(t=>isFocus(t.key)).length)}</summary><div class="list" style="margin-top:6px">${topicsFor(k).map(t=>`<label class="item" style="gap:12px;cursor:pointer;align-items:center"><input type="checkbox" data-focus="${esc(t.key)}" ${isFocus(t.key)?"checked":""} style="width:22px;height:22px;flex:none;margin:0"><span style="flex:1;min-width:0;font-size:15px;line-height:1.3">${esc(t.name)}</span></label>`).join("")}</div></details>`).join("")}</div>
   <div class="card" style="display:grid;gap:10px"><p class="eyebrow">Stand übertragen</p><p class="muted" style="font-size:13px;margin:0">${STANDALONE?"Den kompletten Stand (Fortschritt, Erspartes, Heft, Diktate, Lesetexte, Wunschliste) aus der Claude-App oder einer Sicherung übernehmen: dort unter Eltern «Stand kopieren» tippen, hier einfügen – oder eine gesicherte Datei wählen. Der übernommene Stand ersetzt den jetzigen auf diesem Gerät und wird danach an die anderen Geräte weitergegeben.":"Den kompletten Stand in die Website-Version mitnehmen: «Stand kopieren» tippen, dann auf der Website unter Eltern › Stand übertragen einfügen."}</p>
   <div class="row"><button class="btn teal" id="xCopy">Stand kopieren</button>${STANDALONE?'<button class="btn ghost" id="xDown">Als Datei sichern</button>':""}</div>
   ${STANDALONE?`<textarea id="xPaste" rows="2" placeholder="Hier den kopierten Stand einfügen …" spellcheck="false" style="font-size:12px"></textarea><div class="row"><button class="btn primary" id="xApply">Eingefügten Stand übernehmen</button><label class="btn" style="cursor:pointer">Datei wählen <input type="file" id="xFile" accept=".json,application/json" hidden></label><button class="btn" id="xStart">Stand aus der Claude-App laden</button></div><p class="muted" id="xSt" style="margin:0;font-size:13px"></p>`:""}</div>
@@ -1860,6 +1874,7 @@ function renderEltern(){if(!unlocked)return pinGate(renderEltern);const v=docume
   if(STANDALONE){const sst=v.querySelector("#syncSt");
    const on=v.querySelector("#syncOn");if(on)on.onclick=async()=>{on.disabled=true;sst.innerHTML='<span class="spin"></span> Verbindung zu GitHub wird geprüft …';try{await SYNC.connect(v.querySelector("#syncTok").value);toast("Abgleich eingeschaltet");renderEltern()}catch(e){sst.textContent=e.message||"Das hat nicht geklappt.";on.disabled=false}};
    const now=v.querySelector("#syncNow");if(now)now.onclick=async()=>{now.disabled=true;sst.textContent="Abgleich läuft …";await SYNC.push();await SYNC.pull(true);SYNC.idle();sst.textContent=SYNC.text();now.disabled=false};
+   const lk=v.querySelector("#syncLink");if(lk)lk.onclick=async()=>{const u=SYNC.setupLink();try{if(navigator.share){await navigator.share({title:"PokeLearn einrichten",url:u})}else{await navigator.clipboard.writeText(u);toast("Link kopiert – auf dem anderen Gerät öffnen.")}}catch(e){try{await navigator.clipboard.writeText(u);toast("Link kopiert – auf dem anderen Gerät öffnen.")}catch(x){prompt("Einrichtungs-Link:",u)}}};
    const off=v.querySelector("#syncOff");if(off)off.onclick=()=>{SYNC.disconnect();toast("Abgleich ausgeschaltet – die Daten bleiben auf diesem Gerät.");renderEltern()}}
   if(STANDALONE){const st=v.querySelector("#sKeySt"),inp=v.querySelector("#sKey");
    v.querySelector("#sKeyShow").onclick=()=>{inp.type=inp.type==="password"?"text":"password"};
@@ -2674,14 +2689,14 @@ function lsList(v){const rec=lsRecommend(),sel=S.lsLevel||rec.level,left=lsBankL
   <div class="lvgrid">${LEVELS.map(l=>`<button class="lvcard ${l===sel?"on":""}" data-lslvl="${l}"><span class="row" style="gap:6px;justify-content:space-between"><b>${l[0].toUpperCase()+l.slice(1)}</b>${l===rec.level?'<span class="pill good">Empfohlen</span>':""}</span><small class="muted">${LSINFO[l]} · Ziel ${LSTARGET[l]} Wörter/Min.</small>${(n=>n?`<span class="lvdone">✓ ${n} gelesen</span>`:"")((S.lsHist||[]).filter(x=>x.level===l).length)}</button>`).join("")}</div>
   <p class="muted" style="margin:0;font-size:14px"><b>Empfehlung:</b> ${esc(rec.why)}</p></div>
  <div class="card" style="display:grid;gap:10px">
-  <label class="row" style="gap:8px"><input type="checkbox" id="lsStrict" style="width:auto" ${S.lsStop===true?"checked":""}> Mikrofon: bei falsch gelesenem Wort anhalten (3 Versuche, dann wird es vorgelesen). Ohne Häkchen wird das Wort nur rot markiert und es geht weiter.</label>
+  <p class="muted" style="margin:0;font-size:13px">Mit Mikrofon: Jedes Wort wird sofort grün (richtig) oder rot (falsch) – es geht immer gleich weiter, nichts wird unterbrochen. Nach dem Lesen tippst du auf rote Wörter, um sie zu hören.</p>
   <label class="row" style="gap:8px"><input type="checkbox" id="lsParent" style="width:auto" ${S.lsParent?"checked":""}> Ein Erwachsener hört zu und tippt falsch gelesene Wörter an</label>
   <label class="row" style="gap:8px"><input type="checkbox" id="lsMN" style="width:auto" ${S.lsMN===true?"checked":""}> Mikrofon: m und n am Wortende nicht unterscheiden (in/im, an/am gelten als richtig). Nur einschalten, wenn die Diktierfunktion diese Endungen oft falsch hört.</label>
   <button class="btn primary" id="lsGo" data-la="go" style="font-size:19px;padding:16px">Lesetext «${sel[0].toUpperCase()+sel.slice(1)}» starten</button>
   <p class="muted" style="margin:0;font-size:13px">${left?`Noch ${left} vorbereitete ${left===1?"Text":"Texte"} auf dieser Stufe, danach schreibt Claude dir immer neue.`:"Claude schreibt dir einen ganz neuen Text mit Fragen. Du bekommst nie zweimal denselben."}</p>
   <div id="lsStatus" class="muted" hidden></div></div>
  ${H.length?`<div class="card"><p class="eyebrow" style="margin:0 0 8px">Zuletzt gelesen</p><div class="list">${H.map(x=>`<div class="item"><div class="t">${esc(x.title)}<small>${x.date} · ${x.level}${x.wpm?` · ${x.wpm} Wörter/Min.`:""} · ${x.q}/${x.qn} Fragen</small></div><span class="pill good">${x.points} P.</span></div>`).join("")}</div></div>`:""}`;
- v.querySelector("#lsParent").onchange=e=>{S.lsParent=e.target.checked;save()};v.querySelector("#lsStrict").onchange=e=>{S.lsStop=e.target.checked;save()};v.querySelector("#lsMN").onchange=e=>{S.lsMN=e.target.checked;save()}}
+ v.querySelector("#lsParent").onchange=e=>{S.lsParent=e.target.checked;save()};v.querySelector("#lsMN").onchange=e=>{S.lsMN=e.target.checked;save()}}
 function lsBoard(v){const tab=LS.tab||"alle";const all=(S.lsHist||[]).filter(x=>tab==="alle"||x.level===tab).slice().sort((a,b)=>b.points-a.points).slice(0,20);
  const best=lv=>{const r=(S.lsHist||[]).filter(x=>x.level===lv&&x.wpm);return r.length?Math.max(...r.map(x=>x.wpm)):null};
  v.innerHTML=`<div class="row"><button class="btn small ghost" data-la="list">← Zurück</button></div><div><p class="eyebrow">Lesen</p><h1 style="font-size:28px">Bestenliste</h1></div>
@@ -2802,7 +2817,7 @@ const LSFILL=/^(äh|ähm|ehm|hm|hmm|mh|öh|oh|ah|eh|uh|um)$/;
 function lsOnDict(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="reading")return;const ta=document.getElementById("lsDict");if(ta&&ta.value!==L._lastVal){L._lastVal=ta.value;L.lastInput=Date.now()}if(L._raf)return;L._raf=requestAnimationFrame(()=>{L._raf=0;lsUpdateFromHeard()})}
 // Correction mode ("Bei Fehlern anhalten"): words before a misread word are locked; the reader must re-read the misread word.
 // Run-up repeats and filler sounds are not attempts; after three failed attempts the word is said aloud and reading continues.
-function lsAdvance(heard){const L=LS,strict=S.lsStop===true,N=L.expN.length;if(!LSSTRICT){LSSTRICT=true;L._subKey=null}if(LSMN!==(S.lsMN===true)){LSMN=S.lsMN===true;L._subKey=null}LSLANG=L.text.lang||"de";
+function lsAdvance(heard){const L=LS,strict=false,N=L.expN.length;if(!LSSTRICT){LSSTRICT=true;L._subKey=null}if(LSMN!==(S.lsMN===true)){LSMN=S.lsMN===true;L._subKey=null}LSLANG=L.text.lang||"de";
  if(!L.fin){L.fin=[];L.e0=0;L.h0=0;L.retry=null;L.fixed=0;L.given=0}
  if(heard.length<L.h0)L.h0=heard.length;if(L.retry&&L.retry.h>heard.length){L.retry.h=heard.length;L.retry.seen=Math.min(L.retry.seen,heard.length)}
  for(let guard=0;guard<60;guard++){
@@ -2826,13 +2841,13 @@ function lsAdvance(heard){const L=LS,strict=S.lsStop===true,N=L.expN.length;if(!
  L.wst=[...L.fin.slice(0,L.e0),...(L.retry?[]:L.cur||[])];
  L.pos=L.retry?L.retry.idx:Math.min(N,L.e0+((L.cur||[]).length))}
 // give up on a word: count it as a mistake, say it aloud, credit the words she already read past it, continue after them
-function lsGiveUp(idx,ahead,hNext){const L=LS;L.fin[idx]="bad";L.given++;for(let m=1;m<=ahead;m++)L.fin[idx+m]="ok";L.e0=idx+1+ahead;L.h0=hNext;L.retry=null;lsSayWord(idx)}
+function lsGiveUp(idx,ahead,hNext){const L=LS;L.fin[idx]="bad";L.given++;for(let m=1;m<=ahead;m++)L.fin[idx+m]="ok";L.e0=idx+1+ahead;L.h0=hNext;L.retry=null}
 function lsSayWord(idx){const L=LS,w=L.T[L.W[idx]].t;toast(`Das Wort heisst: «${w}»`);try{speechSynthesis.cancel()}catch(e){}speak(w,L.text.lang||"de",.8)}
 function lsBeep(good){try{const c=acGet();if(!c)return;if(c.state!=="running"){c.resume().catch(()=>{})}const t0=c.currentTime;const tone=(f,at,dur,vol)=>{const o=c.createOscillator(),g=c.createGain();o.type=good?"sine":"square";o.frequency.value=f;g.gain.setValueAtTime(.0001,t0+at);g.gain.exponentialRampToValueAtTime(vol,t0+at+.02);g.gain.exponentialRampToValueAtTime(.0001,t0+at+dur);o.connect(g).connect(c.destination);o.start(t0+at);o.stop(t0+at+dur+.02)};
  if(good)tone(880,0,.18,.08);else{tone(440,0,.16,.12);tone(330,.18,.26,.12)}}catch(e){}}
 // no banner: the word itself signals the stop — yellow on the first attempt, orange on the second, red on the third (then it is read aloud)
 function lsRetryUI(){const L=LS,el=document.getElementById("lsRetry"),fx=document.getElementById("lsFocus");if(el)el.hidden=true;if(fx)fx.classList.toggle("stopped",!!L.retry)}
-function lsUpdateFromHeard(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="reading")return;const ta=document.getElementById("lsDict");if(!ta)return;const bh=document.getElementById("lsHow");if(bh&&L.srLive&&ta.readOnly){const w=ta.value.trim().split(/\s+/).slice(-6).join(" ");bh.innerHTML=w?`<span class="muted">Ich höre:</span> ${esc(w)}`:"<b>Ich höre zu.</b> Lies den Text laut vor."}
+function lsUpdateFromHeard(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="reading")return;const ta=document.getElementById("lsDict");if(!ta)return;const bh=document.getElementById("lsHow");if(bh&&L.srLive&&ta.readOnly){const w=ta.value.trim().split(/\s+/).slice(-8).join(" ");bh.innerHTML=w?`<span class="micdot"></span><span class="muted">Ich höre:</span> ${esc(w)}`:'<span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.'}
  if(!L.t0&&!L.ms&&ta.value.trim()){L.t0=Date.now();L.timer=L.timer||setInterval(lsClock,500)}
  const heard=heardTokens(ta.value);lsAdvance(heard);L.lastHeard=Date.now();lsPaint();lsRetryUI();
  if(document.getElementById("lsFocus"))lsKeepWord();else{const now=document.querySelector("#lsText .lw.now");if(now&&!L._scrollLock){L._scrollLock=true;now.scrollIntoView({block:"center"});setTimeout(()=>L._scrollLock=false,400)}}
@@ -2867,12 +2882,12 @@ function lsPaint(){const L=LS;
 function lsClock(){const L=LS;const ms=L.ms+(L.t0?Date.now()-L.t0:0);const s=Math.floor(ms/1000);const e=document.getElementById("lsTime");if(e)e.textContent=Math.floor(s/60)+":"+String(s%60).padStart(2,"0")}
 function lsFocusView(v){const L=LS,t=L.text,lang=t.lang||"de";
  v.innerHTML=`<div class="lsfocus" id="lsFocus" lang="${lang}">
-  <div class="lsstrip"><textarea id="lsDict" lang="${lang==="de"?"de-CH":lang}" rows="1" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="Was das Mikrofon hört" ${lsLive()?'readonly tabindex="-1"':''} placeholder="${lsLive()?"Hier erscheint, was ich höre …":"Tippe hier, dann aufs Mikrofon der Tastatur"}"></textarea>
-   <button class="btn small primary" data-la="micDone">${IC.check} Fertig</button><button class="btn small ghost" data-la="micExit" aria-label="Beenden">✕</button>
+  <div class="lsstrip ${lsLive()?"live":""}"><div class="lsheard" id="lsHow"><span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.</div>
+   <textarea id="lsDict" lang="${lang==="de"?"de-CH":lang}" rows="1" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="Was das Mikrofon hört" ${lsLive()?'readonly tabindex="-1"':''} placeholder="${lsLive()?"Hier erscheint, was ich höre …":"Tippe hier, dann aufs Mikrofon der Tastatur"}"></textarea>
+   <div class="lsbtns"><button class="btn small primary" data-la="micDone">${IC.check} Fertig gelesen</button><button class="btn small ghost" data-la="micClear">Neu beginnen</button><button class="btn small ghost" data-la="micExit" aria-label="Beenden">✕</button></div>
    <div class="lsretry" id="lsRetry" hidden aria-live="assertive"></div>
-   <div class="lshow muted" id="lsHow" style="grid-column:1/-1;font-size:13px"></div>
    <div class="lswarn" id="lsWarn" hidden></div></div>
-  <div class="lsmini"><span><span class="micdot"></span><span id="lsMicLab">Lies laut vor</span></span><span>Zeit <b id="lsTime">0:00</b></span><span>Wörter <b id="lsWords">0</b></span><span>Richtig <b id="lsSent">0%</b></span><span>Fehler <b id="lsErr">0</b></span><span id="lsSentL" hidden></span><button class="btn small ghost" data-la="micClear" style="padding:2px 8px;font-size:12px">Neu beginnen</button></div>
+  <div class="lsmini"><span id="lsMicLab" hidden></span><span>Zeit <b id="lsTime">0:00</b></span><span>Wörter <b id="lsWords">0</b></span><span>Richtig <b id="lsSent">0%</b></span><span>Fehler <b id="lsErr">0</b></span><span id="lsSentL" hidden></span></div>
   <div class="lsscroll" id="lsScroll"><h2 style="font-size:20px;margin:0 0 6px;color:var(--accent)">${esc(t.title)}</h2><div class="lstext" id="lsText">${lsTextHtml()}</div></div></div>`;
  lsPaint();const scv=document.getElementById("lsScroll");scv.scrollTop=0;LS._lineTop=null;lsFit();lsClock();const hold=()=>{if(LS)LS._userScrollUntil=Date.now()+2500};scv.addEventListener("touchstart",hold,{passive:true});scv.addEventListener("wheel",hold,{passive:true});const ta=document.getElementById("lsDict");ta.addEventListener("input",lsOnDict);ta.addEventListener("compositionupdate",lsOnDict);ta.addEventListener("compositionend",lsOnDict);
  clearInterval(LS._poll);LS._poll=setInterval(()=>{const L=LS,t=document.getElementById("lsDict");if(!L||!t||L.phase!=="reading"){if(!t)clearInterval(L&&L._poll);return}if(t.value!==L._lastVal)lsOnDict()},70);ta.addEventListener("focus",()=>setTimeout(lsFit,350));ta.addEventListener("blur",()=>setTimeout(lsFit,350));lsMicUI()}
@@ -2897,7 +2912,7 @@ const SRLANG={de:"de-CH",fr:"fr-CH",en:"en-GB"};
 const LESEN_URL="https://domala-ch.github.io/pokelearn-lesen/lesen/";const LESEN_B32="23456789ABCDEFGHJKLMNPQRSTUVWXYZ",LESEN_SECRET="pokelearn-lesen-2026";
 const b64u=s=>btoa(Array.from(new TextEncoder().encode(s),b=>String.fromCharCode(b)).join("")).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 function lesenLink(t){const back=location.ancestorOrigins&&location.ancestorOrigins[0]?location.ancestorOrigins[0]+"/artifact/1EEaQhhmiJz3dM96TL2pHP":"https://claude.ai/artifact/1EEaQhhmiJz3dM96TL2pHP";
- return LESEN_URL+"#r="+b64u(JSON.stringify({v:1,id:t.id,title:t.title,text:t.text,lang:t.lang||"de",level:t.level,kind:t.kind||"",strict:S.lsStop===true,mn:S.lsMN===true,name:S.name||"",back}))}
+ return LESEN_URL+"#r="+b64u(JSON.stringify({v:1,id:t.id,title:t.title,text:t.text,lang:t.lang||"de",level:t.level,kind:t.kind||"",strict:false,mn:S.lsMN===true,name:S.name||"",back}))}
 function lesenCode(code,id){const c=String(code||"").toUpperCase().replace(/[^2-9A-Z]/g,"").replace(/O/g,"0").replace(/[I]/g,"1");if(c.length!==7)return null;let v=0n;for(const ch of c){const i=LESEN_B32.indexOf(ch);if(i<0)return null;v=v*32n+BigInt(i)}
  const chk=Number(v&4095n),wpm=Number((v>>12n)&511n),errs=Number((v>>21n)&127n),acc=Number((v>>28n)&127n);
  if(parseInt(hashStr(`${LESEN_SECRET}|${id}|${acc}|${errs}|${wpm}`),36)%4096!==chk)return null;return{acc,errs,wpm,code:c}}
@@ -2921,9 +2936,9 @@ function lsStartSR(){const L=LS,SR=window.SpeechRecognition||window.webkitSpeech
  L.sr=r;try{r.start()}catch(e){lsSRBlocked=true;L.sr=null}}
 function lsStopSR(L){L=L||LS;if(L&&L.sr){const r=L.sr;L.sr=null;try{r.onend=null;r.abort()}catch(e){}}}
 function lsMicUI(){const L=LS,el=document.getElementById("lsHow"),lab=document.getElementById("lsMicLab");if(!L||!el)return;
- if(L.srLive){el.innerHTML="<b>Ich höre direkt zu.</b> Lies einfach laut vor.";if(lab)lab.textContent="Ich höre zu";const ta=document.getElementById("lsDict");if(ta&&document.activeElement===ta&&matchMedia("(pointer:coarse)").matches)ta.blur()}
- else if(lsLive()){el.innerHTML="<b>Ich höre zu.</b> Lies den Text laut vor.";if(lab)lab.textContent="Ich höre zu"}
- else{el.textContent=LSHOW[lsPlatform()]||LSHOW.other;if(lab)lab.textContent="Lies laut vor";const ta=document.getElementById("lsDict");if(ta&&ta.readOnly){ta.readOnly=false;ta.removeAttribute("tabindex");ta.placeholder="Tippe hier, dann aufs Mikrofon der Tastatur";if(STANDALONE)ta.focus()}}}
+ if(L.srLive){el.innerHTML='<span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.';if(lab)lab.textContent="Ich höre zu";const ta=document.getElementById("lsDict");if(ta&&document.activeElement===ta&&matchMedia("(pointer:coarse)").matches)ta.blur()}
+ else if(lsLive()){el.innerHTML='<span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.';if(lab)lab.textContent="Ich höre zu"}
+ else{el.innerHTML='<span class="muted">'+esc(LSHOW[lsPlatform()]||LSHOW.other)+'</span>';if(lab)lab.textContent="Lies laut vor";const st=document.querySelector(".lsstrip");if(st)st.classList.remove("live");const ta=document.getElementById("lsDict");if(ta&&ta.readOnly){ta.readOnly=false;ta.removeAttribute("tabindex");ta.placeholder="Tippe hier, dann aufs Mikrofon der Tastatur";if(STANDALONE)ta.focus()}}}
 // keep the reading view inside the part of the screen the keyboard leaves free
 function lsFit(){const el=document.getElementById("lsFocus");if(!el)return;const vv=window.visualViewport;let top=0,ht=window.innerHeight;
  let left=0,wd=0;if(vv){top=vv.offsetTop;ht=vv.height;left=vv.offsetLeft;wd=vv.width}

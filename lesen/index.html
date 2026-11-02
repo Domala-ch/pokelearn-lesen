@@ -79,12 +79,14 @@ h1,h2,h3{font-family:var(--display);font-weight:600;line-height:1.15;margin:0;te
 .lw.now{background:color-mix(in srgb,var(--gold) 45%,transparent);box-shadow:0 0 0 3px var(--gold);animation:nowp .9s ease-in-out infinite}
 @keyframes nowp{50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--gold) 35%,transparent)}}
 .lsfocus{position:fixed;left:0;right:0;top:0;height:100%;z-index:45;background:var(--bg);display:flex;flex-direction:column;gap:8px;padding-top:max(8px,env(safe-area-inset-top,0px));padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
-.lsstrip{flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto auto;min-width:0;gap:8px;align-items:center;background:var(--surface);border-radius:14px;padding:8px;box-shadow:var(--shadow)}
+.lsstrip{flex:none;display:grid;grid-template-columns:minmax(0,1fr);min-width:0;gap:8px;align-items:center;background:var(--surface);border-radius:14px;padding:8px;box-shadow:var(--shadow)}
+.lsheard{font-size:19px;line-height:1.35;font-weight:700;min-height:54px;padding:8px 10px;border-radius:10px;background:var(--surface-2);overflow-wrap:anywhere;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.lsheard .muted{font-weight:600;font-size:14px}.lsheard .micdot{flex:none}
+.lsstrip.live textarea{display:none}.lsbtns{display:flex;gap:8px;flex-wrap:wrap}.lsbtns .primary{flex:1}
 .lsstrip textarea{min-height:44px;max-height:44px;font-size:16px;min-width:0;padding:8px 10px;resize:none;overflow:hidden;line-height:1.3}
-.lsmini{flex:none;display:flex;gap:12px;flex-wrap:wrap;font-size:13px;font-weight:800;color:var(--muted)}
+.lsmini{flex:none;display:flex;gap:14px;flex-wrap:wrap;font-size:13px;font-weight:800;color:var(--muted);padding:0 4px}
 .lsmini b{color:var(--ink);font-variant-numeric:tabular-nums}
 .lsscroll{position:relative;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 4px 45vh;overscroll-behavior:contain}
-.lsscroll .lstext{font-size:18px;line-height:1.75}
+.lsscroll .lstext{font-size:20px;line-height:1.9}
 .lsfocus{overflow:hidden;max-width:100vw}.lsscroll{overflow-x:hidden}
 .lsscroll .lw{transition:background .25s,color .25s}
 .lsscroll .lw.ok,.lsscroll .lw.badw,.lsscroll .lw.ok.soft{font-weight:inherit}  /* colour only, never width: lines must not re-wrap while reading */
@@ -168,14 +170,14 @@ function lsList(v){const rec=lsRecommend(),sel=S.lsLevel||rec.level,left=lsBankL
   <div class="lvgrid">${LEVELS.map(l=>`<button class="lvcard ${l===sel?"on":""}" data-lslvl="${l}"><span class="row" style="gap:6px;justify-content:space-between"><b>${l[0].toUpperCase()+l.slice(1)}</b>${l===rec.level?'<span class="pill good">Empfohlen</span>':""}</span><small class="muted">${LSINFO[l]} · Ziel ${LSTARGET[l]} Wörter/Min.</small>${(n=>n?`<span class="lvdone">✓ ${n} gelesen</span>`:"")((S.lsHist||[]).filter(x=>x.level===l).length)}</button>`).join("")}</div>
   <p class="muted" style="margin:0;font-size:14px"><b>Empfehlung:</b> ${esc(rec.why)}</p></div>
  <div class="card" style="display:grid;gap:10px">
-  <label class="row" style="gap:8px"><input type="checkbox" id="lsStrict" style="width:auto" ${S.lsStop===true?"checked":""}> Mikrofon: bei falsch gelesenem Wort anhalten (3 Versuche, dann wird es vorgelesen). Ohne Häkchen wird das Wort nur rot markiert und es geht weiter.</label>
+  <p class="muted" style="margin:0;font-size:13px">Mit Mikrofon: Jedes Wort wird sofort grün (richtig) oder rot (falsch) – es geht immer gleich weiter, nichts wird unterbrochen. Nach dem Lesen tippst du auf rote Wörter, um sie zu hören.</p>
   <label class="row" style="gap:8px"><input type="checkbox" id="lsParent" style="width:auto" ${S.lsParent?"checked":""}> Ein Erwachsener hört zu und tippt falsch gelesene Wörter an</label>
   <label class="row" style="gap:8px"><input type="checkbox" id="lsMN" style="width:auto" ${S.lsMN===true?"checked":""}> Mikrofon: m und n am Wortende nicht unterscheiden (in/im, an/am gelten als richtig). Nur einschalten, wenn die Diktierfunktion diese Endungen oft falsch hört.</label>
   <button class="btn primary" id="lsGo" data-la="go" style="font-size:19px;padding:16px">Lesetext «${sel[0].toUpperCase()+sel.slice(1)}» starten</button>
   <p class="muted" style="margin:0;font-size:13px">${left?`Noch ${left} vorbereitete ${left===1?"Text":"Texte"} auf dieser Stufe, danach schreibt Claude dir immer neue.`:"Claude schreibt dir einen ganz neuen Text mit Fragen. Du bekommst nie zweimal denselben."}</p>
   <div id="lsStatus" class="muted" hidden></div></div>
  ${H.length?`<div class="card"><p class="eyebrow" style="margin:0 0 8px">Zuletzt gelesen</p><div class="list">${H.map(x=>`<div class="item"><div class="t">${esc(x.title)}<small>${x.date} · ${x.level}${x.wpm?` · ${x.wpm} Wörter/Min.`:""} · ${x.q}/${x.qn} Fragen</small></div><span class="pill good">${x.points} P.</span></div>`).join("")}</div></div>`:""}`;
- v.querySelector("#lsParent").onchange=e=>{S.lsParent=e.target.checked;save()};v.querySelector("#lsStrict").onchange=e=>{S.lsStop=e.target.checked;save()};v.querySelector("#lsMN").onchange=e=>{S.lsMN=e.target.checked;save()}}
+ v.querySelector("#lsParent").onchange=e=>{S.lsParent=e.target.checked;save()};v.querySelector("#lsMN").onchange=e=>{S.lsMN=e.target.checked;save()}}
 function lsBoard(v){const tab=LS.tab||"alle";const all=(S.lsHist||[]).filter(x=>tab==="alle"||x.level===tab).slice().sort((a,b)=>b.points-a.points).slice(0,20);
  const best=lv=>{const r=(S.lsHist||[]).filter(x=>x.level===lv&&x.wpm);return r.length?Math.max(...r.map(x=>x.wpm)):null};
  v.innerHTML=`<div class="row"><button class="btn small ghost" data-la="list">← Zurück</button></div><div><p class="eyebrow">Lesen</p><h1 style="font-size:28px">Bestenliste</h1></div>
@@ -296,7 +298,7 @@ const LSFILL=/^(äh|ähm|ehm|hm|hmm|mh|öh|oh|ah|eh|uh|um)$/;
 function lsOnDict(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="reading")return;const ta=document.getElementById("lsDict");if(ta&&ta.value!==L._lastVal){L._lastVal=ta.value;L.lastInput=Date.now()}if(L._raf)return;L._raf=requestAnimationFrame(()=>{L._raf=0;lsUpdateFromHeard()})}
 // Correction mode ("Bei Fehlern anhalten"): words before a misread word are locked; the reader must re-read the misread word.
 // Run-up repeats and filler sounds are not attempts; after three failed attempts the word is said aloud and reading continues.
-function lsAdvance(heard){const L=LS,strict=S.lsStop===true,N=L.expN.length;if(!LSSTRICT){LSSTRICT=true;L._subKey=null}if(LSMN!==(S.lsMN===true)){LSMN=S.lsMN===true;L._subKey=null}LSLANG=L.text.lang||"de";
+function lsAdvance(heard){const L=LS,strict=false,N=L.expN.length;if(!LSSTRICT){LSSTRICT=true;L._subKey=null}if(LSMN!==(S.lsMN===true)){LSMN=S.lsMN===true;L._subKey=null}LSLANG=L.text.lang||"de";
  if(!L.fin){L.fin=[];L.e0=0;L.h0=0;L.retry=null;L.fixed=0;L.given=0}
  if(heard.length<L.h0)L.h0=heard.length;if(L.retry&&L.retry.h>heard.length){L.retry.h=heard.length;L.retry.seen=Math.min(L.retry.seen,heard.length)}
  for(let guard=0;guard<60;guard++){
@@ -320,13 +322,13 @@ function lsAdvance(heard){const L=LS,strict=S.lsStop===true,N=L.expN.length;if(!
  L.wst=[...L.fin.slice(0,L.e0),...(L.retry?[]:L.cur||[])];
  L.pos=L.retry?L.retry.idx:Math.min(N,L.e0+((L.cur||[]).length))}
 // give up on a word: count it as a mistake, say it aloud, credit the words she already read past it, continue after them
-function lsGiveUp(idx,ahead,hNext){const L=LS;L.fin[idx]="bad";L.given++;for(let m=1;m<=ahead;m++)L.fin[idx+m]="ok";L.e0=idx+1+ahead;L.h0=hNext;L.retry=null;lsSayWord(idx)}
+function lsGiveUp(idx,ahead,hNext){const L=LS;L.fin[idx]="bad";L.given++;for(let m=1;m<=ahead;m++)L.fin[idx+m]="ok";L.e0=idx+1+ahead;L.h0=hNext;L.retry=null}
 function lsSayWord(idx){const L=LS,w=L.T[L.W[idx]].t;toast(`Das Wort heisst: «${w}»`);try{speechSynthesis.cancel()}catch(e){}speak(w,L.text.lang||"de",.8)}
 function lsBeep(good){try{const c=acGet();if(!c)return;if(c.state!=="running"){c.resume().catch(()=>{})}const t0=c.currentTime;const tone=(f,at,dur,vol)=>{const o=c.createOscillator(),g=c.createGain();o.type=good?"sine":"square";o.frequency.value=f;g.gain.setValueAtTime(.0001,t0+at);g.gain.exponentialRampToValueAtTime(vol,t0+at+.02);g.gain.exponentialRampToValueAtTime(.0001,t0+at+dur);o.connect(g).connect(c.destination);o.start(t0+at);o.stop(t0+at+dur+.02)};
  if(good)tone(880,0,.18,.08);else{tone(440,0,.16,.12);tone(330,.18,.26,.12)}}catch(e){}}
 // no banner: the word itself signals the stop — yellow on the first attempt, orange on the second, red on the third (then it is read aloud)
 function lsRetryUI(){const L=LS,el=document.getElementById("lsRetry"),fx=document.getElementById("lsFocus");if(el)el.hidden=true;if(fx)fx.classList.toggle("stopped",!!L.retry)}
-function lsUpdateFromHeard(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="reading")return;const ta=document.getElementById("lsDict");if(!ta)return;const bh=document.getElementById("lsHow");if(bh&&L.srLive&&ta.readOnly){const w=ta.value.trim().split(/\s+/).slice(-6).join(" ");bh.innerHTML=w?`<span class="muted">Ich höre:</span> ${esc(w)}`:"<b>Ich höre zu.</b> Lies den Text laut vor."}
+function lsUpdateFromHeard(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="reading")return;const ta=document.getElementById("lsDict");if(!ta)return;const bh=document.getElementById("lsHow");if(bh&&L.srLive&&ta.readOnly){const w=ta.value.trim().split(/\s+/).slice(-8).join(" ");bh.innerHTML=w?`<span class="micdot"></span><span class="muted">Ich höre:</span> ${esc(w)}`:'<span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.'}
  if(!L.t0&&!L.ms&&ta.value.trim()){L.t0=Date.now();L.timer=L.timer||setInterval(lsClock,500)}
  const heard=heardTokens(ta.value);lsAdvance(heard);L.lastHeard=Date.now();lsPaint();lsRetryUI();
  if(document.getElementById("lsFocus"))lsKeepWord();else{const now=document.querySelector("#lsText .lw.now");if(now&&!L._scrollLock){L._scrollLock=true;now.scrollIntoView({block:"center"});setTimeout(()=>L._scrollLock=false,400)}}
@@ -361,12 +363,12 @@ function lsPaint(){const L=LS;
 function lsClock(){const L=LS;const ms=L.ms+(L.t0?Date.now()-L.t0:0);const s=Math.floor(ms/1000);const e=document.getElementById("lsTime");if(e)e.textContent=Math.floor(s/60)+":"+String(s%60).padStart(2,"0")}
 function lsFocusView(v){const L=LS,t=L.text,lang=t.lang||"de";
  v.innerHTML=`<div class="lsfocus" id="lsFocus" lang="${lang}">
-  <div class="lsstrip"><textarea id="lsDict" lang="${lang==="de"?"de-CH":lang}" rows="1" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="Was das Mikrofon hört" ${lsLive()?'readonly tabindex="-1"':''} placeholder="${lsLive()?"Hier erscheint, was ich höre …":"Tippe hier, dann aufs Mikrofon der Tastatur"}"></textarea>
-   <button class="btn small primary" data-la="micDone">${IC.check} Fertig</button><button class="btn small ghost" data-la="micExit" aria-label="Beenden">✕</button>
+  <div class="lsstrip ${lsLive()?"live":""}"><div class="lsheard" id="lsHow"><span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.</div>
+   <textarea id="lsDict" lang="${lang==="de"?"de-CH":lang}" rows="1" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="Was das Mikrofon hört" ${lsLive()?'readonly tabindex="-1"':''} placeholder="${lsLive()?"Hier erscheint, was ich höre …":"Tippe hier, dann aufs Mikrofon der Tastatur"}"></textarea>
+   <div class="lsbtns"><button class="btn small primary" data-la="micDone">${IC.check} Fertig gelesen</button><button class="btn small ghost" data-la="micClear">Neu beginnen</button><button class="btn small ghost" data-la="micExit" aria-label="Beenden">✕</button></div>
    <div class="lsretry" id="lsRetry" hidden aria-live="assertive"></div>
-   <div class="lshow muted" id="lsHow" style="grid-column:1/-1;font-size:13px"></div>
    <div class="lswarn" id="lsWarn" hidden></div></div>
-  <div class="lsmini"><span><span class="micdot"></span><span id="lsMicLab">Lies laut vor</span></span><span>Zeit <b id="lsTime">0:00</b></span><span>Wörter <b id="lsWords">0</b></span><span>Richtig <b id="lsSent">0%</b></span><span>Fehler <b id="lsErr">0</b></span><span id="lsSentL" hidden></span><button class="btn small ghost" data-la="micClear" style="padding:2px 8px;font-size:12px">Neu beginnen</button></div>
+  <div class="lsmini"><span id="lsMicLab" hidden></span><span>Zeit <b id="lsTime">0:00</b></span><span>Wörter <b id="lsWords">0</b></span><span>Richtig <b id="lsSent">0%</b></span><span>Fehler <b id="lsErr">0</b></span><span id="lsSentL" hidden></span></div>
   <div class="lsscroll" id="lsScroll"><h2 style="font-size:20px;margin:0 0 6px;color:var(--accent)">${esc(t.title)}</h2><div class="lstext" id="lsText">${lsTextHtml()}</div></div></div>`;
  lsPaint();const scv=document.getElementById("lsScroll");scv.scrollTop=0;LS._lineTop=null;lsFit();lsClock();const hold=()=>{if(LS)LS._userScrollUntil=Date.now()+2500};scv.addEventListener("touchstart",hold,{passive:true});scv.addEventListener("wheel",hold,{passive:true});const ta=document.getElementById("lsDict");ta.addEventListener("input",lsOnDict);ta.addEventListener("compositionupdate",lsOnDict);ta.addEventListener("compositionend",lsOnDict);
  clearInterval(LS._poll);LS._poll=setInterval(()=>{const L=LS,t=document.getElementById("lsDict");if(!L||!t||L.phase!=="reading"){if(!t)clearInterval(L&&L._poll);return}if(t.value!==L._lastVal)lsOnDict()},70);ta.addEventListener("focus",()=>setTimeout(lsFit,350));ta.addEventListener("blur",()=>setTimeout(lsFit,350));lsMicUI()}
@@ -391,7 +393,7 @@ const SRLANG={de:"de-CH",fr:"fr-CH",en:"en-GB"};
 const LESEN_URL="https://domala-ch.github.io/pokelearn-lesen/lesen/";const LESEN_B32="23456789ABCDEFGHJKLMNPQRSTUVWXYZ",LESEN_SECRET="pokelearn-lesen-2026";
 const b64u=s=>btoa(Array.from(new TextEncoder().encode(s),b=>String.fromCharCode(b)).join("")).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 function lesenLink(t){const back=location.ancestorOrigins&&location.ancestorOrigins[0]?location.ancestorOrigins[0]+"/artifact/1EEaQhhmiJz3dM96TL2pHP":"https://claude.ai/artifact/1EEaQhhmiJz3dM96TL2pHP";
- return LESEN_URL+"#r="+b64u(JSON.stringify({v:1,id:t.id,title:t.title,text:t.text,lang:t.lang||"de",level:t.level,kind:t.kind||"",strict:S.lsStop===true,mn:S.lsMN===true,name:S.name||"",back}))}
+ return LESEN_URL+"#r="+b64u(JSON.stringify({v:1,id:t.id,title:t.title,text:t.text,lang:t.lang||"de",level:t.level,kind:t.kind||"",strict:false,mn:S.lsMN===true,name:S.name||"",back}))}
 function lesenCode(code,id){const c=String(code||"").toUpperCase().replace(/[^2-9A-Z]/g,"").replace(/O/g,"0").replace(/[I]/g,"1");if(c.length!==7)return null;let v=0n;for(const ch of c){const i=LESEN_B32.indexOf(ch);if(i<0)return null;v=v*32n+BigInt(i)}
  const chk=Number(v&4095n),wpm=Number((v>>12n)&511n),errs=Number((v>>21n)&127n),acc=Number((v>>28n)&127n);
  if(parseInt(hashStr(`${LESEN_SECRET}|${id}|${acc}|${errs}|${wpm}`),36)%4096!==chk)return null;return{acc,errs,wpm,code:c}}
@@ -415,9 +417,9 @@ function lsStartSR(){const L=LS,SR=window.SpeechRecognition||window.webkitSpeech
  L.sr=r;try{r.start()}catch(e){lsSRBlocked=true;L.sr=null}}
 function lsStopSR(L){L=L||LS;if(L&&L.sr){const r=L.sr;L.sr=null;try{r.onend=null;r.abort()}catch(e){}}}
 function lsMicUI(){const L=LS,el=document.getElementById("lsHow"),lab=document.getElementById("lsMicLab");if(!L||!el)return;
- if(L.srLive){el.innerHTML="<b>Ich höre direkt zu.</b> Lies einfach laut vor.";if(lab)lab.textContent="Ich höre zu";const ta=document.getElementById("lsDict");if(ta&&document.activeElement===ta&&matchMedia("(pointer:coarse)").matches)ta.blur()}
- else if(lsLive()){el.innerHTML="<b>Ich höre zu.</b> Lies den Text laut vor.";if(lab)lab.textContent="Ich höre zu"}
- else{el.textContent=LSHOW[lsPlatform()]||LSHOW.other;if(lab)lab.textContent="Lies laut vor";const ta=document.getElementById("lsDict");if(ta&&ta.readOnly){ta.readOnly=false;ta.removeAttribute("tabindex");ta.placeholder="Tippe hier, dann aufs Mikrofon der Tastatur";if(STANDALONE)ta.focus()}}}
+ if(L.srLive){el.innerHTML='<span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.';if(lab)lab.textContent="Ich höre zu";const ta=document.getElementById("lsDict");if(ta&&document.activeElement===ta&&matchMedia("(pointer:coarse)").matches)ta.blur()}
+ else if(lsLive()){el.innerHTML='<span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.';if(lab)lab.textContent="Ich höre zu"}
+ else{el.innerHTML='<span class="muted">'+esc(LSHOW[lsPlatform()]||LSHOW.other)+'</span>';if(lab)lab.textContent="Lies laut vor";const st=document.querySelector(".lsstrip");if(st)st.classList.remove("live");const ta=document.getElementById("lsDict");if(ta&&ta.readOnly){ta.readOnly=false;ta.removeAttribute("tabindex");ta.placeholder="Tippe hier, dann aufs Mikrofon der Tastatur";if(STANDALONE)ta.focus()}}}
 // keep the reading view inside the part of the screen the keyboard leaves free
 function lsFit(){const el=document.getElementById("lsFocus");if(!el)return;const vv=window.visualViewport;let top=0,ht=window.innerHeight;
  let left=0,wd=0;if(vv){top=vv.offsetTop;ht=vv.height;left=vv.offsetLeft;wd=vv.width}
