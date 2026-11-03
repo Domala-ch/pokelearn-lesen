@@ -2284,7 +2284,7 @@ const LIVE=(()=>{const ok=STANDALONE&&typeof Worker!=="undefined"&&typeof WebAss
  function worker(){if(w||failed||!ok)return w;try{w=new Worker("voice/worker.js",{type:"module"});
    w.onmessage=e=>{const m=e.data||{};if(m.type==="audio"||m.type==="error"){const p=pend.get(m.id);if(!p)return;pend.delete(m.id);if(m.type==="audio")p.res(m.audio);else p.rej(new Error(m.message||"error"))}else if(m.type==="progress")liveProgress(m)};
    w.onerror=e=>{failed=true;pend.forEach(p=>p.rej(new Error("worker")));pend.clear();try{w.terminate()}catch(x){}w=null;liveProgress({stage:"failed"})}}catch(e){failed=true;w=null}return w}
- const gender=lang=>{const p=(S.dkVoices||{})[lang];return p&&(p.uri==="recf"||/^recf\d/.test(p.uri)||RECX[p.uri])?"f":"m"};
+ const gender=lang=>{const p=(S.dkVoices||{})[lang];if(!p&&lang==="de")return"f";return p&&(p.uri==="recf"||/^recf\d/.test(p.uri)||RECX[p.uri])?"f":"m"};
  // the live voice reads when the PokeLearn voice is chosen for this language (or nothing else was chosen)
  const wanted=lang=>{if(!ok||failed)return false;const p=(S.dkVoices||{})[lang];return !p||p.uri==="rec"||p.uri==="recf"||/^recf\d/.test(p.uri)||!!RECX[p.uri]};
  function synth(text,lang,speed){const W=worker();if(!W)return Promise.reject(new Error("noworker"));return new Promise((res,rej)=>{const i=++id;pend.set(i,{res,rej});W.postMessage({type:"synth",id:i,text,lang,gender:gender(lang),speed})})}
@@ -2317,7 +2317,7 @@ RECXDEF.forEach(d=>{try{fetch(d.file,{cache:"no-cache"}).then(r=>r.ok?r.json():n
 const recxLangs=(id,lang)=>!!RECX[id]&&Object.keys(RECX[id].texts).some(k=>RECX[id].texts[k].lang===lang);
 const RECFNAME={de:"Lena",fr:"Céline",en:"Emma"};
 // which recorded voice is chosen for a language: "rec" (male) or "recf" (female); falls back to the male set when the female one has no recording
-function recVoice(lang){const p=(S.dkVoices||{})[lang];if(p&&RECX[p.uri]&&recxLangs(p.uri,lang))return p.uri;return p&&(p.uri==="recf"||/^recf\d/.test(p.uri))&&recfLangs(lang)?"recf":"rec"}
+function recVoice(lang){const p=(S.dkVoices||{})[lang];if(!p&&lang==="de"&&recfLangs("de"))return"recf";if(p&&RECX[p.uri]&&recxLangs(p.uri,lang))return p.uri;return p&&(p.uri==="recf"||/^recf\d/.test(p.uri))&&recfLangs(lang)?"recf":"rec"}
 function recSet(lang){const v=recVoice(lang);return RECX[v]||(v==="recf"?RECF:REC)}
 let AC=null;const RECBUF={};
 function acGet(){if(!AC){const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;try{AC=new C()}catch(e){return null}}return AC}
@@ -2339,7 +2339,7 @@ function dkFillVoices(){document.querySelectorAll("select[data-vlang]").forEach(
  const best=dkVoiceList(lang)[0],pick=dkVoicePick(lang),groups={};
  A.forEach(v=>{const g=vlang(v)||"?";(groups[g]=groups[g]||[]).push(v)});
  const keys=Object.keys(groups).sort((a,b)=>{const ma=a.startsWith(lang),mb=b.startsWith(lang);if(ma!==mb)return ma?-1:1;return langLabel(a).localeCompare(langLabel(b),"de")});
- const st=(S.dkVoices||{})[lang],hasRec=recLangs(lang)||LIVE.ok(),hasF=recfLangs(lang)||LIVE.ok(),xs=RECXDEF.filter(d=>recxLangs(d.id,lang)),xSel=st&&xs.some(d=>d.id===st.uri)?st.uri:null,fSel=!xSel&&hasF&&st&&(st.uri==="recf"||/^recf\d/.test(st.uri)),recSel=hasRec&&!fSel&&!xSel&&(!st||st.uri==="rec");
+ const st=(S.dkVoices||{})[lang],hasRec=recLangs(lang)||LIVE.ok(),hasF=recfLangs(lang)||LIVE.ok(),xs=RECXDEF.filter(d=>recxLangs(d.id,lang)),xSel=st&&xs.some(d=>d.id===st.uri)?st.uri:null,fSel=!xSel&&hasF&&(st?(st.uri==="recf"||/^recf\d/.test(st.uri)):lang==="de"),recSel=hasRec&&!fSel&&!xSel&&(!st||st.uri==="rec");
  sel.innerHTML=(hasRec?`<option value="rec" ${recSel?"selected":""}>PokeLearn-Stimme · männlich</option>`:"")+(hasF?`<option value="recf" ${fSel?"selected":""}>PokeLearn-Stimme · weiblich</option>`:"")+xs.map(d=>`<option value="${d.id}" ${xSel===d.id?"selected":""}>PokeLearn-Stimme · weiblich · ${d.name}</option>`).join("")+`<option value="auto" ${!recSel&&!fSel&&!xSel&&!pick?"selected":""}>Gerät automatisch${best?`: ${esc(vLabel(best.v))}`:""}</option>`+keys.map(g=>`<optgroup label="${esc(langLabel(g))} (${esc(g)})${g.startsWith(lang)?" · passt":""}">${groups[g].sort((a,b)=>voiceScore(b,lang)-voiceScore(a,lang)).map(v=>`<option value="${esc(v.voiceURI)}" ${pick&&pick.voiceURI===v.voiceURI?"selected":""}>${esc(vLabel(v))}${best&&best.v.voiceURI===v.voiceURI?" · empfohlen":""}</option>`).join("")}</optgroup>`).join("")})}
 function dkSetVoice(lang,uri){const m={...(S.dkVoices||{})};if(RECX[uri]&&recxLangs(uri,lang)){m[lang]={uri};S.dkVoices=m;save();toast(`${LANGN[lang]}: PokeLearn-Stimme (weiblich · ${RECX[uri].name})`);return}if(uri==="recf"&&(recfLangs(lang)||LIVE.ok())){m[lang]={uri:"recf"};S.dkVoices=m;save();toast(`${LANGN[lang]}: PokeLearn-Stimme (weiblich)`);return}if(uri==="rec"||(!uri&&(recLangs(lang)||LIVE.ok()))){delete m[lang];S.dkVoices=m;save();toast(`${LANGN[lang]}: PokeLearn-Stimme (männlich)`);return}if(uri==="auto"||!uri){m[lang]={uri:"auto"};S.dkVoices=m;save();toast(`${LANGN[lang]}: Gerätestimme automatisch`);return}const v=allVoices().find(x=>x.voiceURI===uri);if(v)m[lang]={uri:v.voiceURI,name:v.name,lang:v.lang};else delete m[lang];S.dkVoices=m;save();
  if(v&&!vlang(v).startsWith(lang))toast(`Hinweis: ${v.name} ist eine ${langLabel(vlang(v))}-Stimme`);else toast(v?`${vLabel(v)} für ${LANGN[lang]} gespeichert`:`${LANGN[lang]}: automatische Stimme`)}
