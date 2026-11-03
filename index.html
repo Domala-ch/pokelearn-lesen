@@ -1057,8 +1057,13 @@ async function initCaps(){
 
 
 // ---- Abgleich zwischen Geräten (Website): the saved state lives in a private Gist of the parents' GitHub account ----
-const SYNC=(()=>{const K="pl-sync",FILE="pokelearn-state.json",SFILE="pokelearn-settings.json";let cfg=null;try{cfg=JSON.parse(localStorage.getItem(K)||"null")}catch(e){}
- let etag="",pushT=null,pulling=null,lastPushed=0,lastOk=0,deferred=null,timer=null,st={state:cfg?"idle":"off",msg:""};
+const SYNC=(()=>{const K="pl-sync",FILE="pokelearn-state.json",SFILE="pokelearn-settings.json",EFILE="pokelearn-settings.enc";
+ // the Claude key never goes to GitHub in readable form: GitHub scans gists for API keys and Anthropic then revokes them at once
+ const b64e=u=>btoa(String.fromCharCode(...u)),b64d=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+ const aesKey=async tok=>crypto.subtle.importKey("raw",await crypto.subtle.digest("SHA-256",new TextEncoder().encode("pokelearn|"+tok)),"AES-GCM",false,["encrypt","decrypt"]);
+ async function encKey(tok,txt){const iv=crypto.getRandomValues(new Uint8Array(12));const ct=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv},await aesKey(tok),new TextEncoder().encode(txt)));return JSON.stringify({v:2,iv:b64e(iv),ct:b64e(ct)})}
+ async function decKey(tok,s){try{const o=JSON.parse(s);const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:b64d(o.iv)},await aesKey(tok),b64d(o.ct));return new TextDecoder().decode(pt)}catch(e){return""}}let cfg=null;try{cfg=JSON.parse(localStorage.getItem(K)||"null")}catch(e){}
+ let keySent="",legacy=false,etag="",pushT=null,pulling=null,lastPushed=0,lastOk=0,deferred=null,timer=null,st={state:cfg?"idle":"off",msg:""};
  const hdr=tok=>({"Authorization":"Bearer "+tok,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"});
  const saveCfg=c=>{cfg=c;try{if(c)localStorage.setItem(K,JSON.stringify(c));else localStorage.removeItem(K)}catch(e){}};
  const busy=()=>!!(R||(typeof DKS!=="undefined"&&DKS&&!["ready","submit","result"].includes(DKS.phase))||(typeof LS!=="undefined"&&LS&&LS.phase==="reading"));
@@ -1072,7 +1077,8 @@ const SYNC=(()=>{const K="pl-sync",FILE="pokelearn-state.json",SFILE="pokelearn-
   if(busy()){deferred=remote;return}deferred=null;apply(remote);toast("Fortschritt vom anderen Gerät übernommen.")}
  async function readGist(tok,id,force){const r=await fetch("https://api.github.com/gists/"+id,{headers:{...hdr(tok),...(etag&&!force?{"If-None-Match":etag}:{})}});
   if(r.status===304)return{same:true};if(r.status===401)throw err("bad_token","Token ungültig oder abgelaufen");if(r.status===404)throw err("gone","Abgleich-Speicher nicht gefunden");if(!r.ok)throw err("http","GitHub "+r.status);
-  etag=r.headers.get("etag")||"";const g=await r.json();const sf=g.files&&g.files[SFILE];if(sf&&sf.content){try{const o=JSON.parse(sf.content);if(o&&o.claudeKey&&!plKey()){localStorage.setItem(PL_KEYK,o.claudeKey);const h=document.getElementById("heftKeyHint");if(h)h.remove()}}catch(e){}}
+  etag=r.headers.get("etag")||"";const g=await r.json();const ef=g.files&&g.files[EFILE];legacy=!!(g.files&&g.files[SFILE]);
+  if(ef&&ef.content){const k=await decKey(tok,ef.content);if(k&&/^sk-ant-/.test(k)&&k!==plKey()){try{localStorage.setItem(PL_KEYK,k)}catch(e){}const h=document.getElementById("heftKeyHint");if(h)h.remove();keySent=k}}
   const f=g.files&&g.files[FILE];if(!f)return{data:null};let txt=f.content;
   if(f.truncated){const rr=await fetch(f.raw_url,{headers:hdr(tok)});if(!rr.ok)throw err("http","GitHub "+rr.status);txt=await rr.text()}
   let data=null;try{data=JSON.parse(txt)}catch(e){}return{data}}
@@ -1087,7 +1093,7 @@ const SYNC=(()=>{const K="pl-sync",FILE="pokelearn-state.json",SFILE="pokelearn-
  async function push(){if(!cfg||!S.updatedAt||S.updatedAt===lastPushed||pushing)return;pushing=true;const at=S.updatedAt;
   try{// never overwrite newer progress from another device: look first (cheap when unchanged), then write
    try{const r=await readGist(cfg.token,cfg.gist,false);if(!r.same&&r.data&&(r.data.updatedAt||0)>at){takeRemote(r.data);return}}catch(e){if(e.code==="bad_token"||e.code==="gone"){setSt("err",e.message);return}}
-   const files={[FILE]:{content:JSON.stringify(S)}};if(plKey())files[SFILE]={content:JSON.stringify({claudeKey:plKey(),at:Date.now()})};
+   const files={[FILE]:{content:JSON.stringify(S)}};if(plKey()&&plKey()!==keySent){files[EFILE]={content:await encKey(cfg.token,plKey())};keySent=plKey()}if(legacy){files[SFILE]=null;legacy=false}
    const r=await fetch("https://api.github.com/gists/"+cfg.gist,{method:"PATCH",headers:hdr(cfg.token),body:JSON.stringify({files})});
    if(r.ok){lastPushed=at;etag=r.headers.get("etag")||"";setSt("ok")}else setSt("err",r.status===401?"Token ungültig oder abgelaufen":"GitHub "+r.status)}
   catch(e){setSt("err","offline")}finally{pushing=false;if(S.updatedAt!==lastPushed)changed()}}
@@ -1898,9 +1904,9 @@ function renderEltern(){if(!unlocked)return pinGate(renderEltern);const v=docume
    const off=v.querySelector("#syncOff");if(off)off.onclick=()=>{SYNC.disconnect();toast("Abgleich ausgeschaltet – die Daten bleiben auf diesem Gerät.");renderEltern()}}
   if(STANDALONE){const st=v.querySelector("#sKeySt"),inp=v.querySelector("#sKey");
    v.querySelector("#sKeyShow").onclick=()=>{inp.type=inp.type==="password"?"text":"password"};
-   v.querySelector("#sKeySave").onclick=async()=>{const k=inp.value.trim();if(!k){st.textContent="Bitte den Schlüssel einfügen (beginnt mit sk-ant-).";return}try{localStorage.setItem(PL_KEYK,k)}catch(e){}st.innerHTML='<span class="spin"></span> Verbindung wird geprüft …';
-    try{const ok=await claude.sample.test();st.textContent=ok?"Verbunden – Claude antwortet. Die KI-Funktionen sind jetzt eingeschaltet.":"Claude hat geantwortet, aber unerwartet. Der Schlüssel ist gespeichert.";const h=document.getElementById("heftKeyHint");if(h)h.remove();setTimeout(()=>requestPrices(false),500)}
-    catch(e){st.textContent=e.code==="bad_key"?"Dieser Schlüssel wird nicht angenommen (ungültig oder ohne Guthaben). Bitte in der Anthropic Console prüfen.":e.code==="network"?"Keine Verbindung zu api.anthropic.com – Internet prüfen.":"Test fehlgeschlagen: "+(e.message||e.code)}};
+   v.querySelector("#sKeySave").onclick=async()=>{const k=inp.value.replace(/\s+/g,"");if(!k){st.textContent="Bitte den Schlüssel einfügen (beginnt mit sk-ant-).";return}try{localStorage.setItem(PL_KEYK,k)}catch(e){}st.innerHTML='<span class="spin"></span> Verbindung wird geprüft …';
+    try{const ok=await claude.sample.test();st.textContent=ok?"Verbunden – Claude antwortet. Die KI-Funktionen sind jetzt eingeschaltet.":"Claude hat geantwortet, aber unerwartet. Der Schlüssel ist gespeichert.";if(SYNC.on())SYNC.changed();const h=document.getElementById("heftKeyHint");if(h)h.remove();setTimeout(()=>requestPrices(false),500)}
+    catch(e){st.textContent=e.code==="bad_key"?"Dieser Schlüssel wird nicht angenommen – er ist ungültig oder wurde von Anthropic gesperrt"+(e.message?" ("+e.message+")":"")+". In der Anthropic Console unter API Keys einen neuen erstellen und hier einfügen.":e.status===400&&/credit/i.test(e.message||"")?"Das Guthaben ist aufgebraucht – in der Anthropic Console unter Billing aufladen.":e.code==="network"?"Keine Verbindung zu api.anthropic.com – Internet prüfen.":"Test fehlgeschlagen: "+(e.message||e.code)}};
    const del=v.querySelector("#sKeyDel");if(del)del.onclick=()=>{try{localStorage.removeItem(PL_KEYK)}catch(e){}toast("Schlüssel entfernt");renderEltern()}}
   v.querySelectorAll("[data-focus]").forEach(cb=>cb.onchange=()=>{const f={...(S.focus||{})};if(cb.checked)f[cb.dataset.focus]=true;else delete f[cb.dataset.focus];S.focus=f;save();toast(cb.checked?"Als aktuelles Schulthema markiert":"Markierung entfernt")});
   v.querySelector("#xCopy").onclick=async()=>{const txt=JSON.stringify(S);try{await navigator.clipboard.writeText(txt);toast("Stand kopiert – jetzt auf dem anderen Gerät einfügen.")}catch(e){const ta=document.createElement("textarea");ta.value=txt;ta.style.cssText="position:fixed;left:0;top:0;width:90vw;height:40vh;z-index:99";document.body.appendChild(ta);ta.select();try{document.execCommand("copy");toast("Stand kopiert.")}catch(x){toast("Markieren und kopieren, dann oben rechts schliessen.")}setTimeout(()=>ta.remove(),8000)}};
