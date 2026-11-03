@@ -2,7 +2,6 @@
  "name": "PokeLearn",
  "short_name": "PokeLearn",
  "description": "Üben und Pokémon-Karten verdienen",
- "start_url": "./",
  "scope": "./",
  "display": "standalone",
  "background_color": "#e9eff6",
