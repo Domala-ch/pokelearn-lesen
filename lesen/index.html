@@ -118,7 +118,7 @@ function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random
 const esc=s=>String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 const LANGN={de:"Deutsch",fr:"Französisch",en:"Englisch"};
 const VL={de:["de-CH","de-DE","de"],fr:["fr-CH","fr-FR","fr"],en:["en-GB","en-US","en"]};
-const TEMPO={langsam:{rate:.76,read:.86,spw:4000},mittel:{rate:.84,read:.92,spw:3000},schnell:{rate:.92,read:.98,spw:2200}};
+const TEMPO={langsam:{rate:.82,read:.9,spw:2600},mittel:{rate:.9,read:.96,spw:1900},schnell:{rate:.98,read:1.02,spw:1300}};
 const TOKRE=/[\p{L}\p{M}\p{N}]+(?:['’\-][\p{L}\p{M}\p{N}]+)*|[.,!?;:«»"„“”‹›()–—\-]/gu;
 const QUOTES=new Set(["«","»",'"',"„","“","”","‹","›"]);
 const isPunct=t=>!/[\p{L}\p{N}]/u.test(t);
