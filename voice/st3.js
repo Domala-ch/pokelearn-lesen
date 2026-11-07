@@ -16,7 +16,7 @@ async function get(url, onBytes) {
   const total = +r.headers.get("content-length") || 0; let got = 0; const parts = [];
   const rd = r.body.getReader(); for (; ;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); got += value.length; onBytes && onBytes(got, total) }
   const b = new Uint8Array(got); let o = 0; for (const p of parts) { b.set(p, o); o += p.length }
-  if (c) { try { await c.put(url, new Response(b)) } catch (e) { } }
+  if (c) { try { await c.put(url, new Response(b.slice(0))) } catch (e) { } }
   return b;
 }
 const SIZES = { duration_predictor: 3.7e6, text_encoder: 9.7e6, vector_estimator: 65.6e6, vocoder: 25.8e6 };
@@ -24,6 +24,7 @@ function load(prog) {
   if (S) return Promise.resolve();
   if (loading) return loading;
   loading = (async () => {
+    prog("start", 0, 1);
     if (!ort) { ort = await import(BASE + "ort/ort.wasm.min.mjs"); ort.env.wasm.wasmPaths = BASE + "ort/"; ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1; ort.env.wasm.proxy = false }
     cfg = JSON.parse(new TextDecoder().decode(await get(DIR + "tts.json")));
     idx = JSON.parse(new TextDecoder().decode(await get(DIR + "unicode_indexer.json")));
@@ -31,7 +32,7 @@ function load(prog) {
     const sess = {};
     for (const n of names) {
       const b = await get(DIR + n + ".onnx", g => { got[n] = g; prog("model", Object.values(got).reduce((a, x) => a + x, 0), all) });
-      sess[n] = await ort.InferenceSession.create(b, { executionProviders: ["wasm"], graphOptimizationLevel: "all" });
+      sess[n] = await ort.InferenceSession.create(b, { executionProviders: ["wasm"], graphOptimizationLevel: "disabled", enableCpuMemArena: false, enableMemPattern: false });
     }
     S = sess; prog("ready", 1, 1);
   })().catch(e => { loading = null; throw e });
