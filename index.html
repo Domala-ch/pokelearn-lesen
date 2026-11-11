@@ -2342,9 +2342,26 @@ document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest
 let vbus=null;function voiceBus(c){if(vbus&&vbus.ctx===c)return vbus.input;try{const lo=c.createBiquadFilter();lo.type="lowshelf";lo.frequency.value=200;lo.gain.value=1.5;
  const hi=c.createBiquadFilter();hi.type="highshelf";hi.frequency.value=7000;hi.gain.value=-2.5;const cp=c.createDynamicsCompressor();cp.threshold.value=-20;cp.knee.value=12;cp.ratio.value=2.5;cp.attack.value=.01;cp.release.value=.2;
  lo.connect(hi);hi.connect(cp);cp.connect(c.destination);vbus={ctx:c,input:lo};return lo}catch(e){return c.destination}}
-function playPCM(a,sr){return new Promise(async res=>{const c=acGet();if(!c)return res("noaudio");let done=false,to;const fin=r=>{if(done)return;done=true;clearTimeout(to);if(DKS&&DKS.src&&DKS.src._f===fin)DKS.src=null;res(r)};
- try{if(c.state!=="running"){try{await c.resume()}catch(e){}}const b=c.createBuffer(1,a.length,sr||24000);b.copyToChannel(a,0);const src=c.createBufferSource();src.buffer=b;src.connect(voiceBus(c));src.onended=()=>fin("ok");to=setTimeout(()=>fin("ok"),a.length/(sr||24000)*1000+3000);
-  if(DKS)DKS.src={_f:fin,stop:()=>{try{src.stop()}catch(e){}fin("interrupted")}};src.start(0)}catch(e){fin("error")}})}
+// iPhone/iPad: Web Audio is muted by the ring/silent switch and pauses when the context is interrupted.
+// The voice therefore plays through one <audio> element (unlocked by the first tap, always audible like a video);
+// the warm sound curve is applied beforehand, so it sounds exactly the same. Web Audio stays as the fallback.
+function wavBlob(f,sr){const n=f.length,b=new ArrayBuffer(44+n*2),v=new DataView(b),w=(o,t)=>{for(let i=0;i<t.length;i++)v.setUint8(o+i,t.charCodeAt(i))};
+ w(0,"RIFF");v.setUint32(4,36+n*2,true);w(8,"WAVE");w(12,"fmt ");v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,"data");v.setUint32(40,n*2,true);
+ for(let i=0,o=44;i<n;i++,o+=2){const x=Math.max(-1,Math.min(1,f[i]));v.setInt16(o,x<0?x*32768:x*32767,true)}return new Blob([b],{type:"audio/wav"})}
+async function voiceFx(a,sr){try{const O=window.OfflineAudioContext||window.webkitOfflineAudioContext;if(!O)return a;const oc=new O(1,a.length,sr),b=oc.createBuffer(1,a.length,sr);b.copyToChannel(Float32Array.from(a),0);
+ const src=oc.createBufferSource();src.buffer=b;const lo=oc.createBiquadFilter();lo.type="lowshelf";lo.frequency.value=200;lo.gain.value=1.5;const hi=oc.createBiquadFilter();hi.type="highshelf";hi.frequency.value=7000;hi.gain.value=-2.5;
+ const cp=oc.createDynamicsCompressor();cp.threshold.value=-20;cp.knee.value=12;cp.ratio.value=2.5;cp.attack.value=.01;cp.release.value=.2;src.connect(lo);lo.connect(hi);hi.connect(cp);cp.connect(oc.destination);src.start(0);
+ const q=oc.startRendering();const r=q&&q.then?await q:await new Promise(res=>{oc.oncomplete=e=>res(e.renderedBuffer)});return r.getChannelData(0)}catch(e){return a}}
+let PEL=null;function pel(){if(!PEL){try{PEL=new Audio();PEL.preload="auto";PEL.setAttribute("playsinline","");PEL._ok=false}catch(e){PEL=null}}return PEL}
+function pelUnlock(){const e=pel();if(!e||e._ok||!e.paused)return;try{const u=URL.createObjectURL(wavBlob(new Float32Array(1200),24000));e.src=u;const q=e.play();if(q&&q.then)q.then(()=>{e._ok=true},()=>{}).finally(()=>setTimeout(()=>URL.revokeObjectURL(u),2000));else e._ok=true}catch(x){}}
+function playPCM(a,sr){sr=sr||24000;return new Promise(async res=>{if(!a||!a.length)return res("ok");let done=false,to,stopped=false,url=null,ws=null;const e=pel();
+ const fin=r=>{if(done)return;done=true;clearTimeout(to);if(e){e.onended=null;e.onerror=null}if(url){const u=url;setTimeout(()=>URL.revokeObjectURL(u),1000)}if(DKS&&DKS.src&&DKS.src._f===fin)DKS.src=null;res(r)};
+ if(DKS)DKS.src={_f:fin,stop:()=>{stopped=true;try{e&&e.pause()}catch(x){}try{ws&&ws.stop()}catch(x){}fin("interrupted")}};
+ if(e&&e._ok){try{const y=await voiceFx(a,sr);if(stopped||done)return;url=URL.createObjectURL(wavBlob(y,sr));e.onended=()=>fin("ok");e.onerror=()=>fin("ok");e.src=url;
+   await e.play();if(stopped){try{e.pause()}catch(x){}return}to=setTimeout(()=>fin("ok"),a.length/sr*1000+3000);return}catch(err){if(stopped||done)return;if(e){e.onended=null;e.onerror=null}}}
+ const c=acGet();if(!c)return fin("noaudio");
+ try{if(c.state!=="running"){try{await c.resume()}catch(x){}}if(stopped||done)return;const b=c.createBuffer(1,a.length,sr);b.copyToChannel(a,0);const src=c.createBufferSource();src.buffer=b;src.connect(voiceBus(c));src.onended=()=>fin("ok");to=setTimeout(()=>fin("ok"),a.length/sr*1000+3000);
+  ws=src;src.start(0)}catch(x){fin("error")}})}
 async function liveSpeak(text,lang,rate){const g=DKS?DKS.gen:null,s0=DKS;let a;
  try{a=await LIVE.synth(text,lang,stSpeed(rate))}
  catch(e){LIVE.fail(e&&e.message||"Fehler");liveProgress({stage:"failed"});toast("Die PokeLearn-Stimme konnte nicht geladen werden – die Gerätestimme liest vor.");return"livefail"}
@@ -2366,9 +2383,9 @@ const RECFNAME={de:"Lena",fr:"Céline",en:"Emma"};
 function recVoice(lang){const p=(S.dkVoices||{})[lang];if(!p&&lang==="de"&&recfLangs("de"))return"recf";if(p&&RECX[p.uri]&&recxLangs(p.uri,lang))return p.uri;return p&&(p.uri==="recf"||/^recf\d/.test(p.uri))&&recfLangs(lang)?"recf":"rec"}
 function recSet(lang){const v=recVoice(lang);return RECX[v]||(v==="recf"?RECF:REC)}
 let AC=null;const RECBUF={};
-function acGet(){if(!AC){const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;try{AC=new C()}catch(e){return null}}return AC}
+function acGet(){if(!AC){const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;try{if(navigator.audioSession)navigator.audioSession.type="playback"}catch(e){}try{AC=new C()}catch(e){return null}}return AC}
 let acKeep=null;
-function acUnlock(){const c=acGet();if(!c)return;try{if(navigator.audioSession)navigator.audioSession.type="playback"}catch(e){}try{if(c.state!=="running")c.resume().catch(()=>{})}catch(e){}try{const b=c.createBuffer(1,1,22050),s=c.createBufferSource();s.buffer=b;s.connect(c.destination);s.start(0)}catch(e){}
+function acUnlock(){pelUnlock();const c=acGet();if(!c)return;try{if(navigator.audioSession)navigator.audioSession.type="playback"}catch(e){}try{if(c.state!=="running")c.resume().catch(()=>{})}catch(e){}try{const b=c.createBuffer(1,1,22050),s=c.createBufferSource();s.buffer=b;s.connect(c.destination);s.start(0)}catch(e){}
  // iPhone/iPad suspend an idle audio context – a silent loop keeps it awake while the voice is still being computed
  try{if(!acKeep){const b=c.createBuffer(1,c.sampleRate,c.sampleRate),s=c.createBufferSource(),g=c.createGain();g.gain.value=0;s.buffer=b;s.loop=true;s.connect(g);g.connect(c.destination);s.start(0);acKeep=s}}catch(e){}}
 function recLoad(file){if(RECBUF[file])return RECBUF[file];const c=acGet();if(!c)return Promise.reject(new Error("noaudio"));
