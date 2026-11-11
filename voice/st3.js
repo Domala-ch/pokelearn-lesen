@@ -20,22 +20,44 @@ async function get(url, onBytes) {
   return b;
 }
 const SIZES = { duration_predictor: 3.7e6, text_encoder: 9.7e6, vector_estimator: 65.6e6, vocoder: 25.8e6 };
+// engine: WebGPU (graphics chip, many times faster – iPhone/iPad with iOS 26, Mac, Chrome) when it works, otherwise the CPU (wasm)
+let engine = "", stepsNow = STEPS;
+async function makeSessions(eps, prog) {
+  const names = ["duration_predictor", "text_encoder", "vector_estimator", "vocoder"], got = {}, all = Object.values(SIZES).reduce((a, b) => a + b, 0), sess = {};
+  for (const n of names) {
+    const b = await get(DIR + n + ".onnx", g => { got[n] = g; prog("model", Object.values(got).reduce((a, x) => a + x, 0), all) });
+    // the small text models stay on the CPU (dynamic shapes, tiny work); the flow model and the vocoder go to the GPU
+    const ep = (n === "vector_estimator" || n === "vocoder") ? eps : ["wasm"];
+    sess[n] = await ort.InferenceSession.create(b, { executionProviders: ep, graphOptimizationLevel: "disabled", enableCpuMemArena: false, enableMemPattern: false });
+    post({ type: "tick" });
+  }
+  return sess;
+}
+async function gpuOK() {
+  try { if (self.__noGPU || !self.navigator || !navigator.gpu) return false; const a = await navigator.gpu.requestAdapter(); return !!a } catch (e) { return false }
+}
 function load(prog) {
   if (S) return Promise.resolve();
   if (loading) return loading;
   loading = (async () => {
     prog("start", 0, 1);
-    if (!ort) { ort = await import(BASE + "ort/ort.wasm.min.mjs"); ort.env.wasm.wasmPaths = BASE + "ort/"; ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1; ort.env.wasm.proxy = false }
+    const gpu = await gpuOK();
+    if (!ort) { ort = await import(BASE + (gpu ? "ort/ort.webgpu.min.mjs" : "ort/ort.wasm.min.mjs")); ort.env.wasm.wasmPaths = BASE + "ort/"; ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1; ort.env.wasm.proxy = false }
     cfg = JSON.parse(new TextDecoder().decode(await get(DIR + "tts.json")));
     idx = JSON.parse(new TextDecoder().decode(await get(DIR + "unicode_indexer.json")));
-    const names = ["duration_predictor", "text_encoder", "vector_estimator", "vocoder"], got = {}, all = Object.values(SIZES).reduce((a, b) => a + b, 0);
-    const sess = {};
-    for (const n of names) {
-      const b = await get(DIR + n + ".onnx", g => { got[n] = g; prog("model", Object.values(got).reduce((a, x) => a + x, 0), all) });
-      sess[n] = await ort.InferenceSession.create(b, { executionProviders: ["wasm"], graphOptimizationLevel: "disabled", enableCpuMemArena: false, enableMemPattern: false });
+    if (gpu) {
+      try {
+        S = await makeSessions(["webgpu"], prog); engine = "webgpu";
+        // check once that the graphics chip gives real speech (some drivers return silence or NaN)
+        const t0 = Date.now(), r = await Promise.race([synthRaw("Hallo, wie geht es dir heute?", "de", "F3", .9, STEPS), new Promise((_, rej) => setTimeout(() => rej(new Error("gpu too slow")), self.__gpuWait || 12000))]);
+        let pk = 0, bad = false; for (let i = 0; i < r.audio.length; i++) { const v = r.audio[i]; if (!Number.isFinite(v)) { bad = true; break } if (Math.abs(v) > pk) pk = Math.abs(v) }
+        if (bad || pk < .02 || r.audio.length < r.sr * .8) throw new Error("gpu output invalid");
+        post({ type: "info", engine, ms: Date.now() - t0 });
+      } catch (e) { post({ type: "info", engine: "webgpu-failed", message: String(e && e.message || e) }); try { for (const k in (S || {})) S[k].release && S[k].release() } catch (x) { } S = null; engine = "" }
     }
-    S = sess; prog("ready", 1, 1);
-  })().catch(e => { loading = null; throw e });
+    if (!S) { S = await makeSessions(["wasm"], prog); engine = "wasm"; post({ type: "info", engine }) }
+    prog("ready", 1, 1);
+  })().catch(e => { loading = null; S = null; throw e });
   return loading;
 }
 async function style(name) {
@@ -61,24 +83,31 @@ function prep(text, lang) {
 function randn(n) { const o = new Float32Array(n); for (let i = 0; i < n; i += 2) { const u1 = Math.max(1e-10, Math.random()), u2 = Math.random(), r = Math.sqrt(-2 * Math.log(u1)); o[i] = r * Math.cos(2 * Math.PI * u2); if (i + 1 < n) o[i + 1] = r * Math.sin(2 * Math.PI * u2) } return o }
 async function synth(text, lang, voice, speed) {
   await load(() => { });
+  const t0 = Date.now(), r = await synthRaw(text, lang, voice, speed, stepsNow);
+  // keep ahead of the reader: on a slow CPU use fewer flow steps (never below 5) so a sentence is ready before it is needed
+  const rtf = (Date.now() - t0) / 1000 / Math.max(.5, r.audio.length / r.sr);
+  if (engine === "wasm") { if (rtf > 1.25 && stepsNow > 5) stepsNow--; else if (rtf < .5 && stepsNow < STEPS) stepsNow++ }
+  return r;
+}
+async function synthRaw(text, lang, voice, speed, steps) {
   const st = await style(voice);
   const p = prep(text, lang), ids = Array.from(p, ch => idx[ch.charCodeAt(0)] ?? 0), L = ids.length;
   const textIds = new ort.Tensor("int64", BigInt64Array.from(ids.map(BigInt)), [1, L]);
   const textMask = new ort.Tensor("float32", new Float32Array(L).fill(1), [1, 1, L]);
   const dp = await S.duration_predictor.run({ text_ids: textIds, style_dp: st.dp, text_mask: textMask });
-  const dur = dp.duration.data[0] / (speed || 1);
+  const dur = (await (dp.duration.getData ? dp.duration.getData() : dp.duration.data))[0] / (speed || 1);
   const te = await S.text_encoder.run({ text_ids: textIds, style_ttl: st.ttl, text_mask: textMask });
   const sr = cfg.ae.sample_rate, chunk = cfg.ae.base_chunk_size * cfg.ttl.chunk_compress_factor, ld = cfg.ttl.latent_dim * cfg.ttl.chunk_compress_factor;
   const wavLen = Math.floor(dur * sr), T = Math.floor((wavLen + chunk - 1) / chunk);
   let x = randn(ld * T);
   const lmask = new ort.Tensor("float32", new Float32Array(T).fill(1), [1, 1, T]);
-  const tot = new ort.Tensor("float32", Float32Array.from([STEPS]), [1]);
-  for (let s = 0; s < STEPS; s++) {
+  const tot = new ort.Tensor("float32", Float32Array.from([steps]), [1]);
+  for (let s = 0; s < steps; s++) {
     const r = await S.vector_estimator.run({ noisy_latent: new ort.Tensor("float32", x, [1, ld, T]), text_emb: te.text_emb, style_ttl: st.ttl, text_mask: textMask, latent_mask: lmask, total_step: tot, current_step: new ort.Tensor("float32", Float32Array.from([s]), [1]) });
-    x = Float32Array.from(r.denoised_latent.data);
+    x = Float32Array.from(await (r.denoised_latent.getData ? r.denoised_latent.getData() : r.denoised_latent.data)); post({ type: "tick" });
   }
   const v = await S.vocoder.run({ latent: new ort.Tensor("float32", x, [1, ld, T]) });
-  let a = v.wav_tts.data; a = a.subarray(0, Math.min(a.length, wavLen + Math.floor(sr * .05)));
+  let a = await (v.wav_tts.getData ? v.wav_tts.getData() : v.wav_tts.data); a = a.subarray(0, Math.min(a.length, wavLen + Math.floor(sr * .05)));
   // trim silence at the ends (the app controls the pauses), with a short fade so nothing clicks
   let s0 = 0, e0 = a.length; const th = .006; while (s0 < e0 && Math.abs(a[s0]) < th) s0++; while (e0 > s0 && Math.abs(a[e0 - 1]) < th) e0--;
   s0 = Math.max(0, s0 - Math.floor(sr * .03)); e0 = Math.min(a.length, e0 + Math.floor(sr * .08));
@@ -90,19 +119,24 @@ async function synth(text, lang, voice, speed) {
   return { audio: out, sr };
 }
 // one job at a time; things asked for now go before warm-ups
-const queue = []; let busy = false, seq = 0; const done = new Map(); let doneBytes = 0;
+const queue = []; let busy = false, seq = 0, cur = null; const done = new Map(); let doneBytes = 0;
 const keyOf = j => `${j.lang}|${j.voice}|${j.speed}|${j.text}`;
 function remember(k, r) { done.set(k, r); doneBytes += r.audio.length * 4; while (doneBytes > 80e6 && done.size) { const f = done.keys().next().value; doneBytes -= done.get(f).audio.length * 4; done.delete(f) } }
 async function pump() {
   if (busy) return; busy = true;
   while (queue.length) {
+    // let new requests in first (session.run only yields microtasks – without this, a request would wait for the whole queue)
+    await new Promise(r => setTimeout(r, 0));
+    if (!queue.length) break;
     queue.sort((a, b) => (b.prio - a.prio) || (a.seq - b.seq));
-    const j = queue.shift(), k = keyOf(j);
+    const j = queue.shift(), k = keyOf(j); cur = j;
     try {
       let r = done.get(k);
       if (!r) { if (!S) await load((stage, g, t) => post({ type: "progress", stage, got: g, total: t })); r = await synth(j.text, j.lang, j.voice, j.speed); remember(k, r) }
       for (const id of j.ids) post({ type: "audio", id, audio: r.audio, sr: r.sr });
+      post({ type: "tick", steps: stepsNow });
     } catch (e) { for (const id of j.ids) post({ type: "error", id, message: String(e && e.message || e) }) }
+    cur = null;
   }
   busy = false;
 }
@@ -115,9 +149,11 @@ self.onmessage = ev => {
       if (!j.text) { if (it.id != null) post({ type: "audio", id: it.id, audio: new Float32Array(0), sr: 44100 }); continue }
       const k = keyOf(j), hit = done.get(k);
       if (hit) { for (const id of j.ids) post({ type: "audio", id, audio: hit.audio, sr: hit.sr }); continue }
+      // the sentence that is being computed right now (e.g. as a warm-up): just wait for it, do not queue it again
+      if (cur && keyOf(cur) === k) { cur.ids.push(...j.ids); continue }
       const q = queue.find(x => keyOf(x) === k); if (q) { q.prio = Math.max(q.prio, prio); q.ids.push(...j.ids); continue }
       queue.push(j);
     }
     pump();
-  } else if (m.type === "load") load((stage, g, t) => post({ type: "progress", stage, got: g, total: t })).then(() => post({ type: "loaded" }), e => post({ type: "loaderror", message: String(e && e.message || e) }));
+  } else if (m.type === "dbg") { post({ type: "dbg", cur: cur && (cur.prio + ":" + cur.text), steps: stepsNow, engine, q: queue.map(x => x.prio + ":" + x.speed + ":" + x.text.slice(0, 40)), done: [...done.keys()].map(k => k.slice(0, 60)) }) } else if (m.type === "nogpu") { self.__noGPU = true } else if (m.type === "gpuwait") { self.__gpuWait = m.ms } else if (m.type === "load") load((stage, g, t) => post({ type: "progress", stage, got: g, total: t })).then(() => post({ type: "loaded" }), e => post({ type: "loaderror", message: String(e && e.message || e) }));
 };
