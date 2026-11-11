@@ -2282,13 +2282,16 @@ const vHi=v=>/premium|enhanced|erweitert|verbessert|siri|natural|neural|online|g
 // best device voice for a language: high quality first, a friendly female voice preferred, then the regional order (de-CH, fr-CH, en-GB …)
 function voxBestDev(lang){const L=dkVoiceList(lang);if(!L.length)return null;const sc=x=>x.sc+(vHi(x.v)?100:0)+(/premium/i.test(vtxt(x.v))?20:/siri/i.test(vtxt(x.v))?15:0)+(VFEM.test(x.v.name)?12:VMALE.test(x.v.name)?0:4);return L.slice().sort((a,b)=>sc(b)-sc(a))[0].v}
 // the voice that reads a language: {kind:"dev",v} (device voice, instant) or {kind:"live",g} (KI voice on the device, fr/en: Kokoro)
-const STV=["F1","F2","F3","F4","F5","M1","M2","M3","M4","M5"],STN={F1:"Lena",F2:"Mia",F3:"Sara",F4:"Nora",F5:"Julia",M1:"Leo",M2:"Noah",M3:"Elias",M4:"Ben",M5:"Luca"};
-const stLabel=v=>`PokeLearn-Stimme ${STN[v]} (${v[0]==="F"?"weiblich":"männlich"})`;
+// per language the most natural female and male voice of the model (measured with UTMOS over 12 sentences)
+const STPICK={de:{f:"F3",m:"M4"},fr:{f:"F3",m:"M1"},en:{f:"F3",m:"M4"}};
+const stLabel=g=>g==="m"||/^M/.test(g)?"PokeLearn-Stimme Leo (männlich)":"PokeLearn-Stimme Lena (weiblich)";
+const stSpeed=r=>Math.min(1,Math.max(.8,.9+((r||.9)-.9)*.5));   // ~0.9 sounded most natural in the measurements
 function voxMode(lang){const p=(S.dkVoices||{})[lang],u=p&&(typeof p==="string"?p:p.uri);
- if(u&&/^st:/.test(u)&&LIVE.ok())return{kind:"live",g:u.slice(3)};
- if(u==="live-m"&&LIVE.ok())return{kind:"live",g:"M1"};if(u==="live-f"&&LIVE.ok())return{kind:"live",g:"F1"};
+ const pk=STPICK[lang]||STPICK.de;
+ if(u&&/^st:/.test(u)&&LIVE.ok())return{kind:"live",g:/^st:(m|M)/.test(u)?pk.m:pk.f};
+ if(u==="live-m"&&LIVE.ok())return{kind:"live",g:pk.m};if(u==="live-f"&&LIVE.ok())return{kind:"live",g:pk.f};
  const pick=dkVoicePick(lang);if(pick)return{kind:"dev",v:pick};
- if(LIVE.ok())return{kind:"live",g:"F1",auto:true};
+ if(LIVE.ok())return{kind:"live",g:pk.f,auto:true};
  const best=voxBestDev(lang);if(best&&vHi(best))return{kind:"dev",v:best,auto:true};
  return best?{kind:"dev",v:best,auto:true}:{kind:"none"}}
 // tells parents when a much nicer voice is one download away (iPhone/iPad: Premium or Enhanced voices are free in the settings)
@@ -2317,10 +2320,10 @@ const LIVE=(()=>{const ok=STANDALONE&&typeof Worker!=="undefined"&&typeof WebAss
  function worker(){if(w||failed||!ok)return w;try{w=new Worker("voice/st3.js",{type:"module"});
    w.onmessage=e=>{const m=e.data||{};lastMsg=Date.now();gotAny=true;if(m.type==="audio")loadedOnce=true;if(m.type==="audio"&&!loadedOnce){}if(m.type==="audio"){try{localStorage.removeItem("pl-st3-fail")}catch(x){}}if(m.type==="audio"||m.type==="error"){const p=pend.get(m.id);if(!p)return;pend.delete(m.id);if(m.type==="audio"){const a=m.audio;a.sr=m.sr;p.res(a)}else p.rej(new Error(m.message||"error"))}else if(m.type==="progress")liveProgress(m)};
    w.onerror=e=>{failed=true;pend.forEach(p=>p.rej(new Error("worker")));pend.clear();try{w.terminate()}catch(x){}w=null;liveProgress({stage:"failed"})}}catch(e){failed=true;w=null}return w}
- const gender=lang=>{const m=voxMode(lang);return m.kind==="live"?m.g:"F1"};
+ const gender=lang=>{const m=voxMode(lang);return m.kind==="live"?m.g:(STPICK[lang]||STPICK.de).f};
  const wanted=lang=>ok&&!failed&&voxMode(lang).kind==="live";
  function synth(text,lang,speed){const W=worker();if(!W)return Promise.reject(new Error("noworker"));return new Promise((res,rej)=>{const i=++id;if(!pend.size)lastMsg=Date.now();pend.set(i,{res,rej});watch();W.postMessage({type:"synth",id:i,text,lang,voice:gender(lang),speed})})}
- function warm(items,lang,speed,prio){const W=worker();if(!W||!items.length)return;W.postMessage({type:"warm",items:items.map(t=>({text:t})),lang,voice:gender(lang),speed:Math.min(1,.62+(speed||1)*.34),prio:prio||0})}
+ function warm(items,lang,speed,prio){const W=worker();if(!W||!items.length)return;W.postMessage({type:"warm",items:items.map(t=>({text:t})),lang,voice:gender(lang),speed:stSpeed(speed),prio:prio||0})}
  return{ok:()=>ok&&!failed,wanted,gender,synth,warm,fail:()=>{failed=true},reset:()=>{failed=false;try{localStorage.removeItem("pl-st3-fail")}catch(e){}}}})();
 let liveToastAt=0;
 function liveProgress(m){const el=document.getElementById("liveSt");let txt="";
@@ -2328,11 +2331,15 @@ function liveProgress(m){const el=document.getElementById("liveSt");let txt="";
  else if(m.stage==="compile")txt="PokeLearn-Stimme wird vorbereitet …";
  else if(m.stage==="failed")txt="";
  if(el){el.textContent=txt;el.hidden=!txt}}
+// voice bus: a touch of warmth (low shelf +1.5 dB at 200 Hz), softer sibilants (high shelf −2.5 dB above 7 kHz), gentle levelling
+let vbus=null;function voiceBus(c){if(vbus&&vbus.ctx===c)return vbus.input;try{const lo=c.createBiquadFilter();lo.type="lowshelf";lo.frequency.value=200;lo.gain.value=1.5;
+ const hi=c.createBiquadFilter();hi.type="highshelf";hi.frequency.value=7000;hi.gain.value=-2.5;const cp=c.createDynamicsCompressor();cp.threshold.value=-20;cp.knee.value=12;cp.ratio.value=2.5;cp.attack.value=.01;cp.release.value=.2;
+ lo.connect(hi);hi.connect(cp);cp.connect(c.destination);vbus={ctx:c,input:lo};return lo}catch(e){return c.destination}}
 function playPCM(a,sr){return new Promise(async res=>{const c=acGet();if(!c)return res("noaudio");let done=false,to;const fin=r=>{if(done)return;done=true;clearTimeout(to);if(DKS&&DKS.src&&DKS.src._f===fin)DKS.src=null;res(r)};
- try{if(c.state!=="running"){try{await c.resume()}catch(e){}}const b=c.createBuffer(1,a.length,sr||24000);b.copyToChannel(a,0);const src=c.createBufferSource();src.buffer=b;src.connect(c.destination);src.onended=()=>fin("ok");to=setTimeout(()=>fin("ok"),a.length/(sr||24000)*1000+3000);
+ try{if(c.state!=="running"){try{await c.resume()}catch(e){}}const b=c.createBuffer(1,a.length,sr||24000);b.copyToChannel(a,0);const src=c.createBufferSource();src.buffer=b;src.connect(voiceBus(c));src.onended=()=>fin("ok");to=setTimeout(()=>fin("ok"),a.length/(sr||24000)*1000+3000);
   if(DKS)DKS.src={_f:fin,stop:()=>{try{src.stop()}catch(e){}fin("interrupted")}};src.start(0)}catch(e){fin("error")}})}
 async function liveSpeak(text,lang,rate){const g=DKS?DKS.gen:null,s0=DKS;let a;
- try{a=await LIVE.synth(text,lang,Math.min(1,.62+(rate||1)*.34))}
+ try{a=await LIVE.synth(text,lang,stSpeed(rate))}
  catch(e){LIVE.fail();liveProgress({stage:"failed"});toast("Die PokeLearn-Stimme konnte nicht geladen werden – die Gerätestimme liest vor.");return"livefail"}
  if(s0&&(DKS!==s0||DKS.gen!==g))return"interrupted";if(!a||!a.length)return"ok";return playPCM(a,a.sr||24000)}
 // pre-compute everything a dictation will say, in the order it is needed, so the voice never has to think out loud
@@ -2373,7 +2380,7 @@ function dkFillVoices(){document.querySelectorAll("select[data-vlang]").forEach(
  if(A.length||LIVE.ok()){sel.disabled=false;const p=(S.dkVoices||{})[lang],u=p&&(typeof p==="string"?p:p.uri),m=voxMode(lang),pick=dkVoicePick(lang);
   const autoLab=m.kind==="live"?stLabel(m.g):m.kind==="dev"?vLabel(m.v):"–";const isAuto=!pick&&!(u&&/^st:|^live-/.test(u));
   const groups={};A.filter(v=>vlang(v).startsWith(lang)&&!NOVELTY.test(v.name)).forEach(v=>{const g=vlang(v);(groups[g]=groups[g]||[]).push(v)});
-  sel.innerHTML=`<option value="auto" ${isAuto?"selected":""}>Automatisch (${esc(autoLab)})</option>`+(LIVE.ok()?`<optgroup label="PokeLearn-Stimmen (in der App, jeder Text)">${STV.map(v=>`<option value="st:${v}" ${u==="st:"+v?"selected":""}>${esc(stLabel(v))}</option>`).join("")}</optgroup>`:"")
+  sel.innerHTML=`<option value="auto" ${isAuto?"selected":""}>Automatisch (${esc(autoLab)})</option>`+(LIVE.ok()?`<optgroup label="PokeLearn-Stimmen (in der App, jeder Text)"><option value="st:f" ${/^st:(f|F)/.test(u||"")?"selected":""}>${esc(stLabel("f"))}</option><option value="st:m" ${/^st:(m|M)/.test(u||"")?"selected":""}>${esc(stLabel("m"))}</option></optgroup>`:"")
    +Object.keys(groups).sort().map(g=>`<optgroup label="Gerätestimmen ${esc(langLabel(g))} (${esc(g)})">${groups[g].sort((a,b)=>(vHi(b)-vHi(a))||voiceScore(b,lang)-voiceScore(a,lang)).map(v=>`<option value="${esc(v.voiceURI)}" ${pick&&pick.voiceURI===v.voiceURI?"selected":""}>${esc(vLabel(v))}${vHi(v)?" ★":""}</option>`).join("")}</optgroup>`).join("");return}
  if(!A.length&&!recLangs(lang)&&!LIVE.ok()){sel.innerHTML='<option value="">Stimmen werden geladen …</option>';sel.disabled=true;return}sel.disabled=false;
  const best=dkVoiceList(lang)[0],pick=dkVoicePick(lang),groups={};
@@ -2414,7 +2421,7 @@ async function dkRun(){const s=DKS;if(!s||s.manual){dkUpd();return}const gen=++s
  // whole-text readings with the live voice: all sentences are requested at once and played back to back (only a breath between them)
  const liveRead=!rec&&LIVE.wanted(lang);
  const readAll=async(gap)=>{if(!liveRead){for(let k=s.si;k<s.sentences.length;k++){s.si=k;if(!await sayNatural(k))return false;await dkWait(gap);if(!alive())return false}return true}
-  const sp=Math.min(1,.62+tp.read*.34),P=s.sentences.map(x=>LIVE.synth(joinPlain(x),lang,sp).catch(()=>null));
+  const sp=stSpeed(tp.read),P=s.sentences.map(x=>LIVE.synth(joinPlain(x),lang,sp).catch(()=>null));
   for(let k=s.si;k<s.sentences.length;k++){s.si=k;dkUpd();const a=await P[k];if(!alive())return false;
    if(!a){LIVE.fail();if(!await sayNatural(k))return false;continue}s.speaking=true;dkUpd();const r=await playPCM(a,a.sr||24000);if(s.gen===gen)s.speaking=false;if(!alive()||r==="interrupted")return false;
    if(k<s.sentences.length-1){await dkWait(90);if(!alive())return false}}return true};

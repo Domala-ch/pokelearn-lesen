@@ -3,7 +3,7 @@
 // Weights are int8 (weight-only, ~100 MB together), downloaded once and kept in the browser cache.
 const BASE = new URL("./", self.location.href).href;
 const DIR = BASE + "st3/";
-const STEPS = 5;   // 5 flow steps: same intelligibility as 8 in tests, ~40 % faster
+const STEPS = 8;   // 8 flow steps: clearly more natural than 5 (UTMOS 4.04 vs 3.81), no gain beyond 8
 let ort = null, cfg = null, idx = null, S = null, loading = null;
 const styles = {};
 const post = m => self.postMessage(m);
@@ -84,6 +84,9 @@ async function synth(text, lang, voice, speed) {
   s0 = Math.max(0, s0 - Math.floor(sr * .03)); e0 = Math.min(a.length, e0 + Math.floor(sr * .08));
   const out = Float32Array.from(a.subarray(s0, e0)); const f = Math.min(400, out.length >> 2);
   for (let i = 0; i < f; i++) { out[i] *= i / f; out[out.length - 1 - i] *= i / f }
+  // equal loudness for every sentence: speech RMS to about -20 dBFS, peaks kept below -1 dBFS
+  let ss = 0, n = 0, pk = 0; for (let i = 0; i < out.length; i++) { const v = Math.abs(out[i]); if (v > pk) pk = v; if (v > .01) { ss += v * v; n++ } }
+  if (n) { let g = .1 / Math.sqrt(ss / n); g = Math.min(g, .89 / (pk || 1), 4); for (let i = 0; i < out.length; i++) out[i] *= g }
   return { audio: out, sr };
 }
 // one job at a time; things asked for now go before warm-ups
