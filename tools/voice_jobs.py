@@ -15,7 +15,8 @@ TOKEN = os.environ.get("GH_TOKEN", "")
 
 def get(url):
     req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "pokelearn-voice"})
-    if TOKEN and url.startswith("https://api.github.com/"):
+    # the Actions token is not accepted for gist endpoints: gists are read without it (public data)
+    if TOKEN and url.startswith("https://api.github.com/") and "/gists" not in url:
         req.add_header("Authorization", "Bearer " + TOKEN)
     with urllib.request.urlopen(req, timeout=30) as r:
         return r.read()
