@@ -2250,11 +2250,28 @@ function splitUnits(U,lang){const n=U.length;let best=-1e9,bk=0;
  const hasComma=U.slice(0,-1).some((u,i)=>i>=1&&i<=n-3&&/[,;:]/.test(u.tail));
  if(n<=MAXW&&!(n>=10&&hasComma))return[U];if(!bk)return[U];
  return[...splitUnits(U.slice(0,bk),lang),...splitUnits(U.slice(bk),lang)]}
+// Natural dictation blocks, chosen per sentence by dynamic programming: 3–8 words, cut where a speaker pauses
+// (after a comma, before «und/weil/dass …»), never between article and noun, never a block of one or two words
+// (unless the whole sentence is that short) and never a lone word or two after a comma at the end of a block.
+const CHUNKV="c3";
+const LISTW=/^(und|oder|sowie|and|or|et|ou|ni)$/i;
+// a comma inside an enumeration («Brot, Käse und Äpfel») is no place for a pause
+function listComma(U,m){if(!/,/.test(U[m].tail))return false;for(let k=m+1;k<Math.min(U.length,m+6);k++){if(LISTW.test(U[k].word))return k>m+1;if(U[k].tail)return false}return false}
+function cutCost(U,j,lang){let q=cutScore(U,j,lang);const a=U[j-1];
+ if(listComma(U,j-1))q-=22;
+ if(lang==="de"&&!a.tail&&/^[A-ZÄÖÜ]/.test(a.word)&&/^[A-ZÄÖÜ]/.test(U[j].word)&&j>1&&/^[a-zäöü]/.test(U[j-2].word))q-=12;   // «eine Flasche | Wasser»
+ if((CONJ[lang]||CONJ.de).test(a.word)&&!a.tail)q-=35;     // never end a block with «und», «weil» …
+ return -q+(q<=0?18:0)}                                     // no real pause here: only cut if the block would get far too long
+function blockCost(U,i,j,n){const w=j-i;let c=w<=2?(n<=2?0:60):w===3?6:w<=7?0:w===8?1:w===9?3:w===10?8:w===11?18:30+(w-12)*15;
+ for(let m=i;m<j-1;m++)if(/[,;:]/.test(U[m].tail)){const after=j-1-m;if(j<n&&after<=2)c+=45}   // no lone word or two after a comma
+ return c}
+function chunkSentence(U,lang){const n=U.length;if(n<=7)return[U];const best=new Array(n+1).fill(1e9),from=new Array(n+1).fill(0);best[0]=0;
+ for(let j=1;j<=n;j++)for(let i=Math.max(0,j-14);i<j;i++){if(best[i]>=1e9)continue;const c=best[i]+blockCost(U,i,j,n)+(j<n?cutCost(U,j,lang):0)+2;if(c<best[j]){best[j]=c;from[j]=i}}
+ const out=[];let j=n;while(j>0){const i=from[j];out.unshift(U.slice(i,j));j=i}return out}
 function makeChunks(T,lang,seg){
- if(seg){const counts=seg.split("|").map(s=>(s.trim().match(TOKRE)||[]).length);const C=[];let i=0;counts.forEach(c=>{if(c){C.push(T.slice(i,i+c));i+=c}});if(i===T.length)return C}
  const U=toUnits(T),S2=[];let cur=[];
  U.forEach(u=>{cur.push(u);if(/[.!?]["»”“]*$/.test(u.tail)){S2.push(cur);cur=[]}});if(cur.length)S2.push(cur);
- return S2.flatMap(sen=>splitUnits(sen,lang||"de")).map(g=>g.flatMap(u=>u.toks))}
+ return S2.flatMap(sen=>chunkSentence(sen,lang||"de")).map(g=>g.flatMap(u=>u.toks))}
 function sentencesOf(chunks){const out=[];let cur=[];chunks.forEach(c=>{cur=cur.concat(c);const last=[...c].reverse().find(t=>!QUOTES.has(t.t));if(last&&/^[.!?]$/.test(last.t)){out.push(cur);cur=[]}});if(cur.length)out.push(cur);return out}
 function spokenChunk(ch,lang,punct){if(!punct)return joinPlain(ch);let o="";ch.forEach(tk=>{if(!isPunct(tk.t)){o+=" "+tk.t;return}const w=QUOTES.has(tk.t)?PW[lang][tk.q?"open":"close"]:PW[lang][tk.t];if(w)o+=", "+w+","});return o.replace(/^[\s,]+/,"").replace(/,\s*$/,".")}
 const ttsOK=()=>{try{return "speechSynthesis" in window&&typeof SpeechSynthesisUtterance!=="undefined"}catch(e){return false}};
@@ -2375,7 +2392,7 @@ function pelUnlock(){const e=pel();if(!e||e._ok||!e.paused)return;try{const u=UR
 function playPCM(a,sr,o){sr=sr||24000;o=o||{};const rt=o.rate||1;return new Promise(async res=>{if(!a||!a.length)return res("ok");let done=false,to,stopped=false,url=null,ws=null;const e=pel();
  const fin=r=>{if(done)return;done=true;clearTimeout(to);if(e){e.onended=null;e.onerror=null}if(url){const u=url;setTimeout(()=>URL.revokeObjectURL(u),1000)}if(DKS&&DKS.src&&DKS.src._f===fin)DKS.src=null;res(r)};
  if(DKS)DKS.src={_f:fin,stop:()=>{stopped=true;try{e&&e.pause()}catch(x){}try{ws&&ws.stop()}catch(x){}fin("interrupted")}};
- if(e&&e._ok){try{const y=o.fx===false?a:await voiceFx(a,sr);if(stopped||done)return;url=URL.createObjectURL(wavBlob(y,sr));e.onended=()=>fin("ok");e.onerror=()=>fin("ok");e.src=url;try{e.preservesPitch=true;e.webkitPreservesPitch=true;e.defaultPlaybackRate=rt;e.playbackRate=rt}catch(x){}
+ if(e&&e._ok){try{const y0=o.fx===false?a:await voiceFx(a,sr),pad=Math.floor(sr*.25),y=new Float32Array(y0.length+pad+Math.floor(sr*.05));y.set(y0,pad);if(stopped||done)return;url=URL.createObjectURL(wavBlob(y,sr));e.onended=()=>fin("ok");e.onerror=()=>fin("ok");e.src=url;try{e.preservesPitch=true;e.webkitPreservesPitch=true;e.defaultPlaybackRate=rt;e.playbackRate=rt}catch(x){}
    await e.play();if(stopped){try{e.pause()}catch(x){}return}to=setTimeout(()=>fin("ok"),a.length/sr/rt*1000+3000);return}catch(err){if(stopped||done)return;if(e){e.onended=null;e.onerror=null}}}
  const c=acGet();if(!c)return fin("noaudio");
  try{if(c.state!=="running"){try{await c.resume()}catch(x){}}if(stopped||done)return;const b=c.createBuffer(1,a.length,sr);b.copyToChannel(a,0);const src=c.createBufferSource();src.buffer=b;if(rt!==1)src.playbackRate.value=rt;src.connect(o.fx===false?c.destination:voiceBus(c));src.onended=()=>fin("ok");to=setTimeout(()=>fin("ok"),a.length/sr/rt*1000+3000);
@@ -2415,8 +2432,14 @@ function acUnlock(){pelUnlock();const c=acGet();if(!c)return;try{if(navigator.au
 function recLoad(file){if(RECBUF[file])return RECBUF[file];const c=acGet();if(!c)return Promise.reject(new Error("noaudio"));
  const pr=(async()=>{const r=await fetch(file);if(!r.ok)throw new Error("http "+r.status);const ab=await r.arrayBuffer();return await new Promise((res,rej)=>{const q=c.decodeAudioData(ab,res,rej);if(q&&q.then)q.then(res,rej)})})();
  RECBUF[file]=pr;pr.catch(()=>{delete RECBUF[file]});return pr}
-function recPlay(file,seg,rate){return new Promise(async res=>{try{const buf=await recLoad(file),sr=buf.sampleRate,d=buf.getChannelData(0);
-  const a=d.subarray(Math.floor(Math.max(0,seg[0])*sr),Math.min(d.length,Math.floor((seg[0]+seg[1])*sr)));res(await playPCM(a,sr,{fx:false,rate:rate||1}))}catch(e){res("recerror")}})}
+function recSlice(buf,seg){const sr=buf.sampleRate,d=buf.getChannelData(0),a=Float32Array.from(d.subarray(Math.floor(Math.max(0,seg[0])*sr),Math.min(d.length,Math.floor((seg[0]+seg[1])*sr))));
+ const f=Math.min(a.length>>2,Math.floor(sr*.008));for(let i=0;i<f;i++){a[i]*=i/f;a[a.length-1-i]*=i/f}return a}
+// items: [{file,seg,gap}] → decoded, joined with the given pauses and played as ONE piece (no restarts between the parts)
+function recPlaySeq(items,rate){return new Promise(async res=>{try{const bufs=await Promise.all(items.map(x=>recLoad(x.file)));const sr=bufs[0].sampleRate;
+  const parts=items.map((x,i)=>{const a=recSlice(bufs[i],x.seg);return bufs[i].sampleRate===sr?a:a});let len=0;parts.forEach((a,i)=>{len+=a.length+(i<parts.length-1?Math.floor(sr*(items[i].gap||0)/1000):0)});
+  const out=new Float32Array(len);let pos=0;parts.forEach((a,i)=>{out.set(a,pos);pos+=a.length+(i<parts.length-1?Math.floor(sr*(items[i].gap||0)/1000):0)});
+  res(await playPCM(out,sr,{fx:false,rate:rate||1}))}catch(e){res("recerror")}})}
+function recPlay(file,seg,rate){return recPlaySeq([{file,seg}],rate)}
 const recLangs=lang=>Object.keys(REC.texts||{}).some(id=>REC.texts[id].lang===lang);
 // ---- Ready-made dictations with a natural voice ----
 // The app publishes the dictations that come next (per language and level, the parent's own texts, then the rest of the
@@ -2429,7 +2452,7 @@ function vidxLoad(force){if(!STANDALONE)return;if(!force&&Date.now()-vidxAt<6000
  fetch(VREPO+"audio/v/index.json?t="+Math.floor(Date.now()/60000),{cache:"no-store"}).then(r=>r.ok?r.json():null).then(j=>{if(j&&j.texts){const n=Object.keys(VIDX.texts).length;VIDX=j;
   if(Object.keys(j.texts).length!==n&&DKS&&DKS.phase==="ready"){recPreload(DKS.text);dkRender()}}}).catch(()=>{})}
 const vGender=lang=>{const p=(S.dkVoices||{})[lang],u=p&&(typeof p==="string"?p:p.uri);return u==="live-m"||/^st:(m|M)/.test(u||"")?"m":"f"};
-function vHash(t){return hashStr((t.text||"")+"|"+(t.seg||"")).toString(36)}
+function vHash(t){return hashStr((t.text||"")+"|"+CHUNKV).toString(36)}
 function vKey(t,g){return`${t.lang}-${g||vGender(t.lang)}-${t.id}-${vHash(t)}`}
 function vRec(t){if(!t||!STANDALONE)return null;const r=VIDX.texts[vKey(t)];if(!r)return null;const pf=VIDX.punct[`${t.lang}-${vGender(t.lang)}`];
  return{file:VREPO+r.file,t:r,pf:pf?{file:VREPO+pf.file,map:pf.map}:null,v:true}}
@@ -2504,6 +2527,10 @@ async function dkRun(){const s=DKS;if(!s||s.manual){dkUpd();return}const gen=++s
  const sayNatural=async k=>sayR(rec&&rec.file,rec&&rec.t.s[k],joinPlain(s.sentences[k]),tp.read);
  // dictation reading: phrases with short breaths, punctuation spoken separately and a little lower
  const sayDictate=async(ch,ci)=>{if(S.dkPunct===false)return sayR(rec&&rec.file,rec&&rec.t.c[ci],joinPlain(ch));if(!rec)return say(spokenChunk(ch,lang,true),tp.rate);const P=chunkParts(ch,lang);let pj=0;
+  // a ready-made recording: the parts and the spoken punctuation are joined into one piece and played in one go
+  if(rec.v&&!s.recFail){const items=[];let ok=true;for(let k=0;k<P.length;k++){const x=P[k];const seg=x.p?(rec.pf&&rec.pf.map[x.k]):(rec.t.p[ci]&&rec.t.p[ci][pj++]);if(!seg){ok=false;break}
+    items.push({file:x.p?rec.pf.file:rec.file,seg,gap:k<P.length-1?(P[k+1].p?220:320):0})}
+   if(ok){s.speaking=true;dkUpd();const r=await recPlaySeq(items,{langsam:.92,schnell:1.08}[S.dkTempo]||1);if(s.gen===gen)s.speaking=false;if(r!=="recerror"){dkUpd();return alive()}s.recFail=true;toast("Aufnahme nicht verfügbar, die Gerätestimme liest vor.")}pj=0}
   for(let k=0;k<P.length;k++){const x=P[k];const ok=x.p?await sayR(rec&&rec.pf&&rec.pf.file,rec&&rec.pf&&rec.pf.map[x.k],x.t,tp.rate*1.02,.92):await sayR(rec&&rec.file,rec&&rec.t.p[ci]&&rec.t.p[ci][pj++],x.t,tp.rate);if(!ok)return false;if(k<P.length-1){await dkWait(P[k+1].p?260:340);if(!alive())return false}}return true};
  // whole-text readings with the live voice: all sentences are requested at once and played back to back (only a breath between them)
  const liveRead=!rec&&LIVE.wanted(lang);

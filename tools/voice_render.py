@@ -17,7 +17,7 @@ BUDGET = float(os.environ.get("BUDGET_MIN", "45")) * 60
 OUT = "audio/v"
 SR = 24000
 GAP = 0.45
-MARGIN = 0.06
+MARGIN = 0.08
 SPEED = {"s": 1.0, "c": 1.0, "p": 1.0, "x": 1.0}   # natural speed; no time-stretching (it makes voices sound artificial)
 VOICES = {f"{l}_{g}": f"tools/voices/{l}_{g}.wav" for l in ("de", "fr", "en") for g in ("f", "m")}
 WLANG = {"de": "de", "fr": "fr", "en": "en"}
@@ -59,11 +59,11 @@ def clean(t, lang):
 
 def trim(w):
     a = np.abs(w)
-    thr = max(1e-3, a.max() * 0.02)
+    thr = max(5e-4, a.max() * 0.01)
     idx = np.where(a > thr)[0]
     if not len(idx):
         return w
-    s = max(0, idx[0] - int(0.03 * SR)); e = min(len(w), idx[-1] + int(0.08 * SR))
+    s = max(0, idx[0] - int(0.06 * SR)); e = min(len(w), idx[-1] + int(0.10 * SR))
     return w[s:e]
 
 
@@ -153,27 +153,31 @@ def load_index():
     return {"version": 1, "texts": {}, "punct": {}}
 
 
-def git_save(msg):
+def git_save(msg, files):
+    """Commit only this run's new files plus the merged index; never touch recordings of the other runners."""
     if os.environ.get("PL_NOGIT"):
         return
-    subprocess.run(["git", "add", OUT], check=True)
-    if subprocess.run(["git", "diff", "--cached", "--quiet"]).returncode == 0:
-        return
-    subprocess.run(["git", "commit", "-q", "-m", msg], check=True)
-    for _ in range(5):
+    idxp = os.path.join(OUT, "index.json")
+    mine = load_index()
+    for _ in range(6):
+        subprocess.run(["git", "fetch", "-q"], check=True)
+        subprocess.run(["git", "reset", "-q", "@{u}"], check=True)               # history = theirs, our new files stay
+        subprocess.run(["git", "checkout", "-q", "@{u}", "--", OUT], check=True)  # their recordings + their index
+        theirs = load_index()
+        theirs["texts"].update({k: v for k, v in mine["texts"].items() if k in NEW})
+        theirs["punct"].update({k: v for k, v in mine["punct"].items() if k in NEWP})
+        json.dump(theirs, open(idxp, "w"), ensure_ascii=False)
+        subprocess.run(["git", "add", idxp] + files, check=True)
+        if subprocess.run(["git", "diff", "--cached", "--quiet"]).returncode == 0:
+            return
+        subprocess.run(["git", "commit", "-q", "-m", msg], check=True)
         if subprocess.run(["git", "push", "-q"]).returncode == 0:
             return
-        # someone else pushed: take theirs, keep our new recordings in the index
-        mine = load_index()
-        subprocess.run(["git", "fetch", "-q"], check=True)
-        subprocess.run(["git", "reset", "-q", "@{u}"], check=True)   # index = theirs, our new files stay in the work tree
-        subprocess.run(["git", "checkout", "-q", "@{u}", "--", os.path.join(OUT, "index.json")], check=False)
-        theirs = load_index()
-        theirs["texts"].update(mine["texts"]); theirs["punct"].update(mine["punct"])
-        json.dump(theirs, open(os.path.join(OUT, "index.json"), "w"), ensure_ascii=False)
-        subprocess.run(["git", "add", OUT], check=True)
-        subprocess.run(["git", "commit", "-q", "-m", msg], check=True)
+        time.sleep(3)
     print("push failed", flush=True)
+
+
+NEW, NEWP = set(), set()
 
 
 def main():
@@ -187,12 +191,14 @@ def main():
         k = f'{lang}-{g}-{j["id"]}-{j["h"]}'
         t1 = time.time()
         idx = load_index()
+        newfiles = []
         pk = f"{lang}-{g}"
         if pk not in idx["punct"] and PW.get(lang):
             keys = list(PW[lang].keys())
             fn = f"punct-{pk}.mp3"
             t = build([synth(PW[lang][x], "x", lang, g) for x in keys], os.path.join(OUT, fn))
             idx["punct"][pk] = {"file": f"{OUT}/{fn}", "map": dict(zip(keys, t))}
+            NEWP.add(pk); newfiles.append(os.path.join(OUT, fn))
         clips = []
         def add(text, kind):
             clips.append(synth(text, kind, lang, g)); return len(clips) - 1
@@ -204,9 +210,10 @@ def main():
         idx["texts"][k] = {"lang": lang, "file": f"{OUT}/{fn}", "s": [t[i] for i in si], "c": [t[i] for i in ci],
                            "p": [[t[i] for i in row] for row in pi], "at": int(time.time())}
         json.dump(idx, open(os.path.join(OUT, "index.json"), "w"), ensure_ascii=False)
+        NEW.add(k); newfiles.append(os.path.join(OUT, fn))
         done += 1
         print(f"recorded {k} ({len(clips)} clips) in {time.time()-t1:.0f}s", flush=True)
-        git_save(f"Diktat-Stimme: {j.get('title') or j['id']} ({lang}, {'Frau' if g=='f' else 'Mann'})")
+        git_save(f"Diktat-Stimme: {j.get('title') or j['id']} ({lang}, {'Frau' if g=='f' else 'Mann'})", newfiles)
     print(f"{done} recorded in {time.time()-T0:.0f}s", flush=True)
 
 
