@@ -1,6 +1,7 @@
 name: Diktat-Stimme
-# Records upcoming dictations with a natural voice, so the app can play them at once.
-# Every 10 minutes a quick check looks for new texts; only then the voice model is installed and run.
+# Records upcoming dictations with a natural voice (Qwen3-TTS), so the app can play them at once.
+# Every 10 minutes a quick check looks for new texts; only then the voice model is installed and run,
+# on four runners in parallel (each takes every fourth text, the most urgent ones first).
 on:
   schedule:
     - cron: "*/10 * * * *"
@@ -11,9 +12,10 @@ concurrency:
   group: voice
   cancel-in-progress: false
 jobs:
-  record:
+  check:
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    outputs:
+      todo: ${{ steps.q.outputs.todo }}
     steps:
       - uses: actions/checkout@v4
       - name: Look for dictations without a recording
@@ -21,28 +23,41 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 tools/voice_jobs.py
+  record:
+    needs: check
+    if: needs.check.outputs.todo != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Look for dictations without a recording
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/voice_jobs.py
       - uses: actions/setup-python@v5
-        if: steps.q.outputs.todo != '0'
         with:
           python-version: "3.12"
       - uses: actions/cache@v4
-        if: steps.q.outputs.todo != '0'
         with:
           path: |
             ~/.cache/pip
             ~/.cache/huggingface
-          key: voice-cb017-v1
+          key: voice-qwen17-v1
       - name: Install the voice model (CPU)
-        if: steps.q.outputs.todo != '0'
         run: |
-          sudo apt-get install -y -qq ffmpeg >/dev/null
-          pip install -q --extra-index-url https://download.pytorch.org/whl/cpu "torch==2.6.0+cpu" "torchaudio==2.6.0+cpu"
-          pip install -q --extra-index-url https://download.pytorch.org/whl/cpu chatterbox-tts==0.1.7 faster-whisper==1.2.1 "setuptools<81"
-          python -c "import perth; assert perth.PerthImplicitWatermarker, 'perth'"
+          sudo apt-get install -y -qq ffmpeg sox >/dev/null
+          pip install -q --extra-index-url https://download.pytorch.org/whl/cpu "torch==2.8.0+cpu" "torchaudio==2.8.0+cpu"
+          pip install -q qwen-tts==0.1.1 faster-whisper==1.2.1 librosa soundfile
       - name: Record
-        if: steps.q.outputs.todo != '0'
         env:
-          BUDGET_MIN: "50"
+          BUDGET_MIN: "55"
+          SHARD: ${{ matrix.shard }}
+          SHARDS: "4"
+          HF_HUB_DISABLE_PROGRESS_BARS: "1"
         run: |
           git config user.name "pokelearn-bot"
           git config user.email "pokelearn-bot@users.noreply.github.com"

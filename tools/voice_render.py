@@ -1,4 +1,4 @@
-"""Records PokeLearn dictations with a natural voice (Chatterbox Multilingual, MIT licence).
+"""Records PokeLearn dictations with a natural voice (Qwen3-TTS 1.7B, Apache 2.0).
 
 Input  jobs.json (from voice_jobs.py): texts already split into sentences (s), dictation
        pieces (c) and piece parts without punctuation (p), plus the voice (f/m) per text.
@@ -18,21 +18,26 @@ OUT = "audio/v"
 SR = 24000
 GAP = 0.45
 MARGIN = 0.06
-SPEED = {"s": 0.95, "c": 0.88, "p": 0.88, "x": 0.95}   # dictation pieces a little slower, every syllable clear
+SPEED = {"s": 1.0, "c": 1.0, "p": 1.0, "x": 1.0}   # natural speed; no time-stretching (it makes voices sound artificial)
 VOICES = {f"{l}_{g}": f"tools/voices/{l}_{g}.wav" for l in ("de", "fr", "en") for g in ("f", "m")}
 WLANG = {"de": "de", "fr": "fr", "en": "en"}
+LN = {"de": "German", "fr": "French", "en": "English"}
+REFTEXT = json.load(open("tools/voices/reftext.json"))
+SHARD, SHARDS = int(os.environ.get("SHARD", "0")), int(os.environ.get("SHARDS", "1"))
 
 os.makedirs(OUT, exist_ok=True)
 jobs = json.load(open("jobs.json"))
+jobs["jobs"] = jobs["jobs"][SHARD::SHARDS]   # parallel runners each take every n-th text (the most urgent ones first)
 if not jobs["jobs"]:
     sys.exit(0)
 
 import torch, librosa
-from chatterbox.mtl_tts import ChatterboxMultilingualTTS
+from qwen_tts import Qwen3TTSModel
 from faster_whisper import WhisperModel
 
 torch.set_num_threads(os.cpu_count() or 4)
-TTS = ChatterboxMultilingualTTS.from_pretrained(device="cpu")
+TTS = Qwen3TTSModel.from_pretrained(os.environ.get("TTS_MODEL", "Qwen/Qwen3-TTS-12Hz-1.7B-Base"), device_map="cpu",
+                                    dtype=torch.bfloat16 if os.environ.get("TTS_BF16") else torch.float32)
 ASR = WhisperModel("small", device="cpu", compute_type="int8")
 print(f"models loaded in {time.time()-T0:.0f}s", flush=True)
 cur_voice = None
@@ -69,12 +74,15 @@ def similarity(audio, text, lang):
     return difflib.SequenceMatcher(None, heard.split(), norm(text).split()).ratio(), heard
 
 
+PROMPTS = {}
+
+
 def voice(lang, g):
-    global cur_voice
+    # the six voices were designed once with Qwen3-TTS VoiceDesign (tools/voices/design.py); every clip clones them
     k = f"{lang}_{g}"
-    if cur_voice != k:
-        TTS.prepare_conditionals(VOICES[k], exaggeration=0.4)
-        cur_voice = k
+    if k not in PROMPTS:
+        PROMPTS[k] = TTS.create_voice_clone_prompt(ref_audio=VOICES[k], ref_text=REFTEXT[lang])
+    return PROMPTS[k]
 
 
 cache = {}
@@ -86,15 +94,18 @@ def synth(text, kind, lang, g):
     key = (lang, g, norm(ct), kind if kind in ("s", "x") else "c")
     if key in cache:
         return cache[key]
-    voice(lang, g)
+    prompt = voice(lang, g)
     best, best_sim, best_heard = None, -1, ""
     words = len(norm(ct).split())
-    for seed in (1234, 77, 4242, 9):
+    for seed in (1234, 77, 4242):
         torch.manual_seed(seed)
-        w = TTS.generate(ct, language_id=lang, exaggeration=0.4, cfg_weight=0.5).squeeze().numpy().astype(np.float32)
+        ws, sr = TTS.generate_voice_clone(text=ct, language=LN[lang], voice_clone_prompt=prompt)
+        w = np.asarray(ws[0], dtype=np.float32)
+        if sr != SR:
+            w = librosa.resample(w, orig_sr=sr, target_sr=SR)
         w = trim(w)
         # a clip far too long for its words has babble or repetitions
-        if len(w) / SR > 1.2 + words * 0.75:
+        if len(w) / SR > 1.5 + words * 0.8:
             sim, heard = 0.0, "(too long)"
         else:
             sim, heard = similarity(w, ct, lang) if words >= 2 else (1.0, "")
