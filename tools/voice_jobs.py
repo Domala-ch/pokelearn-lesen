@@ -39,19 +39,28 @@ def key(j):
 
 def main():
     out = os.environ.get("GITHUB_OUTPUT")
-    data = find_jobs()
+    try:
+        data = find_jobs()
+    except Exception as e:
+        print("gist not readable:", e)
+        data = None
     idx = {"version": 1, "texts": {}, "punct": {}}
     if os.path.exists("audio/v/index.json"):
         idx = json.load(open("audio/v/index.json"))
-    todo = []
-    if data:
-        for j in data.get("jobs", []):
+    todo, seen = [], set()
+    # the app's own upcoming dictations first, then the built-in collection (both voices) as background work
+    bank = json.load(open("audio/v/bank-jobs.json")) if os.path.exists("audio/v/bank-jobs.json") else {"jobs": [], "punct": {}}
+    punct = dict(bank.get("punct", {})); punct.update((data or {}).get("punct", {}))
+    for j in ((data or {}).get("jobs", []) + bank.get("jobs", [])):
+            if key(j) in seen:
+                continue
+            seen.add(key(j))
             if j.get("lang") not in ("de", "fr", "en") or j.get("v") not in ("f", "m"):
                 continue
             if key(j) in idx["texts"]:
                 continue
             todo.append(j)
-    json.dump({"punct": (data or {}).get("punct", {}), "jobs": todo}, open("jobs.json", "w"), ensure_ascii=False)
+    json.dump({"punct": punct, "jobs": todo}, open("jobs.json", "w"), ensure_ascii=False)
     print(f"{len(todo)} dictation(s) to record", [key(j) for j in todo][:10])
     if out:
         with open(out, "a") as f:
