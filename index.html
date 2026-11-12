@@ -1037,7 +1037,7 @@ try{const raw=localStorage.getItem(KEY);if(raw)S=migrate(Object.assign(defaultSt
 let stateSub=null,db=null,dbRef=null,sample=null,assets=null,saveT=null,canImg=false,imgMax=1,stateReady=false;
 function gradeKnown(){return !!(S.gradeSet||S.sessions||(S.deck||[]).length)}
 function gradeSheetSync(){const el=document.getElementById("gradeSheet");if(el&&el.dataset.first&&gradeKnown())el.remove()}
-function save(){S.updatedAt=Date.now();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
+function save(){S.updatedAt=Date.now();try{if(STANDALONE)vjSchedule()}catch(e){}try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
   if(dbRef){clearTimeout(saveT);saveT=setTimeout(()=>dbRef.set(JSON.parse(JSON.stringify(S))).catch(()=>{}),1200)}
   if(STANDALONE)SYNC.changed();
   renderHud()}
@@ -1887,7 +1887,7 @@ function renderEltern(){if(!unlocked)return pinGate(renderEltern);const v=docume
   <div class="card" style="display:grid;gap:10px"><p class="eyebrow">Wunschkarten</p><p class="muted" style="font-size:13px">Karten aus dem Katalog kommen ohne Freigabe auf die Wunschliste; Claude sucht jeden Morgen den günstigsten Preis. Ihr könnt den Preis hier überschreiben (dann bleibt er fix). Eure PIN braucht es erst beim Einlösen.</p>
   <div class="list">${S.wishes.length?S.wishes.map(w=>`<div class="item" style="align-items:flex-start;flex-wrap:wrap"><div style="width:48px;aspect-ratio:5/7;border-radius:6px;overflow:hidden;background:var(--surface-2);flex:none"><div class="mini">${wishPic(w)}</div></div><div class="t" style="display:grid;gap:6px;flex:1 1 180px"><b>${esc(w.title)}</b>${w.best?`<small class="muted">Claude fand: ${(+w.best.chf).toFixed(2)} Fr. bei ${esc(w.best.shop)}${w.best.url?` · <a href="${esc(w.best.url)}" target="_blank" rel="noopener">Angebot ansehen ↗</a>`:""}</small>`:wkey(w)?'<small class="muted">Preis wird gesucht …</small>':""}<div class="grid2"><input type="number" inputmode="decimal" step="0.5" value="${w.chf||""}" placeholder="Preis Fr." data-wchf="${w.id}" aria-label="Preis"><select data-wshop="${w.id}" aria-label="Shop">${Object.entries(SHOPS).map(([k,s])=>`<option value="${k}" ${w.shop===k?"selected":""}>${s.name}</option>`).join("")}</select></div><input value="${esc(w.url||"")}" placeholder="Direkter Link zum Angebot (optional)" data-wurl="${w.id}" aria-label="Shop-Link"><div class="row"><input type="file" accept="image/*" data-wimg="${w.id}" aria-label="Bild" style="flex:1"><a class="btn small" href="${esc(shopUrl(w))}" target="_blank" rel="noopener">Ansehen ↗</a></div></div><div style="display:grid;gap:6px"><button class="btn small ${w.ok?"":"teal"}" data-wok="${w.id}">${w.ok?"Freigegeben ✓":"Freigeben"}</button><button class="btn small ghost" data-wdel="${w.id}">Löschen</button></div></div>`).join(""):'<p class="muted">Noch keine Wünsche. Er kann unter «Wunsch» Karten eintragen, oder ihr fügt hier eine hinzu.</p>'}</div>
   <div class="grid2"><input id="nwTitle" placeholder="Neue Karte, z. B. Booster-Pack"><input id="nwChf" type="number" inputmode="decimal" step="0.5" placeholder="Preis Fr."></div><div class="row"><button class="btn teal" id="nwAdd">Hinzufügen und freigeben</button><label class="f" style="margin-left:auto">Richtige Antworten für 1 ${cur().name} <input id="wRate" type="number" inputmode="numeric" value="${Math.round(S.rate/3)}" style="width:110px"></label><label class="f">Währung <select id="wCur">${Object.entries(CUR).map(([k,c])=>`<option value="${k}" ${S.currency===k?"selected":""}>${c.name} (${c.land})</option>`).join("")}</select></label></div><p class="muted" style="font-size:13px">Richtwert: Mit ${Math.round(S.rate/3)} richtigen Antworten pro ${cur().name} bringt eine saubere 10er-Runde etwa ${gainTxt(55).slice(1)}. Eine Karte für 6 ${cur().name} braucht etwa ${Math.round(6*S.rate/55)} Runden – bei einer Runde pro Tag rund ${Math.max(1,Math.round(6*S.rate/55/7))} ${Math.round(6*S.rate/55/7)>1?"Wochen":"Woche"}.</p></div>
-  <div class="card" style="display:grid;gap:10px"><p class="eyebrow">Vorlese-Stimmen</p><p class="muted" style="font-size:13px;margin:0">${LIVE.can()?"Pro Sprache liest Lena (weiblich) oder Leo (männlich) jeden Text vor – auch jedes neue Diktat von Claude.":"«Automatisch» wählt pro Sprache die klarste Stimme, die sofort spricht – jeder Text, auch jedes neue Diktat von Claude, wird ohne Wartezeit vorgelesen. Stimmen mit ★ klingen besonders natürlich."}</p>${LIVE.can()?`<div class="item" style="display:grid;gap:8px;padding:10px 12px"><b style="font-size:14px">Lena und Leo</b><span class="muted" id="stStatus" style="font-size:13px">${esc(stStatusText())}</span><div class="row" style="gap:6px"><button class="btn small teal" data-sttest="de">Stimme testen (Deutsch)</button><button class="btn small" data-sttest="fr">Französisch</button><button class="btn small" data-sttest="en">Englisch</button></div></div>`:""}${voxHint()}${ttsOK()?Object.keys(LANGN).map(l=>`<div class="row" style="align-items:flex-end"><label class="f" style="flex:1;min-width:200px">${LANGN[l]} <select data-vlang="${l}"></select></label><button class="btn small teal" data-vtest="${l}">Probehören</button></div>`).join(""):'<p class="muted" style="margin:0">Dieses Gerät kann nicht vorlesen.</p>'}<div ${LIVE.can()?"hidden":""} style="display:grid;gap:8px"><div class="row"><button class="btn small" data-vreload>Stimmen neu laden</button></div><details><summary style="cursor:pointer;font-size:14px;font-weight:700">Welche Stimmen meldet dieses Gerät?</summary><div class="list" style="margin-top:8px" data-vdiag></div></details><p class="muted" style="font-size:12px;margin:0">Die Stimmen hängen vom Gerät ab. Auf einem anderen Gerät wird dieselbe Stimme gewählt, wenn sie dort auch installiert ist, sonst die beste passende.</p></div></div>
+  <div class="card" style="display:grid;gap:10px"><p class="eyebrow">Vorlese-Stimmen</p><p class="muted" style="font-size:13px;margin:0">${LIVE.can()?"Pro Sprache liest Lena (weiblich) oder Leo (männlich) jeden Text vor – auch jedes neue Diktat von Claude.":"«Automatisch» wählt pro Sprache die klarste Stimme, die sofort spricht – jeder Text, auch jedes neue Diktat von Claude, wird ohne Wartezeit vorgelesen. Stimmen mit ★ klingen besonders natürlich."}</p>${LIVE.can()?`<div class="item" style="display:grid;gap:8px;padding:10px 12px"><b style="font-size:14px">Lena und Leo</b><span class="muted" id="stStatus" style="font-size:13px">${esc(stStatusText())}</span>${STANDALONE?`<span class="muted" style="font-size:13px">${esc(vStatusText())}</span>`:""}<div class="row" style="gap:6px"><button class="btn small teal" data-sttest="de">Stimme testen (Deutsch)</button><button class="btn small" data-sttest="fr">Französisch</button><button class="btn small" data-sttest="en">Englisch</button></div></div>`:""}${voxHint()}${ttsOK()?Object.keys(LANGN).map(l=>`<div class="row" style="align-items:flex-end"><label class="f" style="flex:1;min-width:200px">${LANGN[l]} <select data-vlang="${l}"></select></label><button class="btn small teal" data-vtest="${l}">Probehören</button></div>`).join(""):'<p class="muted" style="margin:0">Dieses Gerät kann nicht vorlesen.</p>'}<div ${LIVE.can()?"hidden":""} style="display:grid;gap:8px"><div class="row"><button class="btn small" data-vreload>Stimmen neu laden</button></div><details><summary style="cursor:pointer;font-size:14px;font-weight:700">Welche Stimmen meldet dieses Gerät?</summary><div class="list" style="margin-top:8px" data-vdiag></div></details><p class="muted" style="font-size:12px;margin:0">Die Stimmen hängen vom Gerät ab. Auf einem anderen Gerät wird dieselbe Stimme gewählt, wenn sie dort auch installiert ist, sonst die beste passende.</p></div></div>
   <div class="card" style="display:grid;gap:10px"><p class="eyebrow">Einstellungen</p><div class="grid2"><label class="f">Name <input id="sName" value="${esc(S.name)}"></label><label class="f">Tagesziel (richtige Antworten) <input id="sGoal" type="number" inputmode="numeric" value="${S.dailyGoal}"></label><label class="f">Neue PIN (4 Ziffern) <input id="sPin" inputmode="numeric" maxlength="4" placeholder="••••"></label><label class="f">Erspartes anpassen (${cur().name}) <input id="sCoins" type="number" inputmode="decimal" step="0.05" value="${(S.coins/S.rate).toFixed(2)}"></label></div><button class="btn teal" id="sSave">Speichern</button><button class="btn ghost" id="sReset" style="color:var(--bad)">Alles zurücksetzen</button></div>
   ${STANDALONE?`<div class="card" style="display:grid;gap:10px"><p class="eyebrow">Abgleich zwischen Geräten</p><p class="muted" style="font-size:13px;margin:0">Damit Fortschritt, Heft-Einträge, Diktate, Lesetexte und Wunschliste auf iPhone, iPad und Computer gleich sind, speichert die App alles zusätzlich in einem privaten «Gist» eures GitHub-Kontos. Dafür braucht es ein Zugriffs-Token eures GitHub-Kontos: unten auf <b>Token bei GitHub erstellen</b> tippen (Name und das Häkchen «gist» sind schon gesetzt), bei <b>Expiration</b> «No expiration» wählen, <b>Generate token</b>, das Token kopieren und hier einfügen. Dasselbe Token auf jedem Gerät eintragen. Das Gerät mit dem aktuelleren Stand gewinnt – darum am besten ein Gerät nach dem anderen benutzen.</p>
   ${SYNC.on()?`<p class="muted" id="syncSt" style="margin:0;font-size:13px">${esc(SYNC.text())}</p><div class="row"><button class="btn teal" id="syncNow">Jetzt abgleichen</button><button class="btn" id="syncLink">Einrichtungs-Link für ein weiteres Gerät</button><button class="btn ghost" id="syncOff" style="color:var(--bad)">Abgleich ausschalten</button></div><p class="muted" style="margin:0;font-size:13px">Der Einrichtungs-Link schaltet auf einem anderen Gerät (iPad, Computer) den Abgleich mit einem Tipp ein – samt Fortschritt und Claude-Schlüssel. Nur an eigene Geräte schicken (AirDrop, Nachricht an dich selbst): wer den Link hat, hat Zugriff.</p>`
@@ -2348,6 +2348,9 @@ function liveProgress(m){const el=document.getElementById("liveSt");let txt="";
  else if(m.stage==="compile")txt="PokeLearn-Stimme wird vorbereitet …";
  else if(m.stage==="failed")txt="";
  if(el){el.textContent=txt;el.hidden=!txt}}
+try{if(STANDALONE){setTimeout(()=>{vidxLoad(true);vjSchedule()},2500);document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")vidxLoad()})}}catch(e){}
+function vStatusText(){if(!SYNC.cfg||!SYNC.cfg())return"Vorbereitete Diktate mit natürlicher Stimme: dafür unten «Abgleich zwischen Geräten» (GitHub) einrichten.";const v=vStatus();
+ return`Vorbereitete Diktate mit natürlicher Stimme: ${v.per.map(([l,r,t])=>LANGN[l]+" "+r+"/"+t).join(" · ")}. Neue Texte werden im Hintergrund aufgenommen (meist innert 15–30 Minuten).`}
 function stStatusText(){if(!LIVE.can())return"Die PokeLearn-Stimmen gibt es nur in der Website-Version.";if(LIVE.failed())return"PokeLearn-Stimme: nicht verfügbar"+(LIVE.err()?" ("+LIVE.err()+")":"")+" – «Stimme testen» versucht es neu.";const st=LIVE.stage();return st?"PokeLearn-Stimme: "+st:"PokeLearn-Stimme: wird beim ersten Vorlesen geladen (einmalig ca. 100 MB)."}
 async function stTest(lang){const el=document.getElementById("stStatus");LIVE.reset();acUnlock();try{speechSynthesis.cancel()}catch(e){}const t0=Date.now();if(el)el.textContent="PokeLearn-Stimme wird gestartet …";
  try{const a=await LIVE.synth(VTEST[lang]||VTEST.de,lang,.9);if(el)el.textContent=`PokeLearn-Stimme funktioniert (${((Date.now()-t0)/1000).toFixed(1)} s, ${LIVE.engine()==="webgpu"?"Grafikchip":"Prozessor"}).`;await playPCM(a,a.sr||44100)}
@@ -2369,13 +2372,13 @@ async function voiceFx(a,sr){try{const O=window.OfflineAudioContext||window.webk
  const q=oc.startRendering();const r=q&&q.then?await q:await new Promise(res=>{oc.oncomplete=e=>res(e.renderedBuffer)});return r.getChannelData(0)}catch(e){return a}}
 let PEL=null;function pel(){if(!PEL){try{PEL=new Audio();PEL.preload="auto";PEL.setAttribute("playsinline","");PEL._ok=false}catch(e){PEL=null}}return PEL}
 function pelUnlock(){const e=pel();if(!e||e._ok||!e.paused)return;try{const u=URL.createObjectURL(wavBlob(new Float32Array(1200),24000));e.src=u;const q=e.play();if(q&&q.then)q.then(()=>{e._ok=true},()=>{}).finally(()=>setTimeout(()=>URL.revokeObjectURL(u),2000));else e._ok=true}catch(x){}}
-function playPCM(a,sr){sr=sr||24000;return new Promise(async res=>{if(!a||!a.length)return res("ok");let done=false,to,stopped=false,url=null,ws=null;const e=pel();
+function playPCM(a,sr,o){sr=sr||24000;o=o||{};const rt=o.rate||1;return new Promise(async res=>{if(!a||!a.length)return res("ok");let done=false,to,stopped=false,url=null,ws=null;const e=pel();
  const fin=r=>{if(done)return;done=true;clearTimeout(to);if(e){e.onended=null;e.onerror=null}if(url){const u=url;setTimeout(()=>URL.revokeObjectURL(u),1000)}if(DKS&&DKS.src&&DKS.src._f===fin)DKS.src=null;res(r)};
  if(DKS)DKS.src={_f:fin,stop:()=>{stopped=true;try{e&&e.pause()}catch(x){}try{ws&&ws.stop()}catch(x){}fin("interrupted")}};
- if(e&&e._ok){try{const y=await voiceFx(a,sr);if(stopped||done)return;url=URL.createObjectURL(wavBlob(y,sr));e.onended=()=>fin("ok");e.onerror=()=>fin("ok");e.src=url;
-   await e.play();if(stopped){try{e.pause()}catch(x){}return}to=setTimeout(()=>fin("ok"),a.length/sr*1000+3000);return}catch(err){if(stopped||done)return;if(e){e.onended=null;e.onerror=null}}}
+ if(e&&e._ok){try{const y=o.fx===false?a:await voiceFx(a,sr);if(stopped||done)return;url=URL.createObjectURL(wavBlob(y,sr));e.onended=()=>fin("ok");e.onerror=()=>fin("ok");e.src=url;try{e.preservesPitch=true;e.webkitPreservesPitch=true;e.defaultPlaybackRate=rt;e.playbackRate=rt}catch(x){}
+   await e.play();if(stopped){try{e.pause()}catch(x){}return}to=setTimeout(()=>fin("ok"),a.length/sr/rt*1000+3000);return}catch(err){if(stopped||done)return;if(e){e.onended=null;e.onerror=null}}}
  const c=acGet();if(!c)return fin("noaudio");
- try{if(c.state!=="running"){try{await c.resume()}catch(x){}}if(stopped||done)return;const b=c.createBuffer(1,a.length,sr);b.copyToChannel(a,0);const src=c.createBufferSource();src.buffer=b;src.connect(voiceBus(c));src.onended=()=>fin("ok");to=setTimeout(()=>fin("ok"),a.length/sr*1000+3000);
+ try{if(c.state!=="running"){try{await c.resume()}catch(x){}}if(stopped||done)return;const b=c.createBuffer(1,a.length,sr);b.copyToChannel(a,0);const src=c.createBufferSource();src.buffer=b;if(rt!==1)src.playbackRate.value=rt;src.connect(o.fx===false?c.destination:voiceBus(c));src.onended=()=>fin("ok");to=setTimeout(()=>fin("ok"),a.length/sr/rt*1000+3000);
   ws=src;src.start(0)}catch(x){fin("error")}})}
 // while the voice is still computing, the child sees «Einen Moment …» instead of a silent «Hör genau zu»
 function livePrep(pr){const s=DKS;if(!s)return pr;let done=false;const t=setTimeout(()=>{if(!done&&DKS===s){s.prep=true;dkUpd()}},500);
@@ -2412,13 +2415,47 @@ function acUnlock(){pelUnlock();const c=acGet();if(!c)return;try{if(navigator.au
 function recLoad(file){if(RECBUF[file])return RECBUF[file];const c=acGet();if(!c)return Promise.reject(new Error("noaudio"));
  const pr=(async()=>{const r=await fetch(file);if(!r.ok)throw new Error("http "+r.status);const ab=await r.arrayBuffer();return await new Promise((res,rej)=>{const q=c.decodeAudioData(ab,res,rej);if(q&&q.then)q.then(res,rej)})})();
  RECBUF[file]=pr;pr.catch(()=>{delete RECBUF[file]});return pr}
-function recPlay(file,seg){return new Promise(async res=>{let done=false,to;const fin=r=>{if(done)return;done=true;clearTimeout(to);if(DKS&&DKS.src&&DKS.src._f===fin)DKS.src=null;res(r)};
- try{const buf=await recLoad(file),c=acGet();if(c.state!=="running"){try{await c.resume()}catch(e){}}
-  const src=c.createBufferSource();src.buffer=buf;src.connect(c.destination);src.onended=()=>fin("ok");to=setTimeout(()=>fin("ok"),seg[1]*1000+3000);
-  if(DKS)DKS.src={_f:fin,stop:()=>{try{src.stop()}catch(e){}fin("interrupted")}};src.start(0,Math.max(0,seg[0]),seg[1])}catch(e){fin("recerror")}})}
+function recPlay(file,seg,rate){return new Promise(async res=>{try{const buf=await recLoad(file),sr=buf.sampleRate,d=buf.getChannelData(0);
+  const a=d.subarray(Math.floor(Math.max(0,seg[0])*sr),Math.min(d.length,Math.floor((seg[0]+seg[1])*sr)));res(await playPCM(a,sr,{fx:false,rate:rate||1}))}catch(e){res("recerror")}})}
 const recLangs=lang=>Object.keys(REC.texts||{}).some(id=>REC.texts[id].lang===lang);
+// ---- Ready-made dictations with a natural voice ----
+// The app publishes the dictations that come next (per language and level, the parent's own texts, then the rest of the
+// collection) in a public gist. A GitHub Action records them with a natural voice (Chatterbox, checked by speech
+// recognition) and stores the recordings in the website's repository. When a dictation starts, its recording is already
+// there: it plays at once. Texts without a recording yet are read by the PokeLearn voice on the device.
+const VREPO="https://raw.githubusercontent.com/Domala-ch/pokelearn-lesen/main/",VJFILE="pokelearn-voice-jobs.json";
+let VIDX={texts:{},punct:{}},vidxAt=0;
+function vidxLoad(force){if(!STANDALONE)return;if(!force&&Date.now()-vidxAt<60000)return;vidxAt=Date.now();
+ fetch(VREPO+"audio/v/index.json?t="+Math.floor(Date.now()/60000),{cache:"no-store"}).then(r=>r.ok?r.json():null).then(j=>{if(j&&j.texts){const n=Object.keys(VIDX.texts).length;VIDX=j;
+  if(Object.keys(j.texts).length!==n&&DKS&&DKS.phase==="ready"){recPreload(DKS.text);dkRender()}}}).catch(()=>{})}
+const vGender=lang=>{const p=(S.dkVoices||{})[lang],u=p&&(typeof p==="string"?p:p.uri);return u==="live-m"||/^st:(m|M)/.test(u||"")?"m":"f"};
+function vHash(t){return hashStr((t.text||"")+"|"+(t.seg||"")).toString(36)}
+function vKey(t,g){return`${t.lang}-${g||vGender(t.lang)}-${t.id}-${vHash(t)}`}
+function vRec(t){if(!t||!STANDALONE)return null;const r=VIDX.texts[vKey(t)];if(!r)return null;const pf=VIDX.punct[`${t.lang}-${vGender(t.lang)}`];
+ return{file:VREPO+r.file,t:r,pf:pf?{file:VREPO+pf.file,map:pf.map}:null,v:true}}
+function vJob(t){const T=toks(t.text),ch=makeChunks(T,t.lang,t.seg),se=sentencesOf(ch);
+ return{id:t.id,h:vHash(t),lang:t.lang,v:vGender(t.lang),title:String(t.title||"").slice(0,60),s:se.map(joinPlain),c:ch.map(joinPlain),p:ch.map(c=>chunkParts(c,t.lang).filter(x=>!x.p).map(x=>x.t))}}
+// what comes next: per language the chosen level first, then the other levels, own texts, then the remaining collection
+function vJobsList(){const out=[],have=new Set(),add=t=>{if(!t||!t.text)return;const k=vKey(t);if(have.has(k))return;have.add(k);try{out.push(vJob(t))}catch(e){}};
+ const langs=[S.dkLang||"de",...Object.keys(LANGN).filter(l=>l!==(S.dkLang||"de"))];
+ for(const lang of langs){const sel=(S.dkLevels||{})[lang]||dkRecommend(lang).level;
+  for(const lv of [sel,...LEVELS.filter(l=>l!==sel)]){const n=dkTarget(lang,lv);const Q=((S.dkQueue||{})[qkey(lang,lv)]||[]);dkBankLeft(lang,lv,n).slice(0,2).forEach(add);Q.slice(0,2).forEach(add)}}
+ (S.customDiktate||[]).slice(-6).reverse().forEach(add);
+ for(const lang of langs)for(const lv of LEVELS)dkBankLeft(lang,lv,dkTarget(lang,lv)).slice(2).forEach(add);
+ return out.slice(0,120)}
+let vjTimer=0,vjBusy=false;
+function vjSchedule(){if(!STANDALONE)return;clearTimeout(vjTimer);vjTimer=setTimeout(vjPublish,4000)}
+async function vjPublish(){const c=SYNC.cfg&&SYNC.cfg();if(!c||!c.token||vjBusy)return;vjBusy=true;
+ try{const body=JSON.stringify({version:1,punct:PW,jobs:vJobsList()});const h=String(hashStr(body));let id=null,last=null;try{id=localStorage.getItem("pl-vgist");last=localStorage.getItem("pl-vjh")}catch(e){}
+  if(h===last&&id)return;const hd={"Authorization":"Bearer "+c.token,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"};
+  if(!id){for(let page=1;page<=3&&!id;page++){const r=await fetch(`https://api.github.com/gists?per_page=100&page=${page}`,{headers:hd});if(!r.ok)break;const L=await r.json();const g=L.find(g=>g.files&&g.files[VJFILE]);if(g)id=g.id;if(L.length<100)break}}
+  let r=id?await fetch("https://api.github.com/gists/"+id,{method:"PATCH",headers:hd,body:JSON.stringify({files:{[VJFILE]:{content:body}}})}):null;
+  if(!r||r.status===404){r=await fetch("https://api.github.com/gists",{method:"POST",headers:hd,body:JSON.stringify({description:"PokeLearn – Diktat-Texte für die Vorlese-Stimme (öffentlich, ohne persönliche Daten)",public:true,files:{[VJFILE]:{content:body}}})});if(r.ok)id=(await r.json()).id}
+  if(r&&r.ok){try{localStorage.setItem("pl-vgist",id);localStorage.setItem("pl-vjh",h)}catch(e){}}}catch(e){}finally{vjBusy=false}}
+function vStatus(){const langs=Object.keys(LANGN);const L=vJobsList();const ready=L.filter(j=>VIDX.texts[`${j.lang}-${j.v}-${j.id}-${j.h}`]);
+ return{total:L.length,ready:ready.length,per:langs.map(l=>[l,ready.filter(j=>j.lang===l).length,L.filter(j=>j.lang===l).length])}}
 function recPreferred(lang){return false}
-function dkRecFor(text){if(!text||!recPreferred(text.lang))return null;const M=recSet(text.lang),t=M.texts[text.id]||REC.texts[text.id];if(!t)return null;const pf=(t===M.texts[text.id]?M:REC).punct||{};return{file:t.file,t,pf:pf[text.lang]}}
+function dkRecFor(text){const vr=vRec(text);if(vr)return vr;if(!text||!recPreferred(text.lang))return null;const M=recSet(text.lang),t=M.texts[text.id]||REC.texts[text.id];if(!t)return null;const pf=(t===M.texts[text.id]?M:REC).punct||{};return{file:t.file,t,pf:pf[text.lang]}}
 function recPreload(text){const r=dkRecFor(text);if(!r)return;recLoad(r.file).catch(()=>{});if(r.pf)recLoad(r.pf.file).catch(()=>{})}
 // Fills every voice dropdown (marked data-vlang): "Automatisch", then ALL installed voices grouped by language, matching language first
 function dkFillVoices(){document.querySelectorAll("select[data-vlang]").forEach(sel=>{const lang=sel.dataset.vlang,A=allVoices();
@@ -2445,7 +2482,10 @@ document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest
 
 let DKS=null;
 const dkAll=()=>[...DKT,...(S.customDiktate||[]).map(c=>({...c,level:"eigener",focus:"Eigener Text",custom:true}))];
-function dkStart(text){dkStop();const T=toks(text.text);const chunks=makeChunks(T,text.lang,text.seg);DKS={text,T,chunks,sentences:sentencesOf(chunks),phase:"ready",i:0,si:0,gen:0,paused:false,typed:"",typeOn:false,manual:!ttsOK()&&!dkRecFor(text)&&!LIVE.wanted(text.lang),state:"hear"};recPreload(text);livePrefetch(DKS);dkRender()}
+function dkStart(text){dkStop();const T=toks(text.text);const chunks=makeChunks(T,text.lang,text.seg);DKS={text,T,chunks,sentences:sentencesOf(chunks),phase:"ready",i:0,si:0,gen:0,paused:false,typed:"",typeOn:false,manual:!ttsOK()&&!dkRecFor(text)&&!LIVE.wanted(text.lang),state:"hear"};recPreload(text);livePrefetch(DKS);
+ if(!dkRecFor(text)&&LIVE.wanted(text.lang)&&DKS.sentences.length){const s=DKS;s.prepping=true;const end=()=>{if(DKS===s&&s.prepping){s.prepping=false;dkRender()}};setTimeout(end,60000);
+  LIVE.synth(joinPlain(s.sentences[0]),text.lang,stSpeed((TEMPO[S.dkTempo]||TEMPO.mittel).read)).then(end,end)}
+ dkRender()}
 function dkHalt(){const s=DKS;if(!s)return;s.gen++;s.speaking=false;try{speechSynthesis.cancel()}catch(e){}if(s.src)s.src.stop();if(s.skipFn)s.skipFn()}
 function dkStop(){if(!DKS)return;dkHalt();DKS.paused=true;try{DKS.lock&&DKS.lock.release()}catch(e){}DKS.lock=null}
 function dkLock(){try{navigator.wakeLock&&navigator.wakeLock.request("screen").then(l=>{if(DKS)DKS.lock=l}).catch(()=>{})}catch(e){}}
@@ -2459,7 +2499,7 @@ async function dkRun(){const s=DKS;if(!s||s.manual){dkUpd();return}const gen=++s
  let rec=s.recFail?null:dkRecFor(s.text);
  if(rec&&(rec.t.c.length!==s.chunks.length||rec.t.s.length!==s.sentences.length||rec.t.p.some((r,i)=>r.length!==chunkParts(s.chunks[i],lang).filter(x=>!x.p).length)))rec=null;
  // recorded clip if available, otherwise the device voice; a clip that fails to load switches this session to the device voice
- const sayR=async(file,seg,txt,rate,pitch)=>{if(rec&&file&&seg&&!s.recFail){s.speaking=true;dkUpd();const r=await recPlay(file,seg);if(s.gen===gen)s.speaking=false;
+ const sayR=async(file,seg,txt,rate,pitch)=>{if(rec&&file&&seg&&!s.recFail){s.speaking=true;dkUpd();const r=await recPlay(file,seg,rec.v?({langsam:.92,schnell:1.08}[S.dkTempo]||1):1);if(s.gen===gen)s.speaking=false;
    if(r==="recerror"){s.recFail=true;toast("Aufnahme nicht verfügbar, die Gerätestimme liest vor.")}else{dkUpd();return alive()}}return say(txt,rate,pitch)};
  const sayNatural=async k=>sayR(rec&&rec.file,rec&&rec.t.s[k],joinPlain(s.sentences[k]),tp.read);
  // dictation reading: phrases with short breaths, punctuation spoken separately and a little lower
@@ -2486,7 +2526,7 @@ const IC={play:'<svg viewBox="0 0 24 24" width="18" height="18" fill="currentCol
  again:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M4 4v5h5"/></svg>',
  check:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>'};
 function dkCtlHtml(){const s=DKS;const B=(a,l,c="")=>`<button class="btn ${c}" data-a="${a}">${l}</button>`;
- if(s.phase==="ready")return `<button class="bigplay" data-a="start" aria-label="Diktat starten">${IC.play.replace('width="18" height="18"','')}</button><div style="flex-basis:100%"></div>${B("skipListen","Ohne Zuhören direkt diktieren","small ghost")}`;
+ if(s.phase==="ready")return (s.prepping?`<p class="muted" style="flex-basis:100%;text-align:center;margin:0 0 6px"><span class="spin"></span> Die Stimme bereitet das Diktat vor …</p>`:dkRecFor(s.text)&&dkRecFor(s.text).v?`<p class="muted" style="flex-basis:100%;text-align:center;margin:0 0 6px">✓ Natürliche Stimme bereit</p>`:"")+`<button class="bigplay" data-a="start" ${s.prepping?"disabled":""} aria-label="Diktat starten">${IC.play.replace('width="18" height="18"','')}</button><div style="flex-basis:100%"></div>${B("skipListen","Ohne Zuhören direkt diktieren","small ghost")}`;
  if(s.manual){if(s.phase==="write")return B("mback",IC.back+" Zurück")+B("mnext",s.i>=s.chunks.length-1?IC.check+" Fertig":"Weiter ›","primary");return B("mnext","Weiter ›","primary")}
  const pr=s.paused?B("resume",IC.play+" Weiter"):B("pause",IC.pause+" Pause");
  if(s.phase==="write")return B("back",IC.back,"small")+B("again",IC.again+" Nochmal")+pr+B("next",IC.check+" Fertig","primary");
@@ -2583,8 +2623,8 @@ Antworte NUR mit JSON: {"seg":"korrigierter Text mit | ","changes":["kurze Liste
 async function dkPrefetch(lang,lv){const key=qkey(lang,lv),n=dkTarget(lang,lv);if(!sample||dkGenBusy[key])return;if(dkBankLeft(lang,lv,n).length)return;const Q=(S.dkQueue||{})[key]||[];if(Q.some(t=>dkFits(t,n)))return;
  dkGenBusy[key]=true;try{const t=await dkGenerate(lang,lv,n);S.dkQueue={...(S.dkQueue||{}),[key]:[...(((S.dkQueue||{})[key])||[]),t]};save()}catch(e){}dkGenBusy[key]=false}
 async function dkNew(lang,lv){const n=dkTarget(lang,lv);
- const bank=dkBankLeft(lang,lv,n);if(bank.length){const t=bank[0];dkStart(t);dkPrefetch(lang,lv);return}
- const key=qkey(lang,lv),Q=(S.dkQueue||{})[key]||[];const seen=dkSeen();const q=Q.find(t=>!seen.has(t.id)&&dkFits(t,n));
+ const bank=dkBankLeft(lang,lv,n);if(bank.length){const t=bank.find(x=>vRec(x))||bank[0];dkStart(t);dkPrefetch(lang,lv);vjSchedule();return}
+ const key=qkey(lang,lv),Q=(S.dkQueue||{})[key]||[];const seen=dkSeen();const q=Q.find(t=>!seen.has(t.id)&&dkFits(t,n)&&vRec(t))||Q.find(t=>!seen.has(t.id)&&dkFits(t,n));
  if(q){S.dkQueue={...S.dkQueue,[key]:Q.filter(t=>t!==q)};dkKeepGen(q);save();dkStart(q);dkPrefetch(lang,lv);return}
  const st=document.getElementById("dkGenStatus");if(!sample){if(st){st.hidden=false;st.textContent="Neue Diktate schreibt Claude für dich. Das klappt, wenn PokeLearn in der Claude-App geöffnet ist."}return}
  const btn=document.getElementById("dkGo");if(btn)btn.disabled=true;if(st){st.hidden=false;st.innerHTML='<span class="spin"></span> Claude schreibt dir ein neues Diktat und prüft die Rechtschreibung … (etwa eine halbe Minute)'}
@@ -2592,7 +2632,7 @@ async function dkNew(lang,lv){const n=dkTarget(lang,lv);
   catch(e){const c=e&&e.code;if(c==="duplicate"||c==="invalid_json"||c==="too_short")continue;if(st)st.textContent={not_granted:"Claude wurde für PokeLearn nicht erlaubt.",rate_limited:"Gerade zu viele Anfragen. Bitte in einer Minute nochmals.",refused:"Das hat nicht geklappt. Bitte nochmals versuchen."}[c]||"Das hat gerade nicht geklappt. Bitte nochmals versuchen.";if(btn)btn.disabled=false;return}}
  if(st)st.textContent="Das hat gerade nicht geklappt. Bitte nochmals versuchen.";if(btn)btn.disabled=false}
 function dkKeepGen(t){S.genDiktate=[t,...(S.genDiktate||[]).filter(x=>x.id!==t.id)].slice(0,80)}
-function dkList(v){if(STANDALONE&&LIVE.wanted(S.dkLang||"de"))LIVE.preload();const lang=S.dkLang||"de",rec=dkRecommend(lang);S.dkLevels=S.dkLevels||{};const sel=S.dkLevels[lang]||rec.level;
+function dkList(v){vidxLoad();vjSchedule();if(STANDALONE&&LIVE.wanted(S.dkLang||"de"))LIVE.preload();const lang=S.dkLang||"de",rec=dkRecommend(lang);S.dkLevels=S.dkLevels||{};const sel=S.dkLevels[lang]||rec.level;
  const left=dkBankLeft(lang,sel).length,queued=((S.dkQueue||{})[qkey(lang,sel)]||[]).length;
  const hist=(S.diktate||[]).filter(d=>d.lang===lang).slice(0,5);const custom=(S.customDiktate||[]).filter(c=>c.lang===lang);
  v.innerHTML=`<div class="row"><button class="btn small ghost" data-a="home">← Zurück</button></div>
