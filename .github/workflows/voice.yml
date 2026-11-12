@@ -37,7 +37,8 @@ jobs:
         run: |
           sudo apt-get install -y -qq ffmpeg >/dev/null
           pip install -q --extra-index-url https://download.pytorch.org/whl/cpu "torch==2.6.0+cpu" "torchaudio==2.6.0+cpu"
-          pip install -q --extra-index-url https://download.pytorch.org/whl/cpu chatterbox-tts==0.1.7 faster-whisper==1.2.1
+          pip install -q --extra-index-url https://download.pytorch.org/whl/cpu chatterbox-tts==0.1.7 faster-whisper==1.2.1 "setuptools<81"
+          python -c "import perth; assert perth.PerthImplicitWatermarker, 'perth'"
       - name: Record
         if: steps.q.outputs.todo != '0'
         env:
