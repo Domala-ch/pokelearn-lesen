@@ -102,6 +102,28 @@ def cut_point(audio, t0, t1):
     return bi + f // 2
 
 
+def lead_trim(x):
+    """Drop everything before the first word: silence and an in-breath (quiet noise that is not attached to the word).
+    Soft first sounds (s, f, sch, h) stay: from the first loud frame we go back as long as the sound continues."""
+    f = int(0.01 * SR)
+    n = len(x) // f
+    if n < 5:
+        return x
+    e = 20 * np.log10(np.sqrt(np.mean(x[: n * f].reshape(n, f) ** 2, axis=1)) / (np.abs(x).max() + 1e-9) + 1e-9)
+    on = next((i for i in range(n) if e[i] > -24), None)
+    if on is None or on == 0:
+        return x
+    k = on
+    while k > 0 and e[k - 1] > -42 and on - k < 15:
+        k -= 1
+    start = max(0, k * f - int(0.02 * SR))
+    y = x[start:].copy()
+    fd = min(len(y) // 4, int(0.008 * SR))
+    if fd > 0:
+        y[:fd] *= np.linspace(0, 1, fd, dtype=np.float32)
+    return np.concatenate([np.zeros(int(0.04 * SR), dtype=np.float32), y])
+
+
 def soft(x):
     x = np.array(x, dtype=np.float32, copy=True)
     f = min(len(x) // 4, int(0.012 * SR))
@@ -139,7 +161,7 @@ def pieces_from_sentence(audio, sent_text, groups, lang):
     out = []
     for i, g in enumerate(groups):
         x = soft(audio[cuts[i]:cuts[i + 1]])
-        x = trim(x) if len(x) > int(0.3 * SR) else x
+        x = lead_trim(x)   # a breath at the start of a piece (taken at the comma) is not played
         if len(norm(g).split()) >= 2:
             sim, heard = similarity(x, g, lang)
             if sim < 0.8:
@@ -180,6 +202,7 @@ def synth(text, kind, lang, g):
             w = librosa.resample(w, orig_sr=sr, target_sr=SR)
         w, _ = debreath(w, SR)   # no audible in-breath before the first word (or at pauses)
         w = trim(w)
+        w = lead_trim(w)
         # a clip far too long for its words has babble or repetitions
         if len(w) / SR > 1.5 + words * 0.8:
             sim, heard = 0.0, "(too long)"
@@ -308,7 +331,7 @@ def main():
         fn = f"{k}.mp3"
         t = build(clips, os.path.join(OUT, fn))
         idx["texts"][k] = {"lang": lang, "file": f"{OUT}/{fn}", "s": [t[i] for i in si], "c": [t[i] for i in ci],
-                           "p": [[t[i] for i in row] for row in pi], "at": int(time.time()), "clean": 1, "cut": 1}
+                           "p": [[t[i] for i in row] for row in pi], "at": int(time.time()), "clean": 1, "cut": 2}
         json.dump(idx, open(os.path.join(OUT, "index.json"), "w"), ensure_ascii=False)
         NEW.add(k); newfiles.append(os.path.join(OUT, fn))
         done += 1

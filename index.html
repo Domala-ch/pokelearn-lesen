@@ -2271,7 +2271,7 @@ function splitUnits(U,lang){const n=U.length;let best=-1e9,bk=0;
 // Natural dictation blocks, chosen per sentence by dynamic programming: 3–8 words, cut where a speaker pauses
 // (after a comma, before «und/weil/dass …»), never between article and noun, never a block of one or two words
 // (unless the whole sentence is that short) and never a lone word or two after a comma at the end of a block.
-const CHUNKV="c3";
+const CHUNKV="c4";
 const LISTW=/^(und|oder|sowie|and|or|et|ou|ni)$/i;
 // a comma inside an enumeration («Brot, Käse und Äpfel») is no place for a pause
 function listComma(U,m){if(!/,/.test(U[m].tail))return false;for(let k=m+1;k<Math.min(U.length,m+6);k++){if(LISTW.test(U[k].word))return k>m+1;if(U[k].tail)return false}return false}
@@ -2279,11 +2279,11 @@ function cutCost(U,j,lang){let q=cutScore(U,j,lang);const a=U[j-1];
  if(listComma(U,j-1))q-=22;
  if(lang==="de"&&!a.tail&&/^[A-ZÄÖÜ]/.test(a.word)&&/^[A-ZÄÖÜ]/.test(U[j].word)&&j>1&&/^[a-zäöü]/.test(U[j-2].word))q-=12;   // «eine Flasche | Wasser»
  if((CONJ[lang]||CONJ.de).test(a.word)&&!a.tail)q-=35;     // never end a block with «und», «weil» …
- return -q+(q<=0?18:0)}                                     // no real pause here: only cut if the block would get far too long
-function blockCost(U,i,j,n){const w=j-i;let c=w<=2?(n<=2?0:60):w===3?6:w<=7?0:w===8?1:w===9?3:w===10?8:w===11?18:30+(w-12)*15;
+ return -q+(q<7?34:0)}                                      // only at a real pause (comma, «und», «weil», «dass» …); elsewhere only if the block would get far too long
+function blockCost(U,i,j,n){const w=j-i;let c=w<=2?(n<=2?0:60):w===3?6:w<=8?0:w===9?1:w===10?2:w===11?5:w===12?9:w===13?20:35+(w-14)*15;
  for(let m=i;m<j-1;m++)if(/[,;:]/.test(U[m].tail)){const after=j-1-m;if(j<n&&after<=2)c+=45}   // no lone word or two after a comma
  return c}
-function chunkSentence(U,lang){const n=U.length;if(n<=7)return[U];const best=new Array(n+1).fill(1e9),from=new Array(n+1).fill(0);best[0]=0;
+function chunkSentence(U,lang){const n=U.length;if(n<=9)return[U];const best=new Array(n+1).fill(1e9),from=new Array(n+1).fill(0);best[0]=0;
  for(let j=1;j<=n;j++)for(let i=Math.max(0,j-14);i<j;i++){if(best[i]>=1e9)continue;const c=best[i]+blockCost(U,i,j,n)+(j<n?cutCost(U,j,lang):0)+2;if(c<best[j]){best[j]=c;from[j]=i}}
  const out=[];let j=n;while(j>0){const i=from[j];out.unshift(U.slice(i,j));j=i}return out}
 function makeChunks(T,lang,seg){
