@@ -22,12 +22,23 @@ def get(url):
         return r.read()
 
 
+CACHE = ".gist_raw"
+
+
 def find_jobs():
+    # once found, the gist is read through its «latest raw» address (no API rate limit while polling)
+    if os.path.exists(CACHE):
+        try:
+            return json.loads(get(open(CACHE).read().strip() + "?t=" + str(int(__import__("time").time() // 60))))
+        except Exception:
+            os.remove(CACHE)
     for page in range(1, 6):
         lst = json.loads(get(f"https://api.github.com/users/{OWNER}/gists?per_page=100&page={page}"))
         for g in lst:
             f = (g.get("files") or {}).get(FILE)
             if f:
+                latest = f"https://gist.githubusercontent.com/{OWNER}/{g['id']}/raw/{FILE}"
+                open(CACHE, "w").write(latest)
                 return json.loads(get(f["raw_url"]))
         if len(lst) < 100:
             break

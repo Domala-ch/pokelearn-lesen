@@ -26,10 +26,18 @@ REFTEXT = json.load(open("tools/voices/reftext.json"))
 SHARD, SHARDS = int(os.environ.get("SHARD", "0")), int(os.environ.get("SHARDS", "1"))
 
 os.makedirs(OUT, exist_ok=True)
-jobs = json.load(open("jobs.json"))
-jobs["jobs"] = jobs["jobs"][SHARD::SHARDS]   # parallel runners each take every n-th text (the most urgent ones first)
-jobs["words"] = jobs.get("words", [])[SHARD::SHARDS]
-if not jobs["jobs"] and not jobs["words"]:
+SERVE = bool(os.environ.get("SERVE"))   # keep running and pick up new texts and words within a minute
+
+
+def load_jobs():
+    j = json.load(open("jobs.json"))
+    j["jobs"] = j["jobs"][SHARD::SHARDS]   # parallel runners each take every n-th text (the most urgent ones first)
+    j["words"] = j.get("words", [])[SHARD::SHARDS]
+    return j
+
+
+jobs = load_jobs()
+if not SERVE and not jobs["jobs"] and not jobs["words"]:
     sys.exit(0)
 
 import torch, librosa
@@ -368,4 +376,23 @@ def main():
     print(f"{done} recorded in {time.time()-T0:.0f}s", flush=True)
 
 
-main()
+def refresh():
+    """latest state of the repository (other runners' recordings) and the newest list from the app"""
+    global jobs
+    subprocess.run(["git", "fetch", "-q"], check=False)
+    subprocess.run(["git", "reset", "-q", "--hard", "@{u}"], check=False)
+    subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_jobs.py")], check=False,
+                   stdout=subprocess.DEVNULL)
+    jobs = load_jobs()
+
+
+if SERVE and not os.environ.get("PL_NOGIT"):
+    while time.time() - T0 < BUDGET:
+        refresh()
+        if jobs["jobs"] or jobs["words"]:
+            main()
+        else:
+            time.sleep(45)
+    print("serve time over", flush=True)
+else:
+    main()

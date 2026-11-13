@@ -1,10 +1,10 @@
 name: Diktat-Stimme
-# Records upcoming dictations with a natural voice (Qwen3-TTS), so the app can play them at once.
-# Every 10 minutes a quick check looks for new texts; only then the voice model is installed and run,
-# on four runners in parallel (each takes every fourth text, the most urgent ones first).
+# Records dictations and speaker words with a natural voice (Qwen3-TTS), so the app can play them at once.
+# Four runners stay on for up to 5½ hours and pick up new texts and words within about a minute;
+# the hourly schedule starts the next round (only one round runs at a time).
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "7 * * * *"
   workflow_dispatch:
 permissions:
   contents: write
@@ -12,32 +12,15 @@ concurrency:
   group: voice
   cancel-in-progress: false
 jobs:
-  check:
-    runs-on: ubuntu-latest
-    outputs:
-      todo: ${{ steps.q.outputs.todo }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Look for dictations without a recording
-        id: q
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 tools/voice_jobs.py
   record:
-    needs: check
-    if: needs.check.outputs.todo != '0'
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 345
     strategy:
       fail-fast: false
       matrix:
         shard: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@v4
-      - name: Look for dictations without a recording
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 tools/voice_jobs.py
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -52,13 +35,16 @@ jobs:
           sudo apt-get install -y -qq ffmpeg sox >/dev/null
           pip install -q --extra-index-url https://download.pytorch.org/whl/cpu "torch==2.8.0+cpu" "torchaudio==2.8.0+cpu"
           pip install -q qwen-tts==0.1.1 faster-whisper==1.2.1 librosa soundfile
-      - name: Record
+      - name: Record (stays on and keeps watching for new texts and words)
         env:
-          BUDGET_MIN: "55"
+          GH_TOKEN: ${{ github.token }}
+          SERVE: "1"
+          BUDGET_MIN: "330"
           SHARD: ${{ matrix.shard }}
           SHARDS: "4"
           HF_HUB_DISABLE_PROGRESS_BARS: "1"
         run: |
           git config user.name "pokelearn-bot"
           git config user.email "pokelearn-bot@users.noreply.github.com"
+          python3 tools/voice_jobs.py
           python tools/voice_render.py
