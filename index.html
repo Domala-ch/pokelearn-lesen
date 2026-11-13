@@ -2418,7 +2418,7 @@ async function liveSpeak(text,lang,rate){const g=DKS?DKS.gen:null,s0=DKS;let a;
  catch(e){LIVE.fail(e&&e.message||"Fehler");liveProgress({stage:"failed"});toast("Die PokeLearn-Stimme konnte nicht geladen werden – die Gerätestimme liest vor.");return"livefail"}
  if(s0&&(DKS!==s0||DKS.gen!==g))return"interrupted";if(!a||!a.length)return"ok";return playPCM(a,a.sr||24000)}
 // the next pieces of the dictation jump the queue (ahead of the sentences for the final check)
-function liveAhead(s,i){const lang=s.text.lang,tp=TEMPO[S.dkTempo]||TEMPO.mittel;for(let k=i;k<Math.min(s.chunks.length,i+3);k++){const ch=s.chunks[k];LIVE.warm([joinPlain(ch)],lang,tp.rate,1.5);LIVE.warm([S.dkPunct===false?joinPlain(ch):spokenChunk(ch,lang,true)],lang,tp.rate,1.5)}}
+function liveAhead(s,i){if(dkRecFor(s.text))return;const lang=s.text.lang,tp=TEMPO[S.dkTempo]||TEMPO.mittel;for(let k=i;k<Math.min(s.chunks.length,i+3);k++){const ch=s.chunks[k];LIVE.warm([joinPlain(ch)],lang,tp.rate,1.5);LIVE.warm([S.dkPunct===false?joinPlain(ch):spokenChunk(ch,lang,true)],lang,tp.rate,1.5)}}
 // pre-compute everything a dictation will say, in the order it is needed, so the voice never has to think out loud
 function livePrefetch(s){if(!s||!LIVE.wanted(s.text.lang)||dkRecFor(s.text))return;const lang=s.text.lang,tp=TEMPO[S.dkTempo]||TEMPO.mittel;
  LIVE.warm(s.sentences.map(x=>joinPlain(x)),lang,tp.read,1);
@@ -2542,7 +2542,7 @@ async function dkRun(){const s=DKS;if(!s||s.manual){dkUpd();return}const gen=++s
    if(k<s.sentences.length-1){await dkWait(90);if(!alive())return false}}return true};
  if(s.phase==="listen"){if(!await readAll(220))return;s.si=0;s.phase="write";s.i=0;dkRender()}
  if(s.phase==="write"){while(s.i<s.chunks.length){const ch=s.chunks[s.i];
-   if(liveRead||LIVE.wanted(lang))liveAhead(s,s.i);
+   if(!rec&&(liveRead||LIVE.wanted(lang)))liveAhead(s,s.i);   // only when there is no recording: the voice model must not run (and slow the phone) while a recording plays
    s.state="hear";if(!await sayR(rec&&rec.file,rec&&rec.t.c[s.i],joinPlain(ch)))return;await dkWait(650);if(!alive())return;
    s.state="again";if(!await sayDictate(ch,s.i))return;
    s.state="write";dkUpd();await dkWait(Math.max(3000,dkWords(ch)*tp.spw+1500),true);if(!alive())return;s.i++}
