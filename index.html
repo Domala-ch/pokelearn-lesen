@@ -2339,7 +2339,8 @@ function dkVoice(lang){const m=voxMode(lang);return m.kind==="dev"?m.v:voxBestDe
 if(ttsOK()){try{speechSynthesis.getVoices();speechSynthesis.addEventListener("voiceschanged",()=>{if(DKS&&DKS.phase==="ready")dkRender();else{dkFillVoices();dkVoiceDiag()}})}catch(e){}}
 let langDN=null;try{langDN=new Intl.DisplayNames(["de"],{type:"language"})}catch(e){}
 const langLabel=code=>{try{return(langDN&&langDN.of(code))||code}catch(e){return code}};
-function speak(text,lang,rate,pitch){if(LIVE.wanted(lang))return liveSpeak(text,lang,rate).then(r=>r==="livefail"?speakDev(text,lang,rate,pitch):r);return speakDev(text,lang,rate,pitch)}
+function speak(text,lang,rate,pitch){const wr=vWordRec(text,lang);if(wr){acUnlock();return recPlay(wr.file,wr.seg).then(r=>r==="recerror"?speakDev(text,lang,rate,pitch):r)}
+ if(LIVE.wanted(lang))return liveSpeak(text,lang,rate).then(r=>r==="livefail"?speakDev(text,lang,rate,pitch):r);return speakDev(text,lang,rate,pitch)}
 function speakDev(text,lang,rate,pitch){return new Promise(res=>{if(!ttsOK())return res("unsupported");let done=false,to;const fin=r=>{if(done)return;done=true;clearTimeout(to);res(r)};
  try{const u=new SpeechSynthesisUtterance(text);const v=dkVoice(lang);if(v)u.voice=v;u.lang=v?v.lang:VL[lang][0];u.rate=rate;u.pitch=pitch||1;u.onend=()=>fin("ok");u.onerror=e=>fin((e&&e.error)||"error");to=setTimeout(()=>fin("ok"),text.length*110/rate+5000);speechSynthesis.speak(u)}catch(e){fin("error")}})}
 // A dictation piece as separate phrases, with each punctuation mark spoken on its own after a short pause
@@ -2470,12 +2471,20 @@ function vJobsList(){const out=[],have=new Set(),add=t=>{if(!t||!t.text)return;c
 let vjTimer=0,vjBusy=false;
 function vjSchedule(){if(!STANDALONE)return;clearTimeout(vjTimer);vjTimer=setTimeout(vjPublish,4000)}
 async function vjPublish(){const c=SYNC.cfg&&SYNC.cfg();if(!c||!c.token||vjBusy)return;vjBusy=true;
- try{const body=JSON.stringify({version:1,punct:PW,jobs:vJobsList()});const h=String(hashStr(body));let id=null,last=null;try{id=localStorage.getItem("pl-vgist");last=localStorage.getItem("pl-vjh")}catch(e){}
+ try{const body=JSON.stringify({version:1,punct:PW,jobs:vJobsList(),words:vWordsList()});const h=String(hashStr(body));let id=null,last=null;try{id=localStorage.getItem("pl-vgist");last=localStorage.getItem("pl-vjh")}catch(e){}
   if(h===last&&id)return;const hd={"Authorization":"Bearer "+c.token,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"};
   if(!id){for(let page=1;page<=3&&!id;page++){const r=await fetch(`https://api.github.com/gists?per_page=100&page=${page}`,{headers:hd});if(!r.ok)break;const L=await r.json();const g=L.find(g=>g.files&&g.files[VJFILE]);if(g)id=g.id;if(L.length<100)break}}
   let r=id?await fetch("https://api.github.com/gists/"+id,{method:"PATCH",headers:hd,body:JSON.stringify({files:{[VJFILE]:{content:body}}})}):null;
   if(!r||r.status===404){r=await fetch("https://api.github.com/gists",{method:"POST",headers:hd,body:JSON.stringify({description:"PokeLearn – Diktat-Texte für die Vorlese-Stimme (öffentlich, ohne persönliche Daten)",public:true,files:{[VJFILE]:{content:body}}})});if(r.ok)id=(await r.json()).id}
   if(r&&r.ok){try{localStorage.setItem("pl-vgist",id);localStorage.setItem("pl-vjh",h)}catch(e){}}}catch(e){}finally{vjBusy=false}}
+// words for the speaker buttons (word lists, reading): recorded in the same natural voice as the dictations
+const vSpoken=t=>String(t||"").replace(/\([^)]*\)/g," ").replace(/\s*\/\s*/g,", ").replace(/\s+/g," ").replace(/\s+([,.;:!?])/g,"$1").trim();
+const vWKey=(lang,text,g)=>`${lang}-${g||vGender(lang)}-${hashStr(vSpoken(text)).toString(36)}`;
+function vWordsList(){const out=[],have=new Set(),add=(lang,t)=>{const sp=vSpoken(t);if(!sp||sp.length>140)return;const k=vWKey(lang,t);if(have.has(k))return;have.add(k);out.push({k,lang,v:vGender(lang),t:sp})};
+ (S.deck||[]).slice().reverse().forEach(d=>{if(d&&d.front)add(d.subj==="fr"||d.subj==="en"?d.subj:"de",d.front)});
+ for(const[L,lang]of[[FR,"fr"],[EN,"en"]])for(const k of Object.keys(L))(L[k]||[]).forEach(it=>add(lang,String(it).split("|")[0]));
+ return out.slice(0,1500)}
+function vWordRec(text,lang){if(!STANDALONE||!VIDX.words)return null;const r=VIDX.words[vWKey(lang,text)];return r?{file:VREPO+r.file,seg:r.seg}:null}
 function vStatus(){const langs=Object.keys(LANGN);const L=vJobsList();const ready=L.filter(j=>VIDX.texts[`${j.lang}-${j.v}-${j.id}-${j.h}`]);
  return{total:L.length,ready:ready.length,per:langs.map(l=>[l,ready.filter(j=>j.lang===l).length,L.filter(j=>j.lang===l).length])}}
 

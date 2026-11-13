@@ -28,7 +28,8 @@ SHARD, SHARDS = int(os.environ.get("SHARD", "0")), int(os.environ.get("SHARDS", 
 os.makedirs(OUT, exist_ok=True)
 jobs = json.load(open("jobs.json"))
 jobs["jobs"] = jobs["jobs"][SHARD::SHARDS]   # parallel runners each take every n-th text (the most urgent ones first)
-if not jobs["jobs"]:
+jobs["words"] = jobs.get("words", [])[SHARD::SHARDS]
+if not jobs["jobs"] and not jobs["words"]:
     sys.exit(0)
 
 import torch, librosa
@@ -249,7 +250,7 @@ def load_index():
     p = os.path.join(OUT, "index.json")
     if os.path.exists(p):
         return json.load(open(p))
-    return {"version": 1, "texts": {}, "punct": {}}
+    return {"version": 1, "texts": {}, "punct": {}, "words": {}}
 
 
 def git_save(msg, files):
@@ -265,6 +266,7 @@ def git_save(msg, files):
         theirs = load_index()
         theirs["texts"].update({k: v for k, v in mine["texts"].items() if k in NEW})
         theirs["punct"].update({k: v for k, v in mine["punct"].items() if k in NEWP})
+        theirs.setdefault("words", {}).update({k: v for k, v in mine.get("words", {}).items() if k in NEWW})
         json.dump(theirs, open(idxp, "w"), ensure_ascii=False)
         subprocess.run(["git", "add", idxp] + files, check=True)
         if subprocess.run(["git", "diff", "--cached", "--quiet"]).returncode == 0:
@@ -276,12 +278,38 @@ def git_save(msg, files):
     print("push failed", flush=True)
 
 
-NEW, NEWP = set(), set()
+NEW, NEWP, NEWW = set(), set(), set()
+
+
+def record_words():
+    """speaker-button words: batches of up to 40 per language and voice, one file each"""
+    by = {}
+    for w in jobs.get("words", []):
+        by.setdefault((w["lang"], w["v"]), []).append(w)
+    for (lang, g), L in by.items():
+        for b in range(0, len(L), 40):
+            if time.time() - T0 > BUDGET:
+                return
+            batch = L[b:b + 40]
+            t1 = time.time()
+            clips = [synth(w["t"], "x", lang, g) for w in batch]
+            h = __import__("hashlib").md5("|".join(w["k"] for w in batch).encode()).hexdigest()[:10]
+            fn = f"w-{lang}-{g}-{h}.mp3"
+            tm = build(clips, os.path.join(OUT, fn))
+            idx = load_index()
+            idx.setdefault("words", {})
+            for w, seg in zip(batch, tm):
+                idx["words"][w["k"]] = {"file": f"{OUT}/{fn}", "seg": seg}
+                NEWW.add(w["k"])
+            json.dump(idx, open(os.path.join(OUT, "index.json"), "w"), ensure_ascii=False)
+            print(f"recorded {len(batch)} words ({lang}, {g}) in {time.time()-t1:.0f}s", flush=True)
+            git_save(f"Stimme: {len(batch)} Wörter ({lang}, {'Frau' if g=='f' else 'Mann'})", [os.path.join(OUT, fn)])
 
 
 def main():
     PW = jobs.get("punct", {})
     done = 0
+    record_words()
     for j in jobs["jobs"]:
         if time.time() - T0 > BUDGET:
             print("time budget reached; the next run continues", flush=True)
