@@ -480,7 +480,6 @@ details.esec[open]>summary::after{transform:rotate(-135deg);margin-top:4px}
 details.esec>.esec-in{display:grid;gap:10px;padding:0 16px 16px}
 input[type=file]{font:inherit;font-size:14px;max-width:100%}
 input[type=file]::file-selector-button{font:inherit;font-weight:700;border:0;border-radius:999px;padding:8px 14px;margin-right:10px;background:var(--surface-2);color:var(--ink);cursor:pointer}
-.homegoalpic>*{width:100%!important;height:100%!important;max-width:100%}.homegoalpic img{object-fit:contain}.homegoalpic .cardface{font-size:6px}
 </style>
 </head>
 <body>
@@ -1542,7 +1541,7 @@ function renderHome(){if(STANDALONE&&typeof SYNC!=="undefined"&&!R)SYNC.idle();i
     const sub=k==="ma"||k==="de"||ts.some(t=>t.ai)?"Immer neue Aufgaben":k==="mix"?"Alles durcheinander":k==="heft"?(S.deck.length?`${S.deck.length} Einträge`:"Noch leer – fotografiere dein Heft"):`<b>${due}</b> fällig · ${nw} neu`;const lvT=ts.length*3,lvD=ts.reduce((s,t)=>s+tdDoneCount(k,t),0);
     b.innerHTML=`<span class="tag" style="background:${SUBJ[k].color}">${SUBJ[k].short}</span><h3>${SUBJ[k].name}</h3><span class="due">${sub}</span>${!["heft","mix"].includes(k)&&lvT?`<span class="due" style="color:var(--good);font-weight:800">✓ ${lvD}/${lvT} Stufen</span>`:""}`;
     b.onclick=()=>{if(k==="mix")return startRound("mix",{name:"Mix"});openTopics(k)};g.appendChild(b)});
-  const w=document.getElementById("wishHome");const gw=goalWish();if(gw){w.hidden=false;const f=Math.min(1,S.coins/gw.cost);w.innerHTML=`<div class="row" style="align-items:flex-start"><div class="homegoalpic" style="width:64px;aspect-ratio:5/7;border-radius:8px;overflow:hidden;background:var(--surface-2);flex:none;display:grid;place-items:center">${wishPic(gw)}</div><div style="flex:1;min-width:0"><p class="eyebrow">Dein Sparziel</p><b style="font-family:var(--display);font-size:18px">${esc(gw.title)}</b><div class="wishbar" style="margin-top:8px"><i style="width:${f*100}%"></i></div><span class="muted num" style="font-size:13px">${money(S.coins)} von ${money(gw.cost)}${f>=1?" · bereit zum Einlösen!":""}</span></div></div>`}else w.hidden=true}
+  const w=document.getElementById("wishHome");const gw=goalWish();if(gw){w.hidden=false;const f=Math.min(1,S.coins/gw.cost);w.innerHTML=`<div class="row" style="align-items:flex-start"><div style="width:64px;height:90px;border-radius:8px;overflow:hidden;background:var(--surface-2);flex:none;display:grid;place-items:center">${wishThumb(gw)}</div><div style="flex:1;min-width:0"><p class="eyebrow">Dein Sparziel</p><b style="font-family:var(--display);font-size:18px">${esc(gw.title)}</b><div class="wishbar" style="margin-top:8px"><i style="width:${f*100}%"></i></div><span class="muted num" style="font-size:13px">${money(S.coins)} von ${money(gw.cost)}${f>=1?" · bereit zum Einlösen!":""}</span></div></div>`}else w.hidden=true}
 function ringInfo(){const d=(S.history[today()]||{c:0}).c,g=S.dailyGoal||20;toast(d>=g?`Tagesziel geschafft: ${d} richtige Antworten heute!`:`Tagesziel: ${d} von ${g} richtigen Antworten heute – noch ${g-d}.`)}
 const goalWish=()=>S.wishes.find(x=>x.id===S.goal&&x.ok&&x.cost)||S.wishes.find(x=>x.ok&&x.cost)||null;
 const PIX="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
@@ -1648,6 +1647,9 @@ const wkey=w=>((w&&(w.card||w.prod))||{}).key||"";
 // Pokémon artwork (official artwork, 100 per sprite sheet) — the page cannot load card scans from other websites
 function artHtml(dex,cls){if(!dex||dex>1025)return`<span class="artph ${cls||""}" aria-hidden="true"></span>`;const k=dex-1,s=Math.floor(k/100),c=k%100;
   return`<span class="art ${cls||""}" style="background-image:url(cards/art${s}.webp);background-position:${(c%10)*100/9}% ${Math.floor(c/10)*100/9}%" role="img" aria-label="Pokémon-Bild"></span>`}
+// small picture for the home screen: only the image itself (the full product face is far too big there)
+function wishThumb(w){try{const d=document.createElement("div");d.innerHTML=wishPic(w);const im=d.querySelector("img");if(im&&im.getAttribute("src"))return`<img src="${im.getAttribute("src")}" alt="" style="width:100%;height:100%;object-fit:contain;display:block">`;
+ const sp=d.querySelector(".sealimg");if(sp)return`<span style="${sp.getAttribute("style")};display:block;width:100%;height:100%;background-repeat:no-repeat" role="img" aria-label="Produktfoto"></span>`}catch(e){}return""}
 function wishPic(w){if(w.img)return`<img src="${wimg(w)}" alt="${esc(w.title)}">`;if(w.prod)return prodArt(w.prod);if(w.card&&w.card.ph)return cardPhoto(w.card.ph,"full");if(w.card)return`<div class="cardface t${w.card.type||0}">${artHtml(w.card.dex)}<span class="cf-name">${esc(w.card.name)}</span><span class="cf-set">${esc(w.card.code||w.card.setName)} ${esc(w.card.num)}</span></div>`;return`<span class="ph">${esc(w.title)}</span>`}
 // ---- Preise: ein geplanter Claude-Auftrag sucht für jede Wunschkarte das günstigste Angebot (Cardmarket, TCGplayer) und schreibt es in die Datenbank ----
 const PRICE_TRIG="trig_01HGq4fHNRWsWAkwxnTfeffT";
