@@ -76,6 +76,79 @@ def similarity(audio, text, lang):
     return difflib.SequenceMatcher(None, heard.split(), norm(text).split()).ratio(), heard
 
 
+def word_times(audio, lang):
+    """[(normalized word, start s, end s)] of a clip, from the speech recogniser's word timestamps."""
+    a16 = librosa.resample(audio, orig_sr=SR, target_sr=16000)
+    segs, _ = ASR.transcribe(a16, language=WLANG[lang], beam_size=5, vad_filter=False, condition_on_previous_text=False, word_timestamps=True)
+    out = []
+    for sg in segs:
+        for w in (sg.words or []):
+            for t in norm(w.word).split():
+                out.append((t, w.start, w.end))
+    return out
+
+
+def cut_point(audio, t0, t1):
+    """quietest 10-ms spot between two words (that is where the speaker pauses)"""
+    f = int(0.01 * SR)
+    a, b = max(0, int((min(t0, t1) - 0.06) * SR)), min(len(audio) - f, int((max(t0, t1) + 0.06) * SR))
+    if b <= a:
+        return int(t0 * SR)
+    best, bi = 9e9, a
+    for i in range(a, b, f // 2):
+        e = float(np.mean(audio[i:i + f] ** 2))
+        if e < best:
+            best, bi = e, i
+    return bi + f // 2
+
+
+def soft(x):
+    x = np.array(x, dtype=np.float32, copy=True)
+    f = min(len(x) // 4, int(0.012 * SR))
+    if f > 0:
+        x[:f] *= np.linspace(0, 1, f, dtype=np.float32); x[-f:] *= np.linspace(1, 0, f, dtype=np.float32)
+    return x
+
+
+def pieces_from_sentence(audio, sent_text, groups, lang):
+    """Cut the dictation pieces out of the recorded sentence, so they sound exactly like the whole sentence
+    (same voice, same melody). groups: list of texts that together make up the sentence, in order.
+    Returns a list of clips, or None if the words cannot be matched safely."""
+    sw = norm(sent_text).split()
+    gw = [norm(g).split() for g in groups]
+    if sum(len(x) for x in gw) != len(sw) or [w for x in gw for w in x] != sw or any(not x for x in gw):
+        return None
+    wt = word_times(audio, lang)
+    if not wt:
+        return None
+    sm = difflib.SequenceMatcher(None, [w for w, _, _ in wt], sw, autojunk=False)
+    st, en = [None] * len(sw), [None] * len(sw)
+    for a, b, n in sm.get_matching_blocks():
+        for k in range(n):
+            st[b + k], en[b + k] = wt[a + k][1], wt[a + k][2]
+    # a boundary needs both neighbouring words placed
+    cuts, pos = [0], 0
+    for x in gw[:-1]:
+        pos += len(x)
+        if en[pos - 1] is None or st[pos] is None:
+            return None
+        cuts.append(cut_point(audio, en[pos - 1], st[pos]))
+    cuts.append(len(audio))
+    if any(cuts[i + 1] - cuts[i] < int(0.25 * SR) for i in range(len(cuts) - 1)):
+        return None
+    out = []
+    for i, g in enumerate(groups):
+        x = soft(audio[cuts[i]:cuts[i + 1]])
+        x = trim(x) if len(x) > int(0.3 * SR) else x
+        if len(norm(g).split()) >= 2:
+            sim, heard = similarity(x, g, lang)
+            if sim < 0.8:
+                print(f"  cut check {sim:.2f}: {g} | heard: {heard}", flush=True)
+                return None
+        out.append(soft(x))
+    return out
+
+
 PROMPTS = {}
 
 
@@ -205,13 +278,37 @@ def main():
         clips = []
         def add(text, kind):
             clips.append(synth(text, kind, lang, g)); return len(clips) - 1
+        def put(x):
+            clips.append(x); return len(clips) - 1
         si = [add(x, "s") for x in j["s"]]
-        ci = [add(x, "c") for x in j["c"]]
-        pi = [[add(x, "p") for x in row] for row in j["p"]]
+        # dictation pieces and their parts are cut out of the sentence recordings (same melody as the first reading);
+        # only where that is not possible a piece is recorded on its own
+        ci, pi, ci_by, pi_by, cut_ok = [None] * len(j["c"]), [None] * len(j["c"]), {}, {}, 0
+        c_pos = 0
+        for s_idx, sent in enumerate(j["s"]):
+            nw, grp = len(norm(sent).split()), []
+            while c_pos < len(j["c"]) and sum(len(norm(j["c"][q]).split()) for q in grp) < nw:
+                grp.append(c_pos); c_pos += 1
+            sub = [(q, r, part) for q in grp for r, part in enumerate(j["p"][q])]
+            sent_audio = clips[si[s_idx]]
+            cc = pieces_from_sentence(sent_audio, sent, [j["c"][q] for q in grp], lang) if grp else None
+            pp = pieces_from_sentence(sent_audio, sent, [x[2] for x in sub], lang) if sub else None
+            if cc:
+                for q, x in zip(grp, cc):
+                    ci[q] = put(x)
+                cut_ok += len(grp)
+            if pp:
+                for (q, r, _), x in zip(sub, pp):
+                    pi_by[(q, r)] = put(x)
+        for q in range(len(j["c"])):
+            if ci[q] is None:
+                ci[q] = add(j["c"][q], "c")
+            pi[q] = [pi_by[(q, r)] if (q, r) in pi_by else (ci[q] if norm(part) == norm(j["c"][q]) else add(part, "p")) for r, part in enumerate(j["p"][q])]
+        print(f"  {cut_ok}/{len(j['c'])} pieces cut from the sentences", flush=True)
         fn = f"{k}.mp3"
         t = build(clips, os.path.join(OUT, fn))
         idx["texts"][k] = {"lang": lang, "file": f"{OUT}/{fn}", "s": [t[i] for i in si], "c": [t[i] for i in ci],
-                           "p": [[t[i] for i in row] for row in pi], "at": int(time.time()), "clean": 1}
+                           "p": [[t[i] for i in row] for row in pi], "at": int(time.time()), "clean": 1, "cut": 1}
         json.dump(idx, open(os.path.join(OUT, "index.json"), "w"), ensure_ascii=False)
         NEW.add(k); newfiles.append(os.path.join(OUT, fn))
         done += 1

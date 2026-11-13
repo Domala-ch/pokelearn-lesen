@@ -58,7 +58,8 @@ def main():
             seen.add(key(j))
             if j.get("lang") not in ("de", "fr", "en") or j.get("v") not in ("f", "m"):
                 continue
-            if key(j) in idx["texts"]:
+            # recordings made before the pieces were cut from the sentences are recorded again (the old one stays usable meanwhile)
+            if key(j) in idx["texts"] and idx["texts"][key(j)].get("cut"):
                 continue
             todo.append(j)
     json.dump({"punct": punct, "jobs": todo}, open("jobs.json", "w"), ensure_ascii=False)
