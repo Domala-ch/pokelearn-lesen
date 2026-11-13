@@ -32,6 +32,8 @@ if not jobs["jobs"]:
     sys.exit(0)
 
 import torch, librosa
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from voice_clean import debreath
 from qwen_tts import Qwen3TTSModel
 from faster_whisper import WhisperModel
 
@@ -103,6 +105,7 @@ def synth(text, kind, lang, g):
         w = np.asarray(ws[0], dtype=np.float32)
         if sr != SR:
             w = librosa.resample(w, orig_sr=sr, target_sr=SR)
+        w, _ = debreath(w, SR)   # no audible in-breath before the first word (or at pauses)
         w = trim(w)
         # a clip far too long for its words has babble or repetitions
         if len(w) / SR > 1.5 + words * 0.8:
@@ -197,7 +200,7 @@ def main():
             keys = list(PW[lang].keys())
             fn = f"punct-{pk}.mp3"
             t = build([synth(PW[lang][x], "x", lang, g) for x in keys], os.path.join(OUT, fn))
-            idx["punct"][pk] = {"file": f"{OUT}/{fn}", "map": dict(zip(keys, t))}
+            idx["punct"][pk] = {"file": f"{OUT}/{fn}", "map": dict(zip(keys, t)), "clean": 1}
             NEWP.add(pk); newfiles.append(os.path.join(OUT, fn))
         clips = []
         def add(text, kind):
@@ -208,7 +211,7 @@ def main():
         fn = f"{k}.mp3"
         t = build(clips, os.path.join(OUT, fn))
         idx["texts"][k] = {"lang": lang, "file": f"{OUT}/{fn}", "s": [t[i] for i in si], "c": [t[i] for i in ci],
-                           "p": [[t[i] for i in row] for row in pi], "at": int(time.time())}
+                           "p": [[t[i] for i in row] for row in pi], "at": int(time.time()), "clean": 1}
         json.dump(idx, open(os.path.join(OUT, "index.json"), "w"), ensure_ascii=False)
         NEW.add(k); newfiles.append(os.path.join(OUT, fn))
         done += 1
