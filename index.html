@@ -2945,13 +2945,18 @@ function frNum(n){const out=new Set();for(const ch of[false,true]){let s;if(n<10
 const NUMREV={};for(const[lg,f]of[["en",n=>enNum(n)],["fr",n=>frNum(n)],["de",n=>numWords(String(n))]])for(let n=0;n<=100;n++)for(const w of f(n)){const k=lsNorm(w.replace(/ /g,""));if(k&&!(lg==="de"&&k==="ein"))(NUMREV[lg]||(NUMREV[lg]=new Map)).set(k,String(n))}
 {const ORD={1:"erst",3:"dritt",7:"siebt",8:"acht"};for(let n=1;n<=31;n++){const st=ORD[n]||(n<20?numWords(String(n))[0]+"t":numWords(String(n))[0]+"st");for(const e of["e","en","er","es","em"])NUMREV.de.set(lsNorm(st+e),String(n))}}
 function heardTokens(txt){const L=LS,lang=(L&&L.text&&L.text.lang)||"de",want=L&&L.expSet;const out=[];
- String(txt).split(/\s+/).forEach(w=>{const n=lsNorm(w);if(!n)return;
+ const raw=String(txt).trim().split(/\s+/),SA=L&&L.srAlt&&L.srText===String(txt).trim()?L.srAlt:null;let fin=SA?L.srFinN:Infinity;L&&(L.hFin=0);
+ raw.forEach((w,ri)=>{const n=lsNorm(w);if(!n)return;const o0=out.length;tok1(w,n);
+  if(SA&&SA[ri]&&SA[ri].size&&out.length===o0+1)for(const x of SA[ri])if(x&&!out[o0].includes(x)){out[o0].push(x);const dd=NUMREV[lang]&&NUMREV[lang].get(x);if(dd&&!out[o0].includes(dd))out[o0].push(dd);if(lang==="de"&&/^\d+$/.test(x))out[o0].push(...numWords(x))}
+  if(L&&ri<fin)L.hFin=out.length});
+ if(L&&!SA)L.hFin=out.length;return out;
+ function tok1(w,n){
   if(/^\d+$/.test(n)){const v=parseInt(n,10);
    if(lang==="de"||want&&want.has(n)){out.push([n,...(lang==="de"?numWords(n):[]),...(lang!=="de"?[...(lang==="en"?enNum(v):frNum(v))].map(s=>lsNorm(s.replace(/ /g,""))):[])]);return}
    const vs=lang==="en"?enNum(v):frNum(v);if(!vs.length){out.push([n]);return}
    const tk=vs.map(s=>s.split(" ").map(lsNorm).filter(Boolean)),len=tk[0].length;      // spoken as several words: one token per word
    for(let i=0;i<len;i++)out.push([...new Set(tk.filter(t=>t.length===len).map(t=>t[i]).concat(i===0?[n]:[]))]);return}
-  const alts=[n];if(lang==="de"&&ABBR[n])alts.push(ABBR[n],ABBR[n]+"n");const d=NUMREV[lang]&&NUMREV[lang].get(n);if(d)alts.push(d);out.push(alts)});return out}
+  const alts=[n];if(lang==="de"&&ABBR[n])alts.push(ABBR[n],ABBR[n]+"n");const d=NUMREV[lang]&&NUMREV[lang].get(n);if(d)alts.push(d);out.push(alts)}}
 // returns per expected word: "ok" | "bad" (misread) | "miss" (skipped) | undefined, plus the position reached
 // Kölner Phonetik: German sound code, so words the recognizer spells differently but that sound the same still match
 function koeln(w){w=String(w).toLowerCase().replace(/ä/g,"a").replace(/ö/g,"o").replace(/ü/g,"u").replace(/ß/g,"s").replace(/[^a-z]/g,"");if(!w)return"";let c="";
@@ -2980,19 +2985,26 @@ const HOMO=new Map();[["de","das dass|ist isst|seit seid|wieder wider|mal mahl|m
 const homo=(a,e)=>{const x=HOMO.get(LSLANG+":"+a);return x!==undefined&&x===HOMO.get(LSLANG+":"+e)};
 // French: endings that are not pronounced (-s, -x, -t, -d, -e, -ent, -er/-ez/-é) — the recognizer picks one spelling at random
 const frKey=w=>{let s=w.replace(/[èêë]/g,"e").replace(/[àâ]/g,"a").replace(/[îï]/g,"i").replace(/[ôö]/g,"o").replace(/[ùûü]/g,"u");
- s=s.replace(/(ent|es|s|x)$/,"").replace(/(er|ez|ée|é|ai)$/,"É").replace(/[tdzp]$/,"").replace(/e$/,"").replace(/[éÉ]/g,"E").replace(/ç/g,"s").replace(/qu/g,"k").replace(/(.)\1/g,"$1");return s};
+ s=s.replace(/œu?/g,"eu").replace(/c(?=[eiy])/g,"s").replace(/(ent|es|s|x)$/,"").replace(/([^é])e$/,"$1").replace(/(er|ez|ée|é|ai)$/,"É").replace(/[tdzp]$/,"").replace(/e$/,"").replace(/[éÉ]/g,"E").replace(/ç/g,"s").replace(/qu/g,"k").replace(/(.)\1/g,"$1");return s};
 const _frk=new Map();const frKeyC=w=>{let v=_frk.get(w);if(v===undefined){v=frKey(w);_frk.set(w,v)}return v};
 // German vowel skeleton: same consonant sound code is not enough (Tasche/Tische) — the vowels must match too
 const vowK=w=>fold(w).replace(/^y(?=[aeiou])/,"j").replace(/ie/g,"i").replace(/([aeiou])h/g,"$1").replace(/[ae][iy]/g,"I").replace(/(eu|oi)/g,"O").replace(/y/g,"i").replace(/([aeiou])\1/g,"$1").replace(/[^aeiouIO]/g,"");
 const _vk=new Map();const vowKC=w=>{let v=_vk.get(w);if(v===undefined){v=vowK(w);_vk.set(w,v)}return v};
+// German spelling → sound: words that are spelled differently but sound the same (still/Stil, Decken/Däcken, Zugersee/Zugersä, Picknick/Picnic)
+const sndDe=w=>fold(w).replace(/ä/g,"e").replace(/ie/g,"i").replace(/([aeiou])h(?![aeiou])/g,"$1").replace(/ck/g,"k").replace(/tz/g,"z").replace(/dt/g,"t").replace(/th/g,"t").replace(/ph/g,"f").replace(/v/g,"f").replace(/c(?=[hk])/g,"").replace(/c/g,"k").replace(/qu/g,"kw").replace(/x/g,"ks").replace(/y/g,"i").replace(/a[iy]/g,"ei").replace(/(eu|äu)/g,"oi").replace(/(.)\1+/g,"$1").replace(/d$/,"t").replace(/b$/,"p").replace(/g$/,"k");
+const _sd=new Map();const sndC=w=>{let v=_sd.get(w);if(v===undefined){v=LSLANG==="de"?sndDe(w):w.replace(/(.)\1+/g,"$1");_sd.set(w,v)}return v};
 function wordScoreFast(alts,e,eF,eK){let best=null;for(const a of alts){if(a===e)return 3;if(foldC(a)===eF)return 3;
+  if(a.length>=3&&sndC(a)===sndC(e)){best=Math.max(best??-9,2.6);continue}               // sounds the same, spelled differently
+  if(LSLANG==="de"&&a.length>=4&&e.length>=4&&(a+"e"===e||e+"e"===a)){best=Math.max(best??-9,2.6);continue}   // final -e swallowed (erzählt/erzählte, hab/habe): recognizers drop it all the time
   if(homo(a,e)){best=Math.max(best??-9,2.6);continue}                                     // das/dass, there/their, a/à
   if(LSLANG==="fr"&&a.length>1&&frKeyC(a)===frKeyC(e)){best=Math.max(best??-9,2.6);continue}   // mange/mangent, petit/petits
   if(LSMN&&a.length===e.length&&a.length>=2&&a.slice(0,-1)===e.slice(0,-1)&&/[mn]/.test(a.slice(-1))&&/[mn]/.test(e.slice(-1))){best=Math.max(best??-9,2.6);continue}   // optional leniency: an/am, in/im, den/dem (dictation often mishears a final m/n)
   const aShort=SHORTW.test(a),eShort=SHORTW.test(e);
   if(aShort&&eShort){best=Math.max(best??-9,1);continue}                                  // der/die, ein/eine, im/in: a different small word is a misread
   if(!aShort&&!eShort){const s=a.length<e.length?a:e,l=a.length<e.length?e:a;
-   if(s.length>=3&&l.length-s.length<=2&&l.startsWith(s)){best=Math.max(best??-9,LSSTRICT?1:2.6);continue}}  // kleine/kleiner: in correction mode a wrong ending is a misread
+   if(s.length>=3&&l.length-s.length<=2&&l.startsWith(s)&&koelnC(a)!==eK){const sf=l.slice(s.length);
+    // unstressed endings (kleine/kleinen, Hund/Hunde, dog/dogs) are what recognizers get wrong most: only other endings count as misread
+    const soft=LSLANG==="de"?/^(e|n|en|er|em|es|s|r|m)$/.test(sf):LSLANG==="en"?sf==="s":false;best=Math.max(best??-9,LSSTRICT&&!soft?1:2.6);continue}}  // kleine/kleiner: in correction mode a wrong ending is a misread
   const L=Math.max(a.length,e.length),sameK=eK&&koelnC(a)===eK;
   if(!sameK&&Math.abs(a.length-e.length)>Math.ceil(L*.3))continue;const d=lev(a,e);
   const vowOk=!(LSSTRICT&&LSLANG==="de")||vowKC(a)===vowKC(e);
@@ -3000,7 +3012,7 @@ function wordScoreFast(alts,e,eF,eK){let best=null;for(const a of alts){if(a===e
 // Global alignment, computed incrementally: rows for words already heard are kept, only new or revised words are processed.
 function lsAlign(exp,heard,cache){const E=exp.length,H=heard.length;
  const EF=cache.EF||(cache.EF=exp.map(fold)),EK=cache.EK||(cache.EK=exp.map(koeln)),EGAP=cache.EGAP||(cache.EGAP=exp.map(w=>SHORTW.test(w)||w.length<=3?.35:1.3));
- const ws=cache.ws||(cache.ws=new Map());const HX=.7,NEG=-1e9,jmax=i=>Math.min(E,2*i+10),jmin=i=>Math.max(0,Math.floor(i*.4)-8);
+ const ws=cache.ws||(cache.ws=new Map());const HX=.7,NEG=-1e9,jmax=i=>Math.min(E,2*i+10),jmin=()=>0;
  const keys=heard.map(a=>a.join("|"));let start=0;if(cache.keys)while(start<H&&start<cache.keys.length&&keys[start]===cache.keys[start])start++;
  let dp=cache.dp,bk=cache.bk;if(!dp||!start){dp=[new Float64Array(E+1).fill(NEG)];bk=[new Int8Array(E+1)];dp[0][0]=0;for(let j=1;j<=Math.min(E,10);j++){dp[0][j]=dp[0][j-1]-EGAP[j-1];bk[0][j]=2}start=0}
  dp.length=start+1;bk.length=start+1;
@@ -3050,6 +3062,11 @@ function lsAdvance(heard){const L=LS,strict=false,N=L.expN.length;if(!LSSTRICT){
    clearTimeout(L._pendT);L._pendT=setTimeout(()=>{if(LS===L&&L.phase==="reading"){L._settled=true;lsUpdateFromHeard();L._settled=false}},850);
    r.st=r.st.slice(0,b);b=-1}
   if(b>=0&&r.mh[b]!=null){for(let m=0;m<b;m++)L.fin[L.e0+m]=r.st[m];L.retry={idx:L.e0+b,tries:1,h:L.h0+r.mh[b]+1,seen:0,am:0};L.e0+=b;lsBeep(false);continue}
+  // a word the recognizer has not settled yet (still an interim guess, or typed by dictation just now) is never shown as wrong:
+  // the guess often changes to the right word a moment later. Until then it counts as read.
+  {const now=Date.now(),hf=L.hFin??heard.length;let pend=false;
+   for(let m=0;m<r.st.length;m++)if(r.st[m]==="bad"&&r.mh[m]!=null){const hi=L.h0+r.mh[m];if(hi>=hf||(!L.srLive&&hi>=heard.length-2&&now-(L.lastInput||0)<1500)){r.st[m]="soft";pend=true}}
+   if(pend&&!L.srLive){clearTimeout(L._pendT2);L._pendT2=setTimeout(()=>{if(LS===L&&L.phase==="reading")lsUpdateFromHeard()},1600)}}
   L.cur=r.st;break}
  L.wst=[...L.fin.slice(0,L.e0),...(L.retry?[]:L.cur||[])];
  L.pos=L.retry?L.retry.idx:Math.min(N,L.e0+((L.cur||[]).length))}
@@ -3068,14 +3085,14 @@ function lsUpdateFromHeard(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="readin
  const ok=L.wst.filter(x=>x==="ok").length,wn=document.getElementById("lsWarn");
  if(wn){const bad=heard.length>=6&&ok<heard.length*.25;wn.hidden=!bad;if(bad){const ln=LANGN[L.text.lang||"de"];wn.innerHTML=`Das Mikrofon versteht nicht ${ln}. ${L.srLive?"Bitte deutlich und nah am Gerät lesen.":esc((LSLANGFIX[lsPlatform()]||LSLANGFIX.other).replace("%L",ln))} Dann «Neu beginnen».`}}
  const N=L.expN.length;
- if(L.pos>=N&&!L._done){L._done=true;setTimeout(()=>{if(LS===L&&L.phase==="reading"){toast("Geschafft! Jetzt die Fragen.");lsFinishReading()}},700)}
+ if(L.pos>=N&&!L._done){L._done=true;clearTimeout(L._finT);L._finT=setTimeout(()=>{if(LS===L&&L.phase==="reading"){toast("Geschafft! Jetzt die Fragen.");lsFinishReading()}},700)}
  else if(L.pos>=N-3&&!L._done){clearTimeout(L._endT);L._endT=setTimeout(()=>{if(LS===L&&L.phase==="reading"&&!L._done&&Date.now()-L.lastHeard>=2400){L._done=true;for(let k=L.pos;k<N;k++)L.wst[k]=L.wst[k]||"soft";L.pos=N;lsPaint();toast("Geschafft! Jetzt die Fragen.");lsFinishReading()}},2500)}}
 function lsStart(t){lsStop();const T=toks(t.text);let s=0;const sIdx=[];T.forEach((tk,i)=>{sIdx.push(s);const nx=T[i+1];if(/^[.!?]$/.test(tk.t)&&!(nx&&((QUOTES.has(nx.t)&&!nx.q)||nx.t===",")))s++;else if(QUOTES.has(tk.t)&&!tk.q&&i>0&&/^[.!?]$/.test(T[i-1].t)&&!(nx&&nx.t===","))s++});
  const ns=Math.max(0,...sIdx)+1;
  const W=[];T.forEach((tk,i)=>{if(!isPunct(tk.t))W.push(i)});
  LS={phase:"ready",text:t,T,sIdx,ns:Math.max(1,ns),si:0,t0:0,ms:0,bad:new Set(),gen:0,qi:0,qa:[],parent:!!S.lsParent,order:t.q.map(q=>shuffle(q[1].map((a,k)=>({a,ok:k===0})))),
   W,expN:W.map(i=>lsNorm(T[i].t)),wst:[],pos:0,mode:null};
- LS.expSet=new Set(LS.expN);LSLANG=t.lang||"de";_frk.clear();
+ LS.expSet=new Set(LS.expN);LSLANG=t.lang||"de";_frk.clear();_sd.clear();
  // names and other capitalised words inside a sentence: the recognizer often spells them differently
  // (German: every noun is capitalised, so only words that look like names — no article or adjective right before them)
  const DETR=/^(der|die|das|den|dem|des|ein|eine|einen|einem|einer|eines|kein\w*|mein\w*|dein\w*|sein\w*|ihr\w*|unser\w*|euer\w*|eure\w*|dies\w*|jed\w*|welch\w*|all\w*|viel\w*|wenig\w*|manch\w*|zum|zur|im|am|beim|vom|ins|ans|aufs|\w+(e|en|er|es|em))$/i;
@@ -3134,18 +3151,38 @@ let lsSRBlocked=false;
 const SRFALL={"de-CH":"de-DE","fr-CH":"fr-FR","en-GB":"en-US"};
 const lsLive=()=>STANDALONE&&!lsSRBlocked&&!!(window.SpeechRecognition||window.webkitSpeechRecognition);
 let lsNoPhrases=false;
+// Each recognizer result comes with several guesses (alternatives). They are lined up word by word with the chosen guess,
+// so a word counts as read when ANY guess heard it right (recognizers often hear the right word but rank it second).
+function srAltWords(res,bestIdx){const base=res[bestIdx].transcript.trim().split(/\s+/).filter(Boolean),alt=base.map(()=>new Set());
+ for(let a=0;a<res.length;a++){if(a===bestIdx)continue;const o=res[a].transcript.trim().split(/\s+/).filter(Boolean),n=base.length,m=o.length;if(!m||m>n+4||n>m+4)continue;
+  const B=base.map(lsNorm),O=o.map(lsNorm),d=Array.from({length:n+1},(_,i)=>{const r=new Int16Array(m+1);r[0]=i;return r});for(let j=0;j<=m;j++)d[0][j]=j;
+  for(let i=1;i<=n;i++)for(let j=1;j<=m;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(B[i-1]===O[j-1]?0:1));
+  let i=n,j=m;while(i>0&&j>0){if(d[i][j]===d[i-1][j-1]+(B[i-1]===O[j-1]?0:1)){if(B[i-1]!==O[j-1]&&O[j-1])alt[i-1].add(O[j-1]);i--;j--}else if(d[i][j]===d[i-1][j]+1)i--;else{
+    // the alternative has an extra word here: offer it joined with its neighbour (split compounds: «Hallen bad»)
+    if(i>0&&O[j-1])alt[i-1].add(B[i-1]+O[j-1]);j--}}}
+ return{words:base,alt}}
+let lsNetFails=0;
 function lsStartSR(){const L=LS,SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!L||!SR||lsSRBlocked)return;let r;try{r=new SR()}catch(e){lsSRBlocked=true;return}
- const lang=L.text.lang||"de";r.lang=SRLANG[lang]||"de-CH";r.continuous=true;r.interimResults=true;try{r.maxAlternatives=3}catch(x){}let fin="";const want=new Set(L.expN);
+ const lang=L.text.lang||"de";r.lang=SRLANG[lang]||"de-CH";r.continuous=true;r.interimResults=true;try{r.maxAlternatives=5}catch(x){}const want=new Set(L.expN);
+ // text and guesses survive restarts of the recognizer (it stops by itself after pauses or about a minute)
+ if(!L.srFin){L.srFin=[];L.srFinAlt=[]}let inter=[],interAlt=[];
  // contextual biasing: the words of this text (long words and names first) are more likely to be recognized
  if(!lsNoPhrases&&window.SpeechRecognitionPhrase&&"phrases" in r){try{const seen=new Set(),ph=[];
    L.W.map(i=>L.T[i].t.replace(/[’']/g,"'")).sort((a,b)=>(LSPROP.has(lsNorm(b))-LSPROP.has(lsNorm(a)))||b.length-a.length).forEach(w=>{const k=w.toLowerCase();if(w.length>=4&&!seen.has(k)&&ph.length<120){seen.add(k);ph.push(new SpeechRecognitionPhrase(w,LSPROP.has(lsNorm(w))?5:3))}});
    r.phrases=ph}catch(e){lsNoPhrases=true}}
- const pickAlt=res=>{let best=res[0].transcript,bs=-1;for(let a=0;a<res.length;a++){const t=res[a].transcript,toksA=t.split(/\s+/).map(lsNorm).filter(Boolean);const s=toksA.filter(x=>want.has(x)).length/(toksA.length||1);if(s>bs){bs=s;best=t}}return best};
- r.onresult=e=>{let inter="";for(let i=e.resultIndex;i<e.results.length;i++){const t=pickAlt(e.results[i]);if(e.results[i].isFinal)fin+=t+" ";else inter+=t}
-  const ta=document.getElementById("lsDict");if(ta){ta.value=(fin+inter).trim();lsOnDict()}if(!L.srLive){L.srLive=true;lsMicUI()}};
+ // the guess with the most words of the text is shown; the others still count word by word
+ const pick=res=>{let bi=0,bs=-1;for(let a=0;a<res.length;a++){const tk=res[a].transcript.split(/\s+/).map(lsNorm).filter(Boolean);const s=tk.filter(x=>want.has(x)).length/(tk.length||1)+(a===0?.001:0);if(s>bs){bs=s;bi=a}}return srAltWords(res,bi)};
+ const show=()=>{const words=[...L.srFin,...inter],alt=[...L.srFinAlt,...interAlt];L.srAlt=alt;L.srFinN=L.srFin.length;L.srText=words.join(" ");
+  const ta=document.getElementById("lsDict");if(ta){ta.value=L.srText;lsOnDict()}};
+ r.onresult=e=>{lsNetFails=0;inter=[];interAlt=[];for(let i=e.resultIndex;i<e.results.length;i++){const p=pick(e.results[i]);
+   if(e.results[i].isFinal){L.srFin.push(...p.words);L.srFinAlt.push(...p.alt)}else{inter.push(...p.words);interAlt.push(...p.alt)}}
+  show();if(!L.srLive){L.srLive=true;lsMicUI()}};
  r.onerror=e=>{if(e.error==="phrases-not-supported"&&!lsNoPhrases){lsNoPhrases=true;L.sr=null;setTimeout(lsStartSR,50);return}
-  if(e.error==="language-not-supported"&&SRFALL[r.lang]){SRLANG[lang]=SRFALL[r.lang];L.sr=null;setTimeout(lsStartSR,50);return}if(["not-allowed","service-not-allowed","audio-capture","network","language-not-supported"].includes(e.error)){lsSRBlocked=true;if(L.sr===r)L.sr=null;L.srLive=false;lsMicUI()}};
- r.onend=()=>{if(LS===L&&L.sr===r&&L.phase==="reading"&&!lsSRBlocked){try{r.start()}catch(x){}}};
+  if(e.error==="language-not-supported"&&SRFALL[r.lang]){SRLANG[lang]=SRFALL[r.lang];L.sr=null;setTimeout(lsStartSR,50);return}
+  if(e.error==="network"&&++lsNetFails<=3)return;     // short network hiccup: onend starts it again
+  if(["not-allowed","service-not-allowed","audio-capture","network","language-not-supported"].includes(e.error)){lsSRBlocked=true;if(L.sr===r)L.sr=null;L.srLive=false;lsMicUI()}};
+ r.onend=()=>{if(inter.length){L.srFin.push(...inter);L.srFinAlt.push(...interAlt);inter=[];interAlt=[];show()}   // words still open when it stopped are kept
+  if(LS===L&&L.sr===r&&L.phase==="reading"&&!lsSRBlocked){setTimeout(()=>{if(LS===L&&L.sr===r&&L.phase==="reading")try{r.start()}catch(x){L.sr=null;lsStartSR()}},lsNetFails?400:0)}};
  L.sr=r;try{r.start()}catch(e){lsSRBlocked=true;L.sr=null}}
 function lsStopSR(L){L=L||LS;if(L&&L.sr){const r=L.sr;L.sr=null;try{r.onend=null;r.abort()}catch(e){}}}
 function lsMicUI(){const L=LS,el=document.getElementById("lsHow"),lab=document.getElementById("lsMicLab");if(!L||!el)return;
@@ -3274,9 +3311,9 @@ document.getElementById("lsView").addEventListener("click",e=>{const L=LS;
  if(a==="code"){const inp=document.getElementById("lsCode"),v=inp?inp.value:"";const c=lesenCode(v,L.text.id);if(!c){toast("Dieser Code passt nicht zu diesem Text. Schau nochmals auf der Lese-Seite nach.");if(inp){inp.select()}return}
   S.lsCodes=S.lsCodes||[];if(S.lsCodes.includes(L.text.id+":"+c.code)){toast("Diesen Code hast du schon eingelöst. Lies den Text nochmals, dann gibt es einen neuen.");return}S.lsCodes=[...S.lsCodes,L.text.id+":"+c.code].slice(-300);
   L.mode="ext";L.ext=c;L.read=true;const words=dkWords(L.T);L.ms=c.wpm?Math.round(words/c.wpm*60000):0;L.t0=0;save();lsFinishReading();return}
- if(a==="mic"){acUnlock();try{speechSynthesis.cancel()}catch(x){}L.gen++;L.mode="mic";L.phase="reading";L.read=true;L.pos=0;L.wst=[];L._done=false;L.srLive=false;lsReader(document.getElementById("lsView"));const ta=document.getElementById("lsDict");if(ta&&!lsLive())ta.focus();lsStartSR();return}
+ if(a==="mic"){acUnlock();try{speechSynthesis.cancel()}catch(x){}L.gen++;L.mode="mic";L.phase="reading";L.read=true;L.pos=0;L.wst=[];L._done=false;L.srLive=false;L.srFin=null;L.srFinAlt=null;L.srAlt=null;L.srText="";L.fin=null;lsReader(document.getElementById("lsView"));const ta=document.getElementById("lsDict");if(ta&&!lsLive())ta.focus();lsStartSR();return}
  if(a==="micExit"){const ta=document.getElementById("lsDict");if(ta)ta.blur();lsStop();L.mode=null;L.phase="ready";L.ms=0;L.t0=0;L.wst=[];L.pos=0;lsRender();return}
- if(a==="micClear"){L._done=false;clearTimeout(L._endT);L.fin=null;L.retry=null;L.cur=[];const ta=document.getElementById("lsDict");if(ta){ta.value="";if(!L.srLive)ta.focus()}if(L.sr){lsStopSR(L);lsStartSR()}L.wst=[];L.pos=0;L._done=false;L.ms=0;L.t0=0;clearInterval(L.timer);L.timer=null;lsClock();lsPaint();return}
+ if(a==="micClear"){L._done=false;clearTimeout(L._endT);clearTimeout(L._finT);L.fin=null;L.srFin=null;L.srFinAlt=null;L.srAlt=null;L.srText="";L.retry=null;L.cur=[];const ta=document.getElementById("lsDict");if(ta){ta.value="";if(!L.srLive)ta.focus()}if(L.sr){lsStopSR(L);lsStartSR()}L.wst=[];L.pos=0;L._done=false;L.ms=0;L.t0=0;clearInterval(L.timer);L.timer=null;lsClock();lsPaint();return}
  if(a==="micDone"){if(!L.pos){toast(lsLive()?"Noch nichts gehört. Lies den Text laut und deutlich vor.":"Noch nichts gehört. Tippe ins Feld und dann auf das Mikrofon der Tastatur.");return}lsFinishReading();return}
  if(a==="read"){L.mode="tap";acUnlock();try{speechSynthesis.cancel()}catch(x){}L.gen++;L.phase="reading";L.read=true;L.si=0;L.t0=Date.now();L.timer=setInterval(lsClock,500);lsReader(document.getElementById("lsView"));return}
  if(a==="tts"){lsSayText();return}
