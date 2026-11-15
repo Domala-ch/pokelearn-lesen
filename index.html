@@ -3045,7 +3045,7 @@ function lsAlign(exp,heard,cache){const E=exp.length,H=heard.length;
    if(sub!=null){for(let m=k;m<e2;m++){st[m]="bad";mh[m]=sub}}else if(content<2)for(let m=k;m<e2;m++)st[m]="soft";k=e2}else k++}
  return{st:st.slice(0,pos),i:pos,mh:mh.slice(0,pos),tail:H&&bk[H][jb]===1?H-1:null}}
 const LSFILL=/^(äh|ähm|ehm|hm|hmm|mh|öh|oh|ah|eh|uh|um)$/;
-function lsOnDict(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="reading")return;const ta=document.getElementById("lsDict");if(ta&&ta.value!==L._lastVal){L._lastVal=ta.value;L.lastInput=Date.now()}if(L._raf)return;L._raf=requestAnimationFrame(()=>{L._raf=0;lsUpdateFromHeard()})}
+function lsOnDict(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="reading")return;const ta=document.getElementById("lsDict");if(ta&&ta.value!==L._lastVal){L._lastVal=ta.value;L.lastInput=Date.now()}if(L._raf)return;L._raf=1;queueMicrotask(()=>{L._raf=0;lsUpdateFromHeard()})}   // right away (an animation frame can be held back while the phone is busy)
 // Correction mode ("Bei Fehlern anhalten"): words before a misread word are locked; the reader must re-read the misread word.
 // Run-up repeats and filler sounds are not attempts; after three failed attempts the word is said aloud and reading continues.
 // Correction mode: every word is judged the moment it is heard — green when right, red when wrong.
