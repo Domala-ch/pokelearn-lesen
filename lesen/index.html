@@ -174,14 +174,14 @@ function lsList(v){const rec=lsRecommend(),sel=S.lsLevel||rec.level,left=lsBankL
  <div class="card" style="display:grid;gap:10px">
   <p class="muted" style="margin:0;font-size:13px">Mit Mikrofon: Jedes Wort wird sofort grün (richtig) oder rot (falsch). Bei einem roten Wort wartet der Text, bis es richtig gelesen ist – nach dem dritten Versuch sagt PokeLearn das Wort vor.</p>
   <label class="row" style="gap:8px"><input type="checkbox" id="lsParent" style="width:auto" ${S.lsParent?"checked":""}> Ein Erwachsener hört zu und tippt falsch gelesene Wörter an</label>
-  <label class="row" style="gap:8px;flex-wrap:wrap"><span>Mikrofon hört Deutsch als</span><select id="lsSRde" style="width:auto;flex:1;min-width:180px">${[["de-CH","Schweizer Hochdeutsch (de-CH)"],["de-DE","Hochdeutsch Deutschland (de-DE)"]].map(([v,t])=>`<option value="${v}" ${(S.srLang&&S.srLang.de||"de-CH")===v?"selected":""}>${t}</option>`).join("")}</select></label>
+  <label class="row" style="gap:8px;flex-wrap:wrap"><span>Mikrofon hört Deutsch als</span><select id="lsSRde" style="width:auto;flex:1;min-width:180px">${[["de-DE","Hochdeutsch (de-DE, empfohlen)"],["de-CH","Schweizer Hochdeutsch (de-CH)"]].map(([v,t])=>`<option value="${v}" ${(S.srLang2&&S.srLang2.de||"de-DE")===v?"selected":""}>${t}</option>`).join("")}</select></label>
   <p class="muted" style="margin:-4px 0 0;font-size:12px">Ausprobieren: Wählt die Variante, bei der «Ich höre» die Wörter am genauesten zeigt.</p>
   <label class="row" style="gap:8px"><input type="checkbox" id="lsMN" style="width:auto" ${S.lsMN===true?"checked":""}> Mikrofon: m und n am Wortende nicht unterscheiden (in/im, an/am gelten als richtig). Nur einschalten, wenn die Diktierfunktion diese Endungen oft falsch hört.</label>
   <button class="btn primary" id="lsGo" data-la="go" style="font-size:19px;padding:16px">Lesetext «${sel[0].toUpperCase()+sel.slice(1)}» starten</button>
   <p class="muted" style="margin:0;font-size:13px">${left?`Noch ${left} vorbereitete ${left===1?"Text":"Texte"} auf dieser Stufe, danach schreibt Claude dir immer neue.`:"Claude schreibt dir einen ganz neuen Text mit Fragen. Du bekommst nie zweimal denselben."}</p>
   <div id="lsStatus" class="muted" hidden></div></div>
  ${H.length?`<div class="card"><p class="eyebrow" style="margin:0 0 8px">Zuletzt gelesen</p><div class="list">${H.map(x=>`<div class="item"><div class="t">${esc(x.title)}<small>${x.date} · ${x.level}${x.wpm?` · ${x.wpm} Wörter/Min.`:""} · ${x.q}/${x.qn} Fragen</small></div><span class="pill good">${x.points} P.</span></div>`).join("")}</div></div>`:""}`;
- v.querySelector("#lsParent").onchange=e=>{S.lsParent=e.target.checked;save()};v.querySelector("#lsMN").onchange=e=>{S.lsMN=e.target.checked;save()};v.querySelector("#lsSRde").onchange=e=>{S.srLang=Object.assign({},S.srLang,{de:e.target.value});save()}}
+ v.querySelector("#lsParent").onchange=e=>{S.lsParent=e.target.checked;save()};v.querySelector("#lsMN").onchange=e=>{S.lsMN=e.target.checked;save()};v.querySelector("#lsSRde").onchange=e=>{S.srLang2=Object.assign({},S.srLang2,{de:e.target.value});save()}}
 function lsBoard(v){const tab=LS.tab||"alle";const all=(S.lsHist||[]).filter(x=>tab==="alle"||x.level===tab).slice().sort((a,b)=>b.points-a.points).slice(0,20);
  const best=lv=>{const r=(S.lsHist||[]).filter(x=>x.level===lv&&x.wpm);return r.length?Math.max(...r.map(x=>x.wpm)):null};
  v.innerHTML=`<div class="row"><button class="btn small ghost" data-la="list">← Zurück</button></div><div><p class="eyebrow">Lesen</p><h1 style="font-size:28px">Bestenliste</h1></div>
@@ -265,7 +265,14 @@ const _vk=new Map();const vowKC=w=>{let v=_vk.get(w);if(v===undefined){v=vowK(w)
 // German spelling → sound: words that are spelled differently but sound the same (still/Stil, Decken/Däcken, Zugersee/Zugersä, Picknick/Picnic)
 const sndDe=w=>fold(w).replace(/ä/g,"e").replace(/ie/g,"i").replace(/([aeiou])h(?![aeiou])/g,"$1").replace(/ck/g,"k").replace(/tz/g,"z").replace(/dt/g,"t").replace(/th/g,"t").replace(/ph/g,"f").replace(/v/g,"f").replace(/c(?=[hk])/g,"").replace(/c/g,"k").replace(/qu/g,"kw").replace(/x/g,"ks").replace(/y/g,"i").replace(/a[iy]/g,"ei").replace(/(eu|äu)/g,"oi").replace(/(.)\1+/g,"$1").replace(/d$/,"t").replace(/b$/,"p").replace(/g$/,"k");
 const _sd=new Map();const sndC=w=>{let v=_sd.get(w);if(v===undefined){v=LSLANG==="de"?sndDe(w):w.replace(/(.)\1+/g,"$1");_sd.set(w,v)}return v};
+// Small grammar words (articles, ein/kein/mein…, dies-, pronouns): here every ending matters (ein/einen, den/dem, seine/seinen, ihm/ihn).
+// These are the mistakes a reader really makes, so none of the tolerances for recognizer errors apply to them.
+const GRAMW=/^((k|m|d|s)?ein(e[mnrs]?)?|(unser|euer|ihr)(e[mnrs]?)?|(dies|jen|welch|jed|manch|solch)(e[mnrs]?)|der|die|das|den|dem|des|ihm|ihn|ihnen|mir|mich|dir|dich|uns|euch|im|in|am|an|zum|zur|vom|von|beim|bei)$/;
 function wordScoreFast(alts,e,eF,eK){let best=null;for(const a of alts){if(a===e)return 3;if(foldC(a)===eF)return 3;
+  if(LSLANG==="de"&&(GRAMW.test(e)||GRAMW.test(a))&&!(LSMN&&a.length===e.length&&a.slice(0,-1)===e.slice(0,-1)&&/[mn]/.test(a.slice(-1))&&/[mn]/.test(e.slice(-1)))){
+   if(homo(a,e)){best=Math.max(best??-9,2.6);continue}                                   // das/dass
+   if(GRAMW.test(e)&&GRAMW.test(a)){best=Math.max(best??-9,1);continue}                  // ein/einen, den/dem: a misread
+   if(a.length<=3||e.length<=3){if(lev(a,e)<=1)best=Math.max(best??-9,1);continue}}
   if(a.length>=3&&sndC(a)===sndC(e)){best=Math.max(best??-9,2.6);continue}               // sounds the same, spelled differently
   if(LSLANG==="de"&&a.length>=4&&e.length>=4&&(a+"e"===e||e+"e"===a)){best=Math.max(best??-9,2.6);continue}   // final -e swallowed (erzählt/erzählte, hab/habe): recognizers drop it all the time
   if(homo(a,e)){best=Math.max(best??-9,2.6);continue}                                     // das/dass, there/their, a/à
@@ -279,7 +286,7 @@ function wordScoreFast(alts,e,eF,eK){let best=null;for(const a of alts){if(a===e
     const soft=LSLANG==="de"?s.length>=4&&/^(e|n|en|er|em|es|s|r|m)$/.test(sf):LSLANG==="en"?sf==="s":false;best=Math.max(best??-9,LSSTRICT&&!soft?1:2.6);continue}}  // kleine/kleiner: in correction mode a wrong ending is a misread
   const L=Math.max(a.length,e.length),sameK=eK&&koelnC(a)===eK;
   if(!sameK&&Math.abs(a.length-e.length)>Math.ceil(L*.3))continue;const d=lev(a,e);
-  const vowOk=!(LSSTRICT&&LSLANG==="de")||vowKC(a)===vowKC(e);
+  const va=vowKC(a),ve=vowKC(e),vowOk=!(LSSTRICT&&LSLANG==="de")||va===ve||(L>=8&&va.length===ve.length&&va.slice(0,-1)===ve.slice(0,-1));   // long words: the last, unstressed vowel is often misheard (Meteorologin/-gen)
   if(sameK&&vowOk&&d<=(LSPROP.has(e)?Math.ceil(L*.45):Math.max(1,Math.floor(L*.2)))){best=Math.max(best??-9,2.6);continue}if(d<=Math.ceil(L*.3)||sameK)best=Math.max(best??-9,1)}return best}
 // Global alignment, computed incrementally: rows for words already heard are kept, only new or revised words are processed.
 function lsAlign(exp,heard,cache){const E=exp.length,H=heard.length;
@@ -446,13 +453,13 @@ const LSLANGFIX={iphone:"Halte auf der Tastatur die Weltkugel 🌐 gedrückt und
  android:"Tippe im Mikrofon-Fenster auf die Sprache und wähle «%L».",mac:"Systemeinstellungen › Tastatur › Diktieren › Sprache «%L» hinzufügen und im Diktier-Fenster auswählen.",
  windows:"Drücke Windows-Taste + Leertaste und wähle «%L» (Sprache muss unter Einstellungen › Zeit und Sprache installiert sein).",
  chromeos:"Einstellungen › Bedienungshilfen › Diktieren › Sprache «%L» wählen.",other:"Stelle die Sprache der Diktierfunktion auf «%L»."};
-const SRLANG={de:"de-CH",fr:"fr-CH",en:"en-GB"};
+const SRLANG={de:"de-DE",fr:"fr-CH",en:"en-GB"};   // de-DE recognizes children reading Standard German better than de-CH (tested)
 // ---- Lese-Seite: the microphone works only outside the Claude frame, so reading aloud happens on PokeLearn's own reading page.
 // It gets the text in the link and hands the result back as a Lese-Code (7 characters, checksum bound to the text).
 const LESEN_URL="https://domala-ch.github.io/pokelearn-lesen/lesen/";const LESEN_B32="23456789ABCDEFGHJKLMNPQRSTUVWXYZ",LESEN_SECRET="pokelearn-lesen-2026";
 const b64u=s=>btoa(Array.from(new TextEncoder().encode(s),b=>String.fromCharCode(b)).join("")).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 function lesenLink(t){const back=location.ancestorOrigins&&location.ancestorOrigins[0]?location.ancestorOrigins[0]+"/artifact/1EEaQhhmiJz3dM96TL2pHP":"https://claude.ai/artifact/1EEaQhhmiJz3dM96TL2pHP";
- return LESEN_URL+"#r="+b64u(JSON.stringify({v:1,id:t.id,title:t.title,text:t.text,lang:t.lang||"de",level:t.level,kind:t.kind||"",strict:false,mn:S.lsMN===true,srl:S.srLang||{},name:S.name||"",back}))}
+ return LESEN_URL+"#r="+b64u(JSON.stringify({v:1,id:t.id,title:t.title,text:t.text,lang:t.lang||"de",level:t.level,kind:t.kind||"",strict:false,mn:S.lsMN===true,srl:S.srLang2||{},name:S.name||"",back}))}
 function lesenCode(code,id){const c=String(code||"").toUpperCase().replace(/[^2-9A-Z]/g,"").replace(/O/g,"0").replace(/[I]/g,"1");if(c.length!==7)return null;let v=0n;for(const ch of c){const i=LESEN_B32.indexOf(ch);if(i<0)return null;v=v*32n+BigInt(i)}
  const chk=Number(v&4095n),wpm=Number((v>>12n)&511n),errs=Number((v>>21n)&127n),acc=Number((v>>28n)&127n);
  if(parseInt(hashStr(`${LESEN_SECRET}|${id}|${acc}|${errs}|${wpm}`),36)%4096!==chk)return null;return{acc,errs,wpm,code:c}}
@@ -473,7 +480,7 @@ function srAltWords(res,bestIdx){const base=res[bestIdx].transcript.trim().split
  return{words:base,alt}}
 let lsNetFails=0;
 function lsStartSR(){const L=LS,SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!L||!SR||lsSRBlocked)return;let r;try{r=new SR()}catch(e){lsSRBlocked=true;return}
- const lang=L.text.lang||"de";r.lang=(S.srLang&&S.srLang[lang])||SRLANG[lang]||"de-CH";r.continuous=true;r.interimResults=true;try{r.maxAlternatives=5}catch(x){}const want=new Set(L.expN);
+ const lang=L.text.lang||"de";r.lang=(S.srLang2&&S.srLang2[lang])||SRLANG[lang]||"de-CH";r.continuous=true;r.interimResults=true;try{r.maxAlternatives=5}catch(x){}const want=new Set(L.expN);
  // text and guesses survive restarts of the recognizer (it stops by itself after pauses or about a minute)
  if(!L.srFin){L.srFin=[];L.srFinAlt=[]}let inter=[],interAlt=[];
  // contextual biasing: the words of this text (long words and names first) are more likely to be recognized
@@ -488,7 +495,7 @@ function lsStartSR(){const L=LS,SR=window.SpeechRecognition||window.webkitSpeech
    if(e.results[i].isFinal){L.srFin.push(...p.words);L.srFinAlt.push(...p.alt)}else{inter.push(...p.words);interAlt.push(...p.alt)}}
   show();if(!L.srLive){L.srLive=true;lsMicUI()}};
  r.onerror=e=>{if(e.error==="phrases-not-supported"&&!lsNoPhrases){lsNoPhrases=true;L.sr=null;setTimeout(lsStartSR,50);return}
-  if(e.error==="language-not-supported"&&SRFALL[r.lang]){SRLANG[lang]=SRFALL[r.lang];if(S.srLang)delete S.srLang[lang];L.sr=null;setTimeout(lsStartSR,50);return}
+  if(e.error==="language-not-supported"&&SRFALL[r.lang]){SRLANG[lang]=SRFALL[r.lang];if(S.srLang2)delete S.srLang2[lang];L.sr=null;setTimeout(lsStartSR,50);return}
   if(L.sr!==r)return;
   if((e.error==="network"||e.error==="audio-capture")&&++lsNetFails<=3)return;     // short hiccup: onend starts it again
   if(L.srLive&&["not-allowed","service-not-allowed","audio-capture","network"].includes(e.error)){L.sr=null;L.srNeedTap=true;lsMicUI();return}   // worked before: one tap continues
@@ -665,7 +672,7 @@ view().addEventListener("click",e=>{const L=LS;
  if(a==="again"){lsStop();boot();return}
  if(a==="copy"){try{navigator.clipboard.writeText(L.res.code);toast("Code kopiert")}catch(x){toast(L.res.code)}return}
  if(a==="back"){try{if(L.res&&navigator.clipboard)navigator.clipboard.writeText(L.res.code).catch(()=>{})}catch(x){}try{window.close()}catch(x){}setTimeout(()=>{if(P&&P.back)location.href=P.back;else toast("Wechsle zurück zur PokeLearn-App.")},250);return}});
-function boot(){P=readPayload();const t=P||DEMO;S.lsStop=t.strict!==false;S.lsMN=!!t.mn;S.srLang=t.srl||{};
+function boot(){P=readPayload();const t=P||DEMO;S.lsStop=t.strict!==false;S.lsMN=!!t.mn;S.srLang2=t.srl||{};
  lsStart({id:t.id,title:t.title||"Lesetext",text:t.text,lang:t.lang||"de",level:t.level||"mittel",kind:t.kind||"",q:[]});if(!P){const n=document.createElement("p");n.className="muted";n.style.cssText="margin:0;text-align:center;font-size:13px";n.textContent="Probetext – normalerweise öffnet PokeLearn diese Seite mit dem Text, den du lesen sollst.";view().prepend(n)}}
 window.addEventListener("hashchange",()=>{lsStop();boot()});
 if(ttsOK()){try{speechSynthesis.getVoices()}catch(e){}}
