@@ -3010,7 +3010,7 @@ function wordScoreFast(alts,e,eF,eK){let best=null;for(const a of alts){if(a===e
   if(!aShort&&!eShort){const s=a.length<e.length?a:e,l=a.length<e.length?e:a;
    if(s.length>=3&&l.length-s.length<=2&&l.startsWith(s)&&koelnC(a)!==eK){const sf=l.slice(s.length);
     // unstressed endings (kleine/kleinen, Hund/Hunde, dog/dogs) are what recognizers get wrong most: only other endings count as misread
-    const soft=LSLANG==="de"?/^(e|n|en|er|em|es|s|r|m)$/.test(sf):LSLANG==="en"?sf==="s":false;best=Math.max(best??-9,LSSTRICT&&!soft?1:2.6);continue}}  // kleine/kleiner: in correction mode a wrong ending is a misread
+    const soft=LSLANG==="de"?s.length>=4&&/^(e|n|s)$/.test(sf):LSLANG==="en"?sf==="s":false;best=Math.max(best??-9,LSSTRICT&&!soft?1:2.6);continue}}  // kleine/kleiner: in correction mode a wrong ending is a misread
   const L=Math.max(a.length,e.length),sameK=eK&&koelnC(a)===eK;
   if(!sameK&&Math.abs(a.length-e.length)>Math.ceil(L*.3))continue;const d=lev(a,e);
   const vowOk=!(LSSTRICT&&LSLANG==="de")||vowKC(a)===vowKC(e);
