@@ -3101,7 +3101,9 @@ function lsVoiceWord(idx){const L=LS,w=L.T[L.W[idx]].t,lang=L.text.lang||"de";if
  if(pr.live&&LIVE.engine())return liveSpeak(w,lang,.9).then(r=>r==="livefail"?speakDev(w,lang,.85):r);   // on-device voice only once it is loaded (no waiting)
  return speakDev(w,lang,.85)}
 // all recorded words of a text are loaded when reading starts (a few small files), so nothing has to be fetched later
-function lsPreloadWords(L){try{if(!lsFullVoice()||!STANDALONE||!VIDX.words)return;const lang=L.text.lang||"de",files=new Set();L.W.forEach(i=>{const r=vWordRecAny(L.T[i].t,lang);if(r)files.add(r.file)});[...files].slice(0,16).forEach(f=>recLoad(f).catch(()=>{}))}catch(e){}}
+function lsPreloadWords(L){try{if(!lsFullVoice()||!STANDALONE)return;if(!VIDX.words){if(LIVE.ok())LIVE.preload();return}const lang=L.text.lang||"de",files=new Set();let miss=0;L.W.forEach(i=>{const r=vWordRecAny(L.T[i].t,lang);if(r)files.add(r.file);else miss++});[...files].slice(0,16).forEach(f=>recLoad(f).catch(()=>{}));
+  // words without a recording yet: the on-device PokeLearn voice loads in the background, so it is ready as the backup
+  if(miss&&LIVE.ok())LIVE.preload()}catch(e){}}
 // The microphone is paused while the app speaks (phones cannot record and play at the same time) and started again right after.
 function lsSayWord(idx){const L=LS,w=L.T[L.W[idx]].t;toast(`Das Wort heisst: «${w}»`);try{speechSynthesis.cancel()}catch(e){}
  L.said={w:L.expN[idx],until:Date.now()+5000};L.muteUntil=Infinity;const live=!!L.sr;if(live){L.srPaused=true;lsStopSR(L)}
