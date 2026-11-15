@@ -75,7 +75,12 @@ def main():
             todo.append(j)
     # single words and short phrases for the speaker buttons
     have = idx.get("words", {})
-    words = [w for w in (data or {}).get("words", []) if w.get("lang") in ("de", "fr", "en") and w.get("v") in ("f", "m") and w.get("k") not in have]
+    # the app's words first, then every word of the built-in reading texts (both voices) as background work
+    bankw = json.load(open("audio/v/bank-words.json")).get("words", []) if os.path.exists("audio/v/bank-words.json") else []
+    words, wseen = [], set()
+    for w in (data or {}).get("words", []) + bankw:
+        if w.get("lang") in ("de", "fr", "en") and w.get("v") in ("f", "m") and w.get("k") not in have and w.get("k") not in wseen:
+            wseen.add(w["k"]); words.append(w)
     json.dump({"punct": punct, "jobs": todo, "words": words}, open("jobs.json", "w"), ensure_ascii=False)
     print(f"{len(todo)} dictation(s) and {len(words)} word(s) to record", [key(j) for j in todo][:10])
     if out:

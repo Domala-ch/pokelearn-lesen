@@ -321,7 +321,7 @@ function lsAdvance(heard){const L=LS,strict=true,N=L.expN.length;if(!LSSTRICT){L
  if(heard.length<L.h0)L.h0=heard.length;
  const H=heard.length,hf=Math.min(H,L.hFin??H),sc=(tok,j)=>j<N?wordScoreFast(tok,L.expN[j],foldC(L.expN[j]),koelnC(L.expN[j])):null,good=(tok,j)=>(sc(tok,j)??0)>=2.6;
  const fresh=k=>k===H-1&&(k>=hf||(!L.srLive&&Date.now()-(L.lastInput||0)<700));   // newest word, recognizer may still change it
- const stopAt=(w,kBad,st)=>{for(let m=0;m<w-L.e0;m++)L.fin[L.e0+m]=st[m];L.retry={idx:w,h:kBad+1,k0:kBad,key0:heard[kBad].join("|"),am:0,beeped:1};L.e0=w;lsBeep(false)};
+ const stopAt=(w,kBad,st)=>{for(let m=0;m<w-L.e0;m++)L.fin[L.e0+m]=st[m];L.retry={idx:w,h:kBad+1,k0:kBad,key0:heard[kBad].join("|"),am:0,beeped:1};L.e0=w;lsBeep(false);lsPrepWord(w)};
  for(let guard=0;guard<60;guard++){
   if(L.retry){const R=L.retry,idx=R.idx,e=L.expN[idx];if(R.h>H)R.h=H;
    // the recognizer corrected the word it had misheard: it was right after all
@@ -334,9 +334,7 @@ function lsAdvance(heard){const L=LS,strict=true,N=L.expN.length;if(!LSSTRICT){L
     if(good(tok,idx+1+am)){am++;if(am>=5){lsGiveUp(idx,am,k+1,false);done=true;break}continue}     // read on past the stop: not an attempt
     if(fresh(k)&&lsPartial(tok,e)){hold=true;continue}                                              // still being written
     tries++;
-    if(tries>=3){const key=tok.join("|");
-     if(fresh(k)){if(R.holdKey!==key){R.holdKey=key;R.holdT=Date.now()}if(Date.now()-R.holdT<300){hold=true;break}}   // third try: make sure the recognizer has settled
-     lsGiveUp(idx,am,k+1,true);done=true;break}}
+    if(tries>=3){lsGiveUp(idx,am,k+1,true);done=true;break}}
    if(done)continue;
    if(tries>R.beeped){R.beeped=tries;lsBeep(false)}R.tries=tries;R.am=am;
    if(hold){clearTimeout(L._holdT);L._holdT=setTimeout(()=>{if(LS===L&&L.phase==="reading")lsUpdateFromHeard()},320)}
@@ -356,13 +354,25 @@ function lsAdvance(heard){const L=LS,strict=true,N=L.expN.length;if(!LSSTRICT){L
 // give up on a word: count it as a mistake, say it aloud, credit the words she already read past it, continue after them
 function lsGiveUp(idx,ahead,hNext,say){const L=LS;L.fin[idx]="bad";L.given++;for(let m=1;m<=ahead;m++)L.fin[idx+m]="ok";L.e0=idx+1+ahead;L.h0=hNext;L.retry=null;if(say)lsSayWord(idx)}
 // the app says the word; what the microphone picks up of its own voice is ignored
+// A word is said in the natural recorded voice (the same as the dictations). Its sound is made ready at the FIRST failed try,
+// so after the third it plays at once. No recording yet: the on-device PokeLearn voice prepares it; the device voice only as last resort.
+const lsFullVoice=()=>typeof vWordRecAny==="function"&&typeof LIVE!=="undefined";   // the separate reading page has only the device voice
+function lsPrepWord(idx){const L=LS;if(!L||!L.T||L.W[idx]==null||!lsFullVoice())return;const w=L.T[L.W[idx]].t,lang=L.text.lang||"de";L.prep=L.prep||{};if(L.prep[idx])return;
+ const rec=vWordRecAny(w,lang);if(rec){L.prep[idx]={rec,p:recLoad(rec.file).catch(()=>null)};return}
+ if(LIVE.ok()){try{LIVE.warm([w],lang,.9,3)}catch(e){}L.prep[idx]={live:true}}else L.prep[idx]={dev:true}}
+function lsVoiceWord(idx){const L=LS,w=L.T[L.W[idx]].t,lang=L.text.lang||"de";if(!lsFullVoice())return speak(w,lang,.8);lsPrepWord(idx);const pr=L.prep[idx];acUnlock();
+ if(pr.rec)return recPlay(pr.rec.file,pr.rec.seg,1,.1).then(r=>r==="recerror"?speakDev(w,lang,.85):r);
+ if(pr.live&&LIVE.engine())return liveSpeak(w,lang,.9).then(r=>r==="livefail"?speakDev(w,lang,.85):r);   // on-device voice only once it is loaded (no waiting)
+ return speakDev(w,lang,.85)}
+// all recorded words of a text are loaded when reading starts (a few small files), so nothing has to be fetched later
+function lsPreloadWords(L){try{if(!lsFullVoice()||!STANDALONE||!VIDX.words)return;const lang=L.text.lang||"de",files=new Set();L.W.forEach(i=>{const r=vWordRecAny(L.T[i].t,lang);if(r)files.add(r.file)});[...files].slice(0,16).forEach(f=>recLoad(f).catch(()=>{}))}catch(e){}}
 // The microphone is paused while the app speaks (phones cannot record and play at the same time) and started again right after.
 function lsSayWord(idx){const L=LS,w=L.T[L.W[idx]].t;toast(`Das Wort heisst: «${w}»`);try{speechSynthesis.cancel()}catch(e){}
  L.said={w:L.expN[idx],until:Date.now()+5000};L.muteUntil=Infinity;const live=!!L.sr;if(live){L.srPaused=true;lsStopSR(L)}
- let back=false;const resume=()=>{if(back)return;back=true;if(LS!==L)return;L.muteUntil=Date.now()+200;L.said.until=Date.now()+3500;
+ let back=false;const resume=()=>{if(back)return;back=true;if(LS!==L)return;L.muteUntil=Date.now()+150;L.said.until=Date.now()+3500;
   if(live&&L.phase==="reading"){L.srPaused=false;lsStartSR()}};
  setTimeout(resume,Math.max(2500,w.length*260));   // never stay muted if the voice does not report its end
- Promise.resolve(speak(w,L.text.lang||"de",.8)).catch(()=>{}).then(()=>setTimeout(resume,120))}
+ Promise.resolve(lsVoiceWord(idx)).catch(()=>{}).then(()=>setTimeout(resume,60))}
 function lsBeep(good){if(LS&&LS.phase=="reading")return;   // no sounds while reading aloud: on phones any sound switches the microphone off
  try{const c=acGet();if(!c)return;if(c.state!=="running"){c.resume().catch(()=>{})}const t0=c.currentTime;const tone=(f,at,dur,vol)=>{const o=c.createOscillator(),g=c.createGain();o.type=good?"sine":"square";o.frequency.value=f;g.gain.setValueAtTime(.0001,t0+at);g.gain.exponentialRampToValueAtTime(vol,t0+at+.02);g.gain.exponentialRampToValueAtTime(.0001,t0+at+dur);o.connect(g).connect(c.destination);o.start(t0+at);o.stop(t0+at+dur+.02)};
  if(good)tone(880,0,.18,.08);else{tone(440,0,.16,.12);tone(330,.18,.26,.12)}}catch(e){}}

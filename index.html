@@ -2406,7 +2406,7 @@ function pelUnlock(){const e=pel();if(!e||e._ok||!e.paused)return;try{const u=UR
 function playPCM(a,sr,o){sr=sr||24000;o=o||{};const rt=o.rate||1;return new Promise(async res=>{if(!a||!a.length)return res("ok");let done=false,to,stopped=false,url=null,ws=null;const e=pel();
  const fin=r=>{if(done)return;done=true;clearTimeout(to);if(e){e.onended=null;e.onerror=null}if(url){const u=url;setTimeout(()=>URL.revokeObjectURL(u),1000)}if(DKS&&DKS.src&&DKS.src._f===fin)DKS.src=null;res(r)};
  if(DKS)DKS.src={_f:fin,stop:()=>{stopped=true;try{e&&e.pause()}catch(x){}try{ws&&ws.stop()}catch(x){}fin("interrupted")}};
- if(e&&e._ok){try{const y0=o.fx===false?a:await voiceFx(a,sr),pad=Math.floor(sr*.25),y=new Float32Array(y0.length+pad+Math.floor(sr*.05));y.set(y0,pad);if(stopped||done)return;url=URL.createObjectURL(wavBlob(y,sr));e.onended=()=>fin("ok");e.onerror=()=>fin("ok");e.src=url;try{e.preservesPitch=true;e.webkitPreservesPitch=true;e.defaultPlaybackRate=rt;e.playbackRate=rt}catch(x){}
+ if(e&&e._ok){try{const y0=o.fx===false?a:await voiceFx(a,sr),pad=Math.floor(sr*(o.pad??.25)),y=new Float32Array(y0.length+pad+Math.floor(sr*.05));y.set(y0,pad);if(stopped||done)return;url=URL.createObjectURL(wavBlob(y,sr));e.onended=()=>fin("ok");e.onerror=()=>fin("ok");e.src=url;try{e.preservesPitch=true;e.webkitPreservesPitch=true;e.defaultPlaybackRate=rt;e.playbackRate=rt}catch(x){}
    await e.play();if(stopped){try{e.pause()}catch(x){}return}to=setTimeout(()=>fin("ok"),a.length/sr/rt*1000+3000);return}catch(err){if(stopped||done)return;if(e){e.onended=null;e.onerror=null}}}
  const c=acGet();if(!c)return fin("noaudio");
  try{if(c.state!=="running"){try{await c.resume()}catch(x){}}if(stopped||done)return;const b=c.createBuffer(1,a.length,sr);b.copyToChannel(a,0);const src=c.createBufferSource();src.buffer=b;if(rt!==1)src.playbackRate.value=rt;src.connect(o.fx===false?c.destination:voiceBus(c));src.onended=()=>fin("ok");to=setTimeout(()=>fin("ok"),a.length/sr/rt*1000+3000);
@@ -2438,11 +2438,11 @@ function recLoad(file){if(RECBUF[file])return RECBUF[file];const c=acGet();if(!c
 function recSlice(buf,seg){const sr=buf.sampleRate,d=buf.getChannelData(0),a=Float32Array.from(d.subarray(Math.floor(Math.max(0,seg[0])*sr),Math.min(d.length,Math.floor((seg[0]+seg[1])*sr))));
  const f=Math.min(a.length>>2,Math.floor(sr*.008));for(let i=0;i<f;i++){a[i]*=i/f;a[a.length-1-i]*=i/f}return a}
 // items: [{file,seg,gap}] → decoded, joined with the given pauses and played as ONE piece (no restarts between the parts)
-function recPlaySeq(items,rate){return new Promise(async res=>{try{const bufs=await Promise.all(items.map(x=>recLoad(x.file)));const sr=bufs[0].sampleRate;
+function recPlaySeq(items,rate,pad){return new Promise(async res=>{try{const bufs=await Promise.all(items.map(x=>recLoad(x.file)));const sr=bufs[0].sampleRate;
   const parts=items.map((x,i)=>{const a=recSlice(bufs[i],x.seg);return bufs[i].sampleRate===sr?a:a});let len=0;parts.forEach((a,i)=>{len+=a.length+(i<parts.length-1?Math.floor(sr*(items[i].gap||0)/1000):0)});
   const out=new Float32Array(len);let pos=0;parts.forEach((a,i)=>{out.set(a,pos);pos+=a.length+(i<parts.length-1?Math.floor(sr*(items[i].gap||0)/1000):0)});
-  res(await playPCM(out,sr,{fx:false,rate:rate||1}))}catch(e){res("recerror")}})}
-function recPlay(file,seg,rate){return recPlaySeq([{file,seg}],rate)}
+  res(await playPCM(out,sr,{fx:false,rate:rate||1,pad}))}catch(e){res("recerror")}})}
+function recPlay(file,seg,rate,pad){return recPlaySeq([{file,seg}],rate,pad)}
 // ---- Ready-made dictations with a natural voice ----
 // The app publishes the dictations that come next (per language and level, the parent's own texts, then the rest of the
 // collection) in a public gist. A GitHub Action records them with a natural voice (Chatterbox, checked by speech
@@ -2481,10 +2481,16 @@ async function vjPublish(){const c=SYNC.cfg&&SYNC.cfg();if(!c||!c.token||vjBusy)
 const vSpoken=t=>String(t||"").replace(/\([^)]*\)/g," ").replace(/\s*\/\s*/g,", ").replace(/\s+/g," ").replace(/\s+([,.;:!?])/g,"$1").trim();
 const vWKey=(lang,text,g)=>`${lang}-${g||vGender(lang)}-${hashStr(vSpoken(text)).toString(36)}`;
 function vWordsList(){const out=[],have=new Set(),add=(lang,t)=>{const sp=vSpoken(t);if(!sp||sp.length>140)return;const k=vWKey(lang,t);if(have.has(k))return;have.add(k);out.push({k,lang,v:vGender(lang),t:sp})};
+ // reading: every word of the open text and of the next texts, so a word can be said in the natural voice the moment it is needed
+ const rd=t=>{if(t&&t.text)lsWordsOf(t).forEach(w=>add(t.lang||"de",w))};
+ if(LS&&LS.text)rd(LS.text);Object.values(S.lsQueue||{}).forEach(q=>(q||[]).slice(0,2).forEach(rd));
  (S.deck||[]).slice().reverse().forEach(d=>{if(d&&d.front)add(d.subj==="fr"||d.subj==="en"?d.subj:"de",d.front)});
  for(const[L,lang]of[[FR,"fr"],[EN,"en"]])for(const k of Object.keys(L))(L[k]||[]).forEach(it=>add(lang,String(it).split("|")[0]));
- return out.slice(0,1500)}
+ try{["leicht","mittel","schwer"].forEach(lv=>lsBankLeft(lv).slice(0,2).forEach(rd))}catch(e){}
+ return out.slice(0,2500)}
+const lsWordsOf=t=>toks(t.text).filter(x=>!isPunct(x.t)).map(x=>x.t);
 function vWordRec(text,lang){if(!STANDALONE||!VIDX.words)return null;const r=VIDX.words[vWKey(lang,text)];return r?{file:VREPO+r.file,seg:r.seg}:null}
+function vWordRecAny(w,lang){const t=String(w),lo=t.charAt(0).toLowerCase()+t.slice(1),up=t.charAt(0).toUpperCase()+t.slice(1);return vWordRec(t,lang)||vWordRec(lo,lang)||vWordRec(up,lang)}
 function vStatus(){const langs=Object.keys(LANGN);const L=vJobsList();const ready=L.filter(j=>VIDX.texts[`${j.lang}-${j.v}-${j.id}-${j.h}`]);
  return{total:L.length,ready:ready.length,per:langs.map(l=>[l,ready.filter(j=>j.lang===l).length,L.filter(j=>j.lang===l).length])}}
 
@@ -3051,7 +3057,7 @@ function lsAdvance(heard){const L=LS,strict=true,N=L.expN.length;if(!LSSTRICT){L
  if(heard.length<L.h0)L.h0=heard.length;
  const H=heard.length,hf=Math.min(H,L.hFin??H),sc=(tok,j)=>j<N?wordScoreFast(tok,L.expN[j],foldC(L.expN[j]),koelnC(L.expN[j])):null,good=(tok,j)=>(sc(tok,j)??0)>=2.6;
  const fresh=k=>k===H-1&&(k>=hf||(!L.srLive&&Date.now()-(L.lastInput||0)<700));   // newest word, recognizer may still change it
- const stopAt=(w,kBad,st)=>{for(let m=0;m<w-L.e0;m++)L.fin[L.e0+m]=st[m];L.retry={idx:w,h:kBad+1,k0:kBad,key0:heard[kBad].join("|"),am:0,beeped:1};L.e0=w;lsBeep(false)};
+ const stopAt=(w,kBad,st)=>{for(let m=0;m<w-L.e0;m++)L.fin[L.e0+m]=st[m];L.retry={idx:w,h:kBad+1,k0:kBad,key0:heard[kBad].join("|"),am:0,beeped:1};L.e0=w;lsBeep(false);lsPrepWord(w)};
  for(let guard=0;guard<60;guard++){
   if(L.retry){const R=L.retry,idx=R.idx,e=L.expN[idx];if(R.h>H)R.h=H;
    // the recognizer corrected the word it had misheard: it was right after all
@@ -3064,9 +3070,7 @@ function lsAdvance(heard){const L=LS,strict=true,N=L.expN.length;if(!LSSTRICT){L
     if(good(tok,idx+1+am)){am++;if(am>=5){lsGiveUp(idx,am,k+1,false);done=true;break}continue}     // read on past the stop: not an attempt
     if(fresh(k)&&lsPartial(tok,e)){hold=true;continue}                                              // still being written
     tries++;
-    if(tries>=3){const key=tok.join("|");
-     if(fresh(k)){if(R.holdKey!==key){R.holdKey=key;R.holdT=Date.now()}if(Date.now()-R.holdT<300){hold=true;break}}   // third try: make sure the recognizer has settled
-     lsGiveUp(idx,am,k+1,true);done=true;break}}
+    if(tries>=3){lsGiveUp(idx,am,k+1,true);done=true;break}}
    if(done)continue;
    if(tries>R.beeped){R.beeped=tries;lsBeep(false)}R.tries=tries;R.am=am;
    if(hold){clearTimeout(L._holdT);L._holdT=setTimeout(()=>{if(LS===L&&L.phase==="reading")lsUpdateFromHeard()},320)}
@@ -3086,13 +3090,25 @@ function lsAdvance(heard){const L=LS,strict=true,N=L.expN.length;if(!LSSTRICT){L
 // give up on a word: count it as a mistake, say it aloud, credit the words she already read past it, continue after them
 function lsGiveUp(idx,ahead,hNext,say){const L=LS;L.fin[idx]="bad";L.given++;for(let m=1;m<=ahead;m++)L.fin[idx+m]="ok";L.e0=idx+1+ahead;L.h0=hNext;L.retry=null;if(say)lsSayWord(idx)}
 // the app says the word; what the microphone picks up of its own voice is ignored
+// A word is said in the natural recorded voice (the same as the dictations). Its sound is made ready at the FIRST failed try,
+// so after the third it plays at once. No recording yet: the on-device PokeLearn voice prepares it; the device voice only as last resort.
+const lsFullVoice=()=>typeof vWordRecAny==="function"&&typeof LIVE!=="undefined";   // the separate reading page has only the device voice
+function lsPrepWord(idx){const L=LS;if(!L||!L.T||L.W[idx]==null||!lsFullVoice())return;const w=L.T[L.W[idx]].t,lang=L.text.lang||"de";L.prep=L.prep||{};if(L.prep[idx])return;
+ const rec=vWordRecAny(w,lang);if(rec){L.prep[idx]={rec,p:recLoad(rec.file).catch(()=>null)};return}
+ if(LIVE.ok()){try{LIVE.warm([w],lang,.9,3)}catch(e){}L.prep[idx]={live:true}}else L.prep[idx]={dev:true}}
+function lsVoiceWord(idx){const L=LS,w=L.T[L.W[idx]].t,lang=L.text.lang||"de";if(!lsFullVoice())return speak(w,lang,.8);lsPrepWord(idx);const pr=L.prep[idx];acUnlock();
+ if(pr.rec)return recPlay(pr.rec.file,pr.rec.seg,1,.1).then(r=>r==="recerror"?speakDev(w,lang,.85):r);
+ if(pr.live&&LIVE.engine())return liveSpeak(w,lang,.9).then(r=>r==="livefail"?speakDev(w,lang,.85):r);   // on-device voice only once it is loaded (no waiting)
+ return speakDev(w,lang,.85)}
+// all recorded words of a text are loaded when reading starts (a few small files), so nothing has to be fetched later
+function lsPreloadWords(L){try{if(!lsFullVoice()||!STANDALONE||!VIDX.words)return;const lang=L.text.lang||"de",files=new Set();L.W.forEach(i=>{const r=vWordRecAny(L.T[i].t,lang);if(r)files.add(r.file)});[...files].slice(0,16).forEach(f=>recLoad(f).catch(()=>{}))}catch(e){}}
 // The microphone is paused while the app speaks (phones cannot record and play at the same time) and started again right after.
 function lsSayWord(idx){const L=LS,w=L.T[L.W[idx]].t;toast(`Das Wort heisst: «${w}»`);try{speechSynthesis.cancel()}catch(e){}
  L.said={w:L.expN[idx],until:Date.now()+5000};L.muteUntil=Infinity;const live=!!L.sr;if(live){L.srPaused=true;lsStopSR(L)}
- let back=false;const resume=()=>{if(back)return;back=true;if(LS!==L)return;L.muteUntil=Date.now()+200;L.said.until=Date.now()+3500;
+ let back=false;const resume=()=>{if(back)return;back=true;if(LS!==L)return;L.muteUntil=Date.now()+150;L.said.until=Date.now()+3500;
   if(live&&L.phase==="reading"){L.srPaused=false;lsStartSR()}};
  setTimeout(resume,Math.max(2500,w.length*260));   // never stay muted if the voice does not report its end
- Promise.resolve(speak(w,L.text.lang||"de",.8)).catch(()=>{}).then(()=>setTimeout(resume,120))}
+ Promise.resolve(lsVoiceWord(idx)).catch(()=>{}).then(()=>setTimeout(resume,60))}
 function lsBeep(good){if(LS&&LS.phase=="reading")return;   // no sounds while reading aloud: on phones any sound switches the microphone off
  try{const c=acGet();if(!c)return;if(c.state!=="running"){c.resume().catch(()=>{})}const t0=c.currentTime;const tone=(f,at,dur,vol)=>{const o=c.createOscillator(),g=c.createGain();o.type=good?"sine":"square";o.frequency.value=f;g.gain.setValueAtTime(.0001,t0+at);g.gain.exponentialRampToValueAtTime(vol,t0+at+.02);g.gain.exponentialRampToValueAtTime(.0001,t0+at+dur);o.connect(g).connect(c.destination);o.start(t0+at);o.stop(t0+at+dur+.02)};
  if(good)tone(880,0,.18,.08);else{tone(440,0,.16,.12);tone(330,.18,.26,.12)}}catch(e){}}
@@ -3340,7 +3356,7 @@ document.getElementById("lsView").addEventListener("click",e=>{const L=LS;
  if(a==="code"){const inp=document.getElementById("lsCode"),v=inp?inp.value:"";const c=lesenCode(v,L.text.id);if(!c){toast("Dieser Code passt nicht zu diesem Text. Schau nochmals auf der Lese-Seite nach.");if(inp){inp.select()}return}
   S.lsCodes=S.lsCodes||[];if(S.lsCodes.includes(L.text.id+":"+c.code)){toast("Diesen Code hast du schon eingelöst. Lies den Text nochmals, dann gibt es einen neuen.");return}S.lsCodes=[...S.lsCodes,L.text.id+":"+c.code].slice(-300);
   L.mode="ext";L.ext=c;L.read=true;const words=dkWords(L.T);L.ms=c.wpm?Math.round(words/c.wpm*60000):0;L.t0=0;save();lsFinishReading();return}
- if(a==="mic"){acUnlock();try{speechSynthesis.cancel()}catch(x){}L.gen++;L.mode="mic";L.phase="reading";L.read=true;L.pos=0;L.wst=[];L._done=false;L.srLive=false;L.srFin=null;L.srFinAlt=null;L.srAlt=null;L.srText="";L.fin=null;lsReader(document.getElementById("lsView"));const ta=document.getElementById("lsDict");if(ta&&!lsLive())ta.focus();lsStartSR();return}
+ if(a==="mic"){acUnlock();try{speechSynthesis.cancel()}catch(x){}L.gen++;L.mode="mic";L.phase="reading";L.read=true;L.pos=0;L.wst=[];L._done=false;L.srLive=false;L.srFin=null;L.srFinAlt=null;L.srAlt=null;L.srText="";L.fin=null;lsPreloadWords(L);vjSchedule();lsReader(document.getElementById("lsView"));const ta=document.getElementById("lsDict");if(ta&&!lsLive())ta.focus();lsStartSR();return}
  if(a==="micExit"){const ta=document.getElementById("lsDict");if(ta)ta.blur();lsStop();L.mode=null;L.phase="ready";L.ms=0;L.t0=0;L.wst=[];L.pos=0;lsRender();return}
  if(a==="micResume"){L.srNeedTap=false;lsNetFails=0;lsStartSR();lsMicUI();return}
  if(a==="micClear"){L._done=false;clearTimeout(L._endT);clearTimeout(L._finT);L.fin=null;L.srFin=null;L.srFinAlt=null;L.srAlt=null;L.srText="";L.retry=null;L.cur=[];const ta=document.getElementById("lsDict");if(ta){ta.value="";if(!L.srLive)ta.focus()}if(L.sr){lsStopSR(L);lsStartSR()}L.wst=[];L.pos=0;L._done=false;L.ms=0;L.t0=0;clearInterval(L.timer);L.timer=null;lsClock();lsPaint();return}
