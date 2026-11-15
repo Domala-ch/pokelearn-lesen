@@ -3125,18 +3125,25 @@ function lsBeep(good){if(LS&&LS.phase=="reading")return;   // no sounds while re
  if(good)tone(880,0,.18,.08);else{tone(440,0,.16,.12);tone(330,.18,.26,.12)}}catch(e){}}
 // no banner: the word itself signals the stop — red, with a stronger ring on each new attempt (after the third it is read aloud)
 function lsRetryUI(){const L=LS,el=document.getElementById("lsRetry"),fx=document.getElementById("lsFocus");if(el)el.hidden=true;if(fx)fx.classList.toggle("stopped",!!L.retry)}
+function lsShowWarn(bad){const L=LS,wn=document.getElementById("lsWarn");if(!wn)return;wn.hidden=!bad;if(bad){const ln=LANGN[L.text.lang||"de"];wn.innerHTML=`Das Mikrofon versteht nicht ${ln}. ${L.srLive?"Bitte deutlich und nah am Gerät lesen.":esc((LSLANGFIX[lsPlatform()]||LSLANGFIX.other).replace("%L",ln))} Dann «Neu beginnen».`}}
 function lsUpdateFromHeard(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="reading")return;const ta=document.getElementById("lsDict");if(!ta)return;const bh=document.getElementById("lsHow");if(bh&&L.srLive&&!L.srNeedTap&&ta.readOnly){const w=ta.value.trim().split(/\s+/).slice(-5).join(" ");bh.innerHTML=w?`<span class="micdot"></span><span class="muted">Ich höre:</span> ${esc(w)}`:'<span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.'}
  if(!L.t0&&!L.ms&&ta.value.trim()){L.t0=Date.now();L.timer=L.timer||setInterval(lsClock,500)}
  const heard=heardTokens(ta.value);
  // while (and just after) the app says a word itself, the microphone hears the app: skip that
  if(L.said&&Date.now()<L.said.until)for(let k=L.h0;k<heard.length;k++)if(heard[k].includes(L.said.w))heard[k]=["äh"];
  if(L.muteUntil&&Date.now()<L.muteUntil&&!L.retry){L.h0=Math.max(L.h0||0,heard.length);if(L.muteUntil!==Infinity){clearTimeout(L._muteT);L._muteT=setTimeout(()=>{if(LS===L&&L.phase==="reading")lsUpdateFromHeard()},L.muteUntil-Date.now()+30)}}
+ // judged by the last words heard: are they words of this text at all? (a stop on a misread word is not a language problem)
+ const rec=heard.slice(-10),inText=rec.filter(t=>t.some(x=>L.expSet.has(x))||t.some(x=>LSFILL.test(x))).length,wn=document.getElementById("lsWarn");
+ const bad=rec.length>=8&&inText<rec.length*.25;
+ // the device may not have this German variant and silently listens in another language: switch once to the other variant
+ if(bad&&L.sr&&L.srLive&&!L.srSwitched&&(L.text.lang||"de")==="de"){L.srSwitched=true;const cur=L.srLangOv||(S.srLang2&&S.srLang2.de)||SRLANG.de,alt=cur==="de-DE"?"de-CH":"de-DE";
+  L.srLangOv=alt;lsStopSR(L);L.srFin=null;L.srFinAlt=null;L.srAlt=null;L.srText="";ta.value="";L.fin=null;L.retry=null;lsStartSR();toast(`Mikrofon hört jetzt ${alt==="de-CH"?"Schweizer Hochdeutsch":"Hochdeutsch"}. Bitte nochmals von vorne lesen.`);lsPaint();return}
+ if(bad&&!L.retry){lsPaint();lsShowWarn(true);return}   // not the text (other language or chatter): no judging, no stops
  try{lsAdvance(heard)}catch(err){console.error("lsAdvance",err);L.retry=null;try{const r=lsAlign(L.expN.slice(L.e0||0),heard.slice(L.h0||0),{});L.cur=r.st;L.wst=[...(L.fin||[]).slice(0,L.e0||0),...r.st];L.pos=(L.e0||0)+r.st.length}catch(e2){}}
  L.lastHeard=Date.now();lsPaint();lsRetryUI();
  if(document.getElementById("lsFocus"))lsKeepWord();else{const now=document.querySelector("#lsText .lw.now");if(now&&!L._scrollLock){L._scrollLock=true;now.scrollIntoView({block:"center"});setTimeout(()=>L._scrollLock=false,400)}}
  // wrong dictation language: many words heard, almost none match the text
- const ok=L.wst.filter(x=>x==="ok").length,wn=document.getElementById("lsWarn");
- if(wn){const bad=heard.length>=6&&ok<heard.length*.25;wn.hidden=!bad;if(bad){const ln=LANGN[L.text.lang||"de"];wn.innerHTML=`Das Mikrofon versteht nicht ${ln}. ${L.srLive?"Bitte deutlich und nah am Gerät lesen.":esc((LSLANGFIX[lsPlatform()]||LSLANGFIX.other).replace("%L",ln))} Dann «Neu beginnen».`}}
+ lsShowWarn(bad);
  const N=L.expN.length;
  if(L.pos>=N&&!L._done){L._done=true;clearTimeout(L._finT);L._finT=setTimeout(()=>{if(LS===L&&L.phase==="reading"){toast("Geschafft! Jetzt die Fragen.");lsFinishReading()}},700)}
  else if(L.pos>=N-3&&!L._done){clearTimeout(L._endT);L._endT=setTimeout(()=>{if(LS===L&&L.phase==="reading"&&!L._done&&Date.now()-L.lastHeard>=2400){L._done=true;for(let k=L.pos;k<N;k++)L.wst[k]=L.wst[k]||"soft";L.pos=N;lsPaint();toast("Geschafft! Jetzt die Fragen.");lsFinishReading()}},2500)}}
@@ -3216,7 +3223,7 @@ function srAltWords(res,bestIdx){const base=res[bestIdx].transcript.trim().split
  return{words:base,alt}}
 let lsNetFails=0;
 function lsStartSR(){const L=LS,SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!L||!SR||lsSRBlocked)return;let r;try{r=new SR()}catch(e){lsSRBlocked=true;return}
- const lang=L.text.lang||"de";r.lang=(S.srLang2&&S.srLang2[lang])||SRLANG[lang]||"de-CH";r.continuous=true;r.interimResults=true;try{r.maxAlternatives=5}catch(x){}const want=new Set(L.expN);
+ const lang=L.text.lang||"de";r.lang=L.srLangOv||(S.srLang2&&S.srLang2[lang])||SRLANG[lang]||"de-DE";r.continuous=true;r.interimResults=true;try{r.maxAlternatives=5}catch(x){}const want=new Set(L.expN);
  // text and guesses survive restarts of the recognizer (it stops by itself after pauses or about a minute)
  if(!L.srFin){L.srFin=[];L.srFinAlt=[]}let inter=[],interAlt=[];
  // contextual biasing: the words of this text (long words and names first) are more likely to be recognized
