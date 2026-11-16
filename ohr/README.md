@@ -19,16 +19,43 @@ Beim lauten Lesen hört die App mit einem eigenen Erkenner zu, der **den Text ke
 3. **Sofort beurteilen.** Etwa 0.2 s nach einem Wort steht es beim Erkenner; richtige Wörter werden sofort grün,
    ein falsches wird rot, sobald es eine Viertelsekunde stehen geblieben ist.
 
-Gemessen mit echten Stimmen (Hörbuch-Aufnahmen aus «Multilingual LibriSpeech», 12 Sprecherinnen und Sprecher, rund 2 900 Wörter
-pro Durchgang, Einstellung «Normal»), im gleichen Ablauf wie in der App:
+## Der Vergleich: gehört ↔ geschrieben
 
-* etwa **0.5 falsche Stopps pro 100 richtig gelesene Wörter** (höhere, kinderähnliche Stimmen und Lärm: etwa 1 pro 100),
-* erkannt werden rund 64 % der Verleser bei kleinen Grammatikwörtern, 76 % bei ähnlichen Wörtern und 87 % bei ganz anderen Wörtern
-  («Streng»: 77 % der kleinen Wörter, dafür etwa 1.1 falsche Stopps pro 100),
-* der Stopp kommt im Mittel 0.4 s nach dem Wort (9 von 10 innerhalb von 0.6 s).
+Die Zeile «Ich höre» zeigt, was das Ohr geschrieben hat; jedes Wort darin trägt die Farbe seines Urteils. Die Regeln:
 
-Zum Vergleich: Offene Erkenner (Kroko-Zipformer, Whisper small), mit derselben Wort-Beurteilung der App ausgewertet, markieren auf
-denselben Aufnahmen 4.6 bis 7 von 100 richtig gelesenen Wörtern als Fehler; das Ohr 0.4.
+* **Grün** wird ein Wort nur, wenn das Ohr genau dieses Wort geschrieben hat – oder eine Schreibweise, die gleich klingt (seid/seit, Rad/Rat).
+  Eine andere Endung (kleine/kleinen, erzählte/erzählt), ein ähnliches Wort oder Mutter/Mütter ist ein anderes Wort: **rot**, der Text wartet.
+* **Nicht gehört ist nie grün.** Fehlt ein längeres Wort (ab vier Buchstaben, kein kleines Funktionswort), hält der Text dort an wie bei
+  einem Verleser («… nicht gehört»). Fehlt ein kleines Wort, wird es grau gepunktet gezeigt und zählt nicht als Fehler – solche Wörter
+  verliert ein Erkenner ab und zu. Namen, die das Ohr nicht kennt, Zahlen und die ersten zwei Wörter halten nie an.
+* **Das Ohr darf sich korrigieren.** Ändert es ein schon geschriebenes Wort, werden alle Entscheidungen, die dieses Wort gesehen haben,
+  zurückgenommen und neu getroffen: Ein Stopp auf eine erste Vermutung verschwindet wieder, die Farben passen immer zu den Wörtern in
+  «Ich höre». Folgen direkt nach einem Stopp Wörter, die zeigen, dass das Wort doch da war, wird er ebenfalls zurückgenommen.
+  Was acht Wörter zurückliegt und zwei Sekunden unverändert war, behält seine Farbe – ein grünes Wort wird nicht nachträglich rot.
+* **Lange Wörter in Teilen** («hallen bad», «aus marschier end») gelten als das Wort; nach dem ersten Teil wartet der Vergleich bis 1.5 s.
+* **Nach einem Stopp:** Anlauf nehmen («der Hund ging» für «ging», bis zwölf Wörter zurück) ist kein Versuch. Wörter in schneller Folge
+  sind zusammen ein Versuch. Wer einfach weiterliest, bekommt das Wort nach fünf Wörtern rot, und alles danach wird normal beurteilt.
+  Nach dem dritten Fehlversuch sagt die App das Wort.
+* **Ein einzelnes fremdes Wort am Schluss** (oft ein Geräusch) hält erst an, wenn 1.2 s nichts folgt oder das nächste Wort es bestätigt.
+
+Mit der Erkennung des Geräts (Apple/Google) bleibt der Vergleich nachsichtiger (Endungen langer Wörter, ein einzelnes fehlendes Wort),
+weil sie den Text nicht kennt und öfter danebenliegt.
+
+## Gemessen
+
+Echte Stimmen (Hörbuch-Aufnahmen aus «Multilingual LibriSpeech», 12 Sprecherinnen und Sprecher, rund 2 900 Wörter pro Durchgang,
+Einstellung «Normal»), im gleichen Ablauf wie in der App:
+
+* etwa **0.4 falsche Stopps pro 100 richtig gelesene Wörter** (höhere, kinderähnliche Stimmen und Lärm: etwa 1 pro 100),
+* erkannt werden rund 68 % der Verleser bei kleinen Grammatikwörtern, 78 % bei ähnlichen Wörtern, 96 % bei ganz anderen Wörtern
+  und 94 % der ausgelassenen längeren Wörter,
+* der Stopp kommt im Mittel 0.4 s nach dem Wort (9 von 10 innerhalb von 0.7 s),
+* Übereinstimmung von Farbe und Text des Ohrs (alle Durchgänge, je 100 Wörter): grün, obwohl das Ohr das Wort nicht geschrieben hat
+  0.04 (vorher 0.34; mit ausgelassenen Wörtern 1.2); rot, obwohl es das Wort geschrieben hat 0.02 (vorher 0.25). Der Rest sind Wörter,
+  die das Ohr beim Zuhören richtig zeigte und erst im Schlusstext eines langen Satzes anders schrieb.
+
+Zum Vergleich: Offene Erkenner (Kroko-Zipformer, Whisper small), mit der Wort-Beurteilung der App ausgewertet, markieren auf
+denselben Aufnahmen 4.6 bis 7 von 100 richtig gelesenen Wörtern als Fehler.
 Mit Kinderstimmen ist das noch nicht gemessen (es gibt keine frei verfügbaren Aufnahmen); dort wird es etwas schlechter sein.
 
 Fällt das Ohr aus (Laden misslingt, Gerät zu langsam, kein Ton), hört automatisch die Erkennung des Geräts zu.

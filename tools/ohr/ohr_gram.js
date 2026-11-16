@@ -32,7 +32,7 @@ function ohrGrammar(LEX,expN){const N=expN.length,forms=[],alts=[],oov=[],alias=
  const prevTok=i=>{for(let j=i-1;j>=0;j--)if(forms[j])return forms[j][forms[j].length-1];return""},nextTok=i=>{for(let j=i+1;j<N;j++)if(forms[j])return forms[j][0];return""};
  const vars=[],seen=new Set(),add=(i,v,cls)=>{const p=(prevTok(i)+" "+v+" "+nextTok(i)).trim();if(!seen.has(p)){seen.add(p);vars.push([p,cls])}};
  for(let i=0;i<N;i++){const f=forms[i],e=expN[i];if(!f)continue;for(const a of alts[i])add(i,a,"x");if(f.length!==1||/^\d+$/.test(e))continue;
-  const eF=foldC(e),eK=koelnC(e),ok=n=>n!==e&&(wordScoreFast([n],e,eF,eK)??0)<2.6,cand=new Map();    // only what the judge would count as a misreading
+  const eF=foldC(e),eK=koelnC(e),ok=n=>n!==e&&(lsScoreDev([n],e,eF,eK)??0)<2.6,cand=new Map();    // only what the judge would count as a misreading
   const fam=OHRFAM.get(f[0])||OHRFAM.get(e);if(fam)for(const w of fam){const v=ohrForm(LEX,w);if(v&&ok(lsNorm(v)))cand.set(v,"c")}
   if(e.length>=3){
    if(e.length>=5){const inf=[];for(const en of OHRENDS){if(en&&!e.endsWith(en))continue;const st=en?e.slice(0,-en.length):e;if(st.length<4)continue;

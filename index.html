@@ -342,6 +342,8 @@ textarea{resize:vertical;font-size:17px;line-height:1.5}
 @media (prefers-reduced-motion:reduce){.lsretry{animation:none}}
 .lw.badw{background:var(--bad-bg);color:var(--bad);font-weight:800}
 .lw.miss{color:var(--bad);text-decoration:line-through;text-decoration-thickness:2px;opacity:.75}
+.lw.skip{color:var(--muted);text-decoration:underline dotted;text-decoration-thickness:2px;text-underline-offset:5px}   /* not heard (a short word): neither right nor wrong */
+.hw.ok{color:var(--good)}.hw.bad{color:var(--bad);text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}.hw.gap{color:var(--bad);font-size:14px}
 .lw.now{background:color-mix(in srgb,var(--gold) 45%,transparent);box-shadow:0 0 0 3px var(--gold);animation:nowp .9s ease-in-out infinite}
 @keyframes nowp{50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--gold) 35%,transparent)}}
 @media (prefers-reduced-motion:reduce){.lw.now{animation:none}}
@@ -2910,7 +2912,7 @@ function lsList(v){const rec=lsRecommend(),sel=S.lsLevel||rec.level,left=lsBankL
   <div class="lvgrid">${LEVELS.map(l=>`<button class="lvcard ${l===sel?"on":""}" data-lslvl="${l}"><span class="row" style="gap:6px;justify-content:space-between"><b>${l[0].toUpperCase()+l.slice(1)}</b>${l===rec.level?'<span class="pill good">Empfohlen</span>':""}</span><small class="muted">${LSINFO[l]} · Ziel ${LSTARGET[l]} Wörter/Min.</small>${(n=>n?`<span class="lvdone">✓ ${n} gelesen</span>`:"")((S.lsHist||[]).filter(x=>x.level===l).length)}</button>`).join("")}</div>
   <p class="muted" style="margin:0;font-size:14px"><b>Empfehlung:</b> ${esc(rec.why)}</p></div>
  <div class="card" style="display:grid;gap:10px">
-  <p class="muted" style="margin:0;font-size:13px">Mit Mikrofon: Jedes Wort wird sofort grün (richtig) oder rot (falsch). Bei einem roten Wort wartet der Text, bis es richtig gelesen ist – nach dem dritten Versuch sagt PokeLearn das Wort vor.</p>
+  <p class="muted" style="margin:0;font-size:13px">Mit Mikrofon: Oben bei «Ich höre» steht, was verstanden wurde. <b style="color:var(--good)">Grün</b>: genau so gehört, wie es im Text steht. <b style="color:var(--bad)">Rot</b>: anders gehört oder ausgelassen – der Text wartet, bis das Wort richtig gelesen ist (nach dem dritten Versuch sagt PokeLearn es vor). <span style="text-decoration:underline dotted;text-underline-offset:3px">Grau gepunktet</span>: ein kleines Wort wurde nicht gehört (kein Fehler).</p>
   <label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="lsParent" style="width:auto;flex:none;margin-top:4px" ${S.lsParent?"checked":""}><span>Ein Erwachsener hört zu und tippt falsch gelesene Wörter an</span></label>
   ${OHRBASE?`<label class="row" style="gap:8px;flex-wrap:wrap"><span>Zuhören mit</span><select id="lsEng" style="flex:1 1 170px;min-width:0;max-width:100%"><option value="ohr" ${S.lsEngine!=="dev"?"selected":""}>PokeLearn-Ohr</option><option value="dev" ${S.lsEngine==="dev"?"selected":""}>Gerät (Apple/Google)</option></select></label>
   <p class="muted" id="lsEngSt" style="margin:-4px 0 0;font-size:12px"></p>
@@ -2960,12 +2962,12 @@ function frNum(n){const out=new Set();for(const ch of[false,true]){let s;if(n<10
   else if(n<1e4){const m=n/1000|0,r=n%1000;s=(m>1?FR1[m]+" ":"")+"mille"+(r?" "+frNum(r)[ch?1:0]:"")}else return[];out.add(s)}return[...out]}
 const NUMREV={};for(const[lg,f]of[["en",n=>enNum(n)],["fr",n=>frNum(n)],["de",n=>numWords(String(n))]])for(let n=0;n<=100;n++)for(const w of f(n)){const k=lsNorm(w.replace(/ /g,""));if(k&&!(lg==="de"&&k==="ein"))(NUMREV[lg]||(NUMREV[lg]=new Map)).set(k,String(n))}
 {const ORD={1:"erst",3:"dritt",7:"siebt",8:"acht"};for(let n=1;n<=31;n++){const st=ORD[n]||(n<20?numWords(String(n))[0]+"t":numWords(String(n))[0]+"st");for(const e of["e","en","er","es","em"])NUMREV.de.set(lsNorm(st+e),String(n))}}
-function heardTokens(txt){const L=LS,lang=(L&&L.text&&L.text.lang)||"de",want=L&&L.expSet;const out=[];
+function heardTokens(txt){const L=LS,lang=(L&&L.text&&L.text.lang)||"de",want=L&&L.expSet;const out=[],h2r=[];
  const raw=String(txt).trim().split(/\s+/),SA=L&&L.srAlt&&L.srText===String(txt).trim()?L.srAlt:null;let fin=SA?L.srFinN:Infinity;L&&(L.hFin=0);
- raw.forEach((w,ri)=>{const n=lsNorm(w);if(!n)return;const o0=out.length;tok1(w,n);
+ raw.forEach((w,ri)=>{const n=lsNorm(w);if(!n)return;const o0=out.length;tok1(w,n);while(h2r.length<out.length)h2r.push(ri);
   if(SA&&SA[ri]&&SA[ri].size&&out.length===o0+1)for(const x of SA[ri])if(x&&!out[o0].includes(x)){out[o0].push(x);const dd=NUMREV[lang]&&NUMREV[lang].get(x);if(dd&&!out[o0].includes(dd))out[o0].push(dd);if(lang==="de"&&/^\d+$/.test(x))out[o0].push(...numWords(x))}
   if(L&&ri<fin)L.hFin=out.length});
- if(L&&!SA)L.hFin=out.length;return out;
+ if(L&&!SA)L.hFin=out.length;if(L)L.h2r=h2r;return out;
  function tok1(w,n){
   if(/^\d+$/.test(n)){const v=parseInt(n,10);
    if(lang==="de"||want&&want.has(n)){out.push([n,...(lang==="de"?numWords(n):[]),...(lang!=="de"?[...(lang==="en"?enNum(v):frNum(v))].map(s=>lsNorm(s.replace(/ /g,""))):[])]);return}
@@ -3012,13 +3014,21 @@ const _sd=new Map();const sndC=w=>{let v=_sd.get(w);if(v===undefined){v=LSLANG==
 // Small grammar words (articles, ein/kein/mein…, dies-, pronouns): here every ending matters (ein/einen, den/dem, seine/seinen, ihm/ihn).
 // These are the mistakes a reader really makes, so none of the tolerances for recognizer errors apply to them.
 const GRAMW=/^((k|m|d|s)?ein(e[mnrs]?)?|(unser|euer|ihr)(e[mnrs]?)?|(dies|jen|welch|jed|manch|solch)(e[mnrs]?)|der|die|das|den|dem|des|ihm|ihn|ihnen|mir|mich|dir|dich|uns|euch|im|in|am|an|zum|zur|vom|von|beim|bei)$/;
-function wordScoreFast(alts,e,eF,eK){let best=null;for(const a of alts){if(a===e)return 3;if(a===OHRUNK){if(LSOOV.has(e))return 3;continue}if(LSALIAS.size){const al=LSALIAS.get(e);if(al&&al.has(a))return 3}if(foldC(a)===eF)return 3;
+// PokeLearn-Ohr listens with the text in mind and writes whole, known words. So with the ear the comparison is exact: a word counts as read
+// only when the ear wrote that very word, or a spelling that sounds exactly the same (seid/seit, Rad/Rat). Whatever else it wrote —
+// another ending, a similar word, Mutter for Mütter — is a different word: shown in «Ich höre», red in the text.
+let LSEAR=false;
+const sndEar=w=>w.replace(/ck/g,"k").replace(/tz/g,"z").replace(/dt/g,"t").replace(/th/g,"t").replace(/ph/g,"f").replace(/v/g,"f").replace(/c(?!h)/g,"k").replace(/qu/g,"kw").replace(/x/g,"ks").replace(/y/g,"i").replace(/a[iy]/g,"ei").replace(/äu/g,"eu").replace(/d$/,"t").replace(/b$/,"p").replace(/g$/,"k");
+const _se=new Map();const sndEC=w=>{let v=_se.get(w);if(v===undefined){v=sndEar(w);_se.set(w,v)}return v};
+function wordScoreFast(alts,e,eF,eK){let best=null;const LEN=LSEAR?1:2.6;   // what «close enough» is worth: counts as read for the device recognizer, a misread for the ear
+ for(const a of alts){if(a===e)return 3;if(a===OHRUNK){if(LSOOV.has(e))return 3;continue}if(LSALIAS.size){const al=LSALIAS.get(e);if(al&&al.has(a))return 3}if(!LSEAR&&foldC(a)===eF)return 3;
+  if(LSEAR&&LSOOV.has(e)){best=Math.max(best??-9,1.2);continue}   // a word the ear does not know: whatever it wrote in its place is accepted (lsAlign), it cannot be judged
   if(LSLANG==="de"&&(GRAMW.test(e)||GRAMW.test(a))&&!(LSMN&&a.length===e.length&&a.slice(0,-1)===e.slice(0,-1)&&/[mn]/.test(a.slice(-1))&&/[mn]/.test(e.slice(-1)))){
    if(homo(a,e)){best=Math.max(best??-9,2.6);continue}                                   // das/dass
    if(GRAMW.test(e)&&GRAMW.test(a)){best=Math.max(best??-9,1);continue}                  // ein/einen, den/dem: a misread
    if(a.length<=3||e.length<=3){if(lev(a,e)<=1)best=Math.max(best??-9,1);continue}}
-  if(a.length>=3&&sndC(a)===sndC(e)){best=Math.max(best??-9,2.6);continue}               // sounds the same, spelled differently
-  if(LSLANG==="de"&&a.length>=4&&e.length>=4&&(a+"e"===e||e+"e"===a)){best=Math.max(best??-9,2.6);continue}   // final -e swallowed (erzählt/erzählte, hab/habe): recognizers drop it all the time
+  if(a.length>=3&&sndC(a)===sndC(e)){best=Math.max(best??-9,LSEAR&&sndEC(a)!==sndEC(e)&&!homo(a,e)?1:2.6);continue}               // sounds the same, spelled differently (ear: only true same-sounders, not Miete/Mitte)
+  if(LSLANG==="de"&&a.length>=4&&e.length>=4&&(a+"e"===e||e+"e"===a)){best=Math.max(best??-9,LEN);continue}   // final -e swallowed (erzählt/erzählte, hab/habe): recognizers drop it all the time
   if(homo(a,e)){best=Math.max(best??-9,2.6);continue}                                     // das/dass, there/their, a/à
   if(LSLANG==="fr"&&a.length>1&&frKeyC(a)===frKeyC(e)){best=Math.max(best??-9,2.6);continue}   // mange/mangent, petit/petits
   if(LSMN&&a.length===e.length&&a.length>=2&&a.slice(0,-1)===e.slice(0,-1)&&/[mn]/.test(a.slice(-1))&&/[mn]/.test(e.slice(-1))){best=Math.max(best??-9,2.6);continue}   // optional leniency: an/am, in/im, den/dem (dictation often mishears a final m/n)
@@ -3027,11 +3037,12 @@ function wordScoreFast(alts,e,eF,eK){let best=null;for(const a of alts){if(a===e
   if(!aShort&&!eShort){const s=a.length<e.length?a:e,l=a.length<e.length?e:a;
    if(s.length>=3&&l.length-s.length<=2&&l.startsWith(s)&&koelnC(a)!==eK){const sf=l.slice(s.length);
     // unstressed endings (kleine/kleinen, Hund/Hunde, dog/dogs) are what recognizers get wrong most: only other endings count as misread
-    const soft=LSLANG==="de"?s.length>=4&&/^(e|n|en|er|em|es|s|r|m)$/.test(sf):LSLANG==="en"?sf==="s":false;best=Math.max(best??-9,LSSTRICT&&!soft?1:2.6);continue}}  // kleine/kleiner: in correction mode a wrong ending is a misread
+    const soft=LSLANG==="de"?s.length>=4&&/^(e|n|en|er|em|es|s|r|m)$/.test(sf):LSLANG==="en"?sf==="s":false;best=Math.max(best??-9,LSSTRICT&&!soft?1:LEN);continue}}  // kleine/kleiner: in correction mode a wrong ending is a misread
   const L=Math.max(a.length,e.length),sameK=eK&&koelnC(a)===eK;
   if(!sameK&&Math.abs(a.length-e.length)>Math.ceil(L*.3))continue;const d=lev(a,e);
   const va=vowKC(a),ve=vowKC(e),vowOk=!(LSSTRICT&&LSLANG==="de")||va===ve||(L>=8&&va.length===ve.length&&va.slice(0,-1)===ve.slice(0,-1));   // long words: the last, unstressed vowel is often misheard (Meteorologin/-gen)
-  if(sameK&&vowOk&&d<=(LSPROP.has(e)?Math.ceil(L*.45):Math.max(1,Math.floor(L*.2)))){best=Math.max(best??-9,2.6);continue}if(d<=Math.ceil(L*.3)||sameK)best=Math.max(best??-9,1)}return best}
+  if(sameK&&vowOk&&d<=(LSPROP.has(e)?Math.ceil(L*.45):Math.max(1,Math.floor(L*.2)))){best=Math.max(best??-9,LEN);continue}if(d<=Math.ceil(L*.3)||sameK)best=Math.max(best??-9,1)}return best}
+const lsScoreDev=(alts,e,eF,eK)=>{const x=LSEAR;LSEAR=false;try{return wordScoreFast(alts,e,eF,eK)}finally{LSEAR=x}};
 // Global alignment, computed incrementally: rows for words already heard are kept, only new or revised words are processed.
 function lsAlign(exp,heard,cache){const E=exp.length,H=heard.length;
  const EF=cache.EF||(cache.EF=exp.map(fold)),EK=cache.EK||(cache.EK=exp.map(koeln)),EGAP=cache.EGAP||(cache.EGAP=exp.map(w=>SHORTW.test(w)||w.length<=3?.35:1.3));
@@ -3043,24 +3054,29 @@ function lsAlign(exp,heard,cache){const E=exp.length,H=heard.length;
  for(let i=start+1;i<=H;i++){const row=new Float64Array(E+1).fill(NEG),br=new Int8Array(E+1),prev=dp[i-1],pp=dp[i-2];const J=jmax(i);
   for(let j=jmin(i);j<=J;j++){let best=prev[j]>NEG/2?prev[j]-HX:NEG,b=1;
    if(j>0){if(row[j-1]>NEG/2){const g=row[j-1]-EGAP[j-1];if(g>best){best=g;b=2}}
-    if(prev[j-1]>NEG/2){const m=S2(i-1,j-1);if(m!=null){const v=prev[j-1]+m;if(v>best){best=v;b=m>=2.6?3:4}}}
+    if(prev[j-1]>NEG/2){const m=S2(i-1,j-1);if(m!=null){const v=prev[j-1]+m;if(v>best){best=v;b=m>=2.6||LSOOV.size&&LSOOV.has(exp[j-1])?3:4}}}
     if(i>=2&&pp&&pp[j-1]>NEG/2&&heard[i-2].some(a=>heard[i-1].some(c=>a+c===exp[j-1]||foldC(a+c)===EF[j-1]||LSALIAS.size&&LSALIAS.has(exp[j-1])&&LSALIAS.get(exp[j-1]).has(a+c)))){const v=pp[j-1]+3;if(v>best){best=v;b=5}}
     if(j>=2&&prev[j-2]>NEG/2&&heard[i-1].some(a=>a===exp[j-2]+exp[j-1]||(exp[j-2].length>=3&&a.length>exp[j-2].length+1&&(a.startsWith(exp[j-2])||foldC(a).startsWith(EF[j-2]))&&(wordScoreFast([a.slice(exp[j-2].length)],exp[j-1],EF[j-1],EK[j-1])??0)>=2.6))){const v=prev[j-2]+6;if(v>best){best=v;b=6}}
     if(i>=3&&dp[i-3]&&dp[i-3][j-1]>NEG/2&&(exp[j-1].length>=8||LSALIAS.has(exp[j-1]))&&heard[i-3].some(a=>heard[i-2].some(c=>heard[i-1].some(d=>a+c+d===exp[j-1]||foldC(a+c+d)===EF[j-1]||LSALIAS.size&&LSALIAS.has(exp[j-1])&&LSALIAS.get(exp[j-1]).has(a+c+d))))){const v=dp[i-3][j-1]+3;if(v>best){best=v;b=7}}}
    row[j]=best;br[j]=b}
   dp.push(row);bk.push(br)}
- cache.dp=dp;cache.bk=bk;cache.keys=keys;if(ws.size>60000)ws.clear();if(!H)return{st:[],i:0};
+ cache.dp=dp;cache.bk=bk;cache.keys=keys;if(ws.size>60000)ws.clear();if(!H)return{st:[],i:0,mh:[],m0:[],tail:null,tailN:0};
  let jb=0,vb=NEG;for(let j=jmin(H);j<=jmax(H);j++){const v=dp[H][j]+j*.001;if(v>vb){vb=v;jb=j}}
- const st=new Array(jb),mh=new Array(jb),extraAt=new Map();let i=H,j=jb,guard=0;
- while((i>0||j>0)&&guard++<5000){const b=bk[i][j];if(i===0||b===2){st[j-1]=EGAP[j-1]<1?"soft":"miss";j--}else if(b===1){const tk=heard[i-1][0]||"";if(!LSFILL.test(tk)&&tk.length>=2&&![j-2,j-1,j,j+1].some(q=>q>=0&&q<exp.length&&heard[i-1].includes(exp[q])))extraAt.set(j,i-1);i--}else if(b===3){st[j-1]="ok";mh[j-1]=i-1;i--;j--}else if(b===4){st[j-1]="bad";mh[j-1]=i-1;i--;j--}else if(b===5){st[j-1]="ok";mh[j-1]=i-1;i-=2;j--}else if(b===6){st[j-1]="ok";st[j-2]="ok";mh[j-1]=mh[j-2]=i-1;i--;j-=2}else if(b===7){st[j-1]="ok";mh[j-1]=i-1;i-=3;j--}else break}
+ const st=new Array(jb),mh=new Array(jb),m0=new Array(jb),extraAt=new Map();let i=H,j=jb,guard=0;
+ while((i>0||j>0)&&guard++<5000){const b=bk[i][j];if(i===0||b===2){st[j-1]=LSEAR?"skip":EGAP[j-1]<1?"soft":"miss";j--}else if(b===1){const tk=heard[i-1][0]||"";if(!LSFILL.test(tk)&&tk.length>=2&&![j-2,j-1,j,j+1].some(q=>q>=0&&q<exp.length&&heard[i-1].includes(exp[q])))extraAt.set(j,i-1);i--}else if(b===3){st[j-1]="ok";mh[j-1]=m0[j-1]=i-1;i--;j--}else if(b===4){st[j-1]="bad";mh[j-1]=m0[j-1]=i-1;i--;j--}else if(b===5){st[j-1]="ok";mh[j-1]=i-1;m0[j-1]=i-2;i-=2;j--}else if(b===6){st[j-1]="ok";st[j-2]="ok";mh[j-1]=mh[j-2]=m0[j-1]=m0[j-2]=i-1;i--;j-=2}else if(b===7){st[j-1]="ok";mh[j-1]=i-1;m0[j-1]=i-3;i-=3;j--}else break}
  for(let k=jb-1;k>=0&&st[k]!=="ok"&&st[k]!=="bad";k--)st[k]=undefined;let pos=jb;while(pos>0&&st[pos-1]===undefined)pos--;
  // a gap of ONE word between recognised words is almost always the recognizer dropping it (fast reading): give the benefit of the doubt.
  // Only runs of two or more content words count as really skipped.
  // If a different word was heard exactly where words are missing, that is a substitution (real misread), not a recognizer gap.
- for(let k=0;k<pos;){if(st[k]==="miss"||st[k]==="soft"){let e2=k;while(e2<pos&&(st[e2]==="miss"||st[e2]==="soft"))e2++;const content=st.slice(k,e2).filter(x=>x==="miss").length;
-   let sub=null;for(let m=k;m<=e2;m++)if(extraAt.has(m)&&sub==null)sub=extraAt.get(m);
-   if(sub!=null){for(let m=k;m<e2;m++){st[m]="bad";mh[m]=sub}}else if(content<2)for(let m=k;m<e2;m++)st[m]="soft";k=e2}else k++}
- return{st:st.slice(0,pos),i:pos,mh:mh.slice(0,pos),tail:H&&bk[H][jb]===1?H-1:null}}
+ // With the ear nothing of this is forgiven: a word that was not heard is «skip» (shown as not heard, never green); two or more longer
+ // words in a row are «miss» (left out); and of the missing words only the one in whose place the other word was heard is the misread.
+ const gapS=x=>x==="miss"||x==="soft"||x==="skip";
+ for(let k=0;k<pos;){if(gapS(st[k])){let e2=k;while(e2<pos&&gapS(st[e2]))e2++;let content=0;for(let m=k;m<e2;m++)if(EGAP[m]>=1)content++;
+   let sub=null,at=-1;for(let m=k;m<=e2;m++)if(extraAt.has(m)&&sub==null){sub=extraAt.get(m);at=m}
+   if(LSEAR){if(content>=2)for(let m=k;m<e2;m++)if(EGAP[m]>=1)st[m]="miss";if(sub!=null){const m=Math.min(at,e2-1);st[m]=LSOOV.has(exp[m])?"ok":"bad";mh[m]=m0[m]=sub}}
+   else if(sub!=null){for(let m=k;m<e2;m++){st[m]="bad";mh[m]=m0[m]=sub}}else if(content<2)for(let m=k;m<e2;m++)st[m]="soft";k=e2}else k++}
+ let tailN=0;for(let q=H;q>0&&bk[q][jb]===1;q--)tailN++;     // heard words at the end that belong to no word of the text
+ return{st:st.slice(0,pos),i:pos,mh:mh.slice(0,pos),m0:m0.slice(0,pos),tail:tailN?H-1:null,tailN}}
 const LSFILL=/^(äh|ähm|ehm|hm|hmm|mh|öh|oh|ah|eh|uh|um)$/;
 function lsOnDict(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="reading")return;const ta=document.getElementById("lsDict");if(ta&&ta.value!==L._lastVal){L._lastVal=ta.value;L.lastInput=Date.now()}if(L._raf)return;L._raf=1;queueMicrotask(()=>{L._raf=0;lsUpdateFromHeard()})}   // right away (an animation frame can be held back while the phone is busy)
 // Correction mode ("Bei Fehlern anhalten"): words before a misread word are locked; the reader must re-read the misread word.
@@ -3069,52 +3085,119 @@ function lsOnDict(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="reading")return
 // A wrong word stops the reader until it is read right; after three failed attempts the app says the word and reading goes on.
 // Run-up repeats and filler sounds are not attempts. A word the recognizer is still writing («Hallen…» for «Hallenbad») waits.
 const lsPartial=(tok,e)=>tok.some(a=>a.length>=2&&a.length<e.length&&(e.startsWith(a)||foldC(e).startsWith(foldC(a))));
-let lsNow=()=>performance.now();const OHRHOLD=250;
-function lsAdvance(heard){const L=LS,strict=true,N=L.expN.length;if(!LSSTRICT){LSSTRICT=true;L._subKey=null}if(LSMN!==(S.lsMN===true)){LSMN=S.lsMN===true;L._subKey=null}LSLANG=L.text.lang||"de";
- if(!L.fin){L.fin=[];L.e0=0;L.h0=0;L.retry=null;L.fixed=0;L.given=0}
- if(heard.length<L.h0)L.h0=heard.length;
- const H=heard.length,hf=Math.min(H,L.hFin??H),sc=(tok,j)=>j<N?wordScoreFast(tok,L.expN[j],foldC(L.expN[j]),koelnC(L.expN[j])):null,good=(tok,j)=>(sc(tok,j)??0)>=2.6;
+let lsNow=()=>performance.now();
+// waiting times (ms): OHRHOLD the ear's newest word may still flip · OHRPART a word that is the beginning of the expected one · OHRPART2 the first
+// half of a long word written in two parts · OHRTAIL a stray word with nothing after it · LSTRYGAP words closer together are ONE attempt ·
+// LSRUHOLD a word that may be the start of a run-up or of reading on. LSRUN: how far back a run-up may begin. LSREFUTE: words that
+// arrive this soon after a stop were spoken before the reader could react — they can still show that the stop was wrong.
+// LSFRZ/LSFRZT: a word the reader has left this many words behind, unchanged for this long, keeps its colour for good.
+const OHRHOLD=250,OHRPART=600,OHRPART2=1500,OHRTAIL=1200,LSTRYGAP=500,LSRUHOLD=900,LSRUN=12,LSREFUTE=800,LSFRZ=8,LSFRZT=2000;
+// look again in ms (a word is still waiting for its verdict); the earliest wish wins
+function lsAgain(L,ms){const at=lsNow()+ms;if(L._agT&&L._agAt<=at+5)return;clearTimeout(L._agT);L._agAt=at;L._agT=setTimeout(()=>{L._agT=0;if(LS===L&&L.phase==="reading")lsUpdateFromHeard()},Math.max(0,ms))}
+// With the ear a longer word that was not heard at all stops the reader too (left out). Short words are only shown as «not heard»:
+// they are the ones a recognizer loses now and then. Names it does not know, numbers and the very first words never stop.
+const lsMustHear=(w,idx)=>idx>=2&&w.length>=4&&!SHORTW.test(w)&&!LSOOV.has(w)&&!/^\d+$/.test(w)&&S.lsStrictEar!==0;
+// THE COMPARISON. heard = the words the recognizer has written so far (the «Ich höre» line), L.expN = the words of the text.
+// · A word is green only when the recognizer wrote that word. · A different word in its place: red, the reader stops there.
+// · Nothing heard for a word: never green (ear: a longer word stops the reader, a short one is shown as «not heard»).
+// The recognizer may still change words it has written. Every decision (stop, corrected, given up) remembers how many words were on the
+// table when it was taken; when an earlier word changes, those decisions are taken back and made again — so the colours always fit the
+// words shown in «Ich höre», never an earlier guess.
+function lsAdvance(heard){const L=LS,N=L.expN.length,ear=L.eng==="ohr";
+ if(!LSSTRICT){LSSTRICT=true;L._subKey=null}if(LSMN!==(S.lsMN===true)){LSMN=S.lsMN===true;L._subKey=null}if(LSEAR!==ear){LSEAR=ear;L._subKey=null}LSLANG=L.text.lang||"de";
+ if(!L.fin||!L.hist){L.fin=[];L.e0=0;L.h0=0;L.retry=null;L.fixed=0;L.given=0;L.hist=[];L._pk=[];L.tArr=[];L.tChg=[];L.hvP=new Map();L.hvC=new Map();L.saidW=new Set();L.frz=[];L._pst=[];L._stT=[]}
+ const H=heard.length,now=lsNow(),keys=heard.map(t=>t.join("|"));
+ {const pk=L._pk;let cp=0;while(cp<pk.length&&cp<H&&pk[cp]===keys[cp])cp++;
+  if(cp<pk.length){
+   if(H<pk.length-3&&(cp===H||cp===0)||H<L.h0&&cp<L.h0){     // the text starts over or was cut short (recognizer restarted): what has been judged stays, new words follow
+    if(!L.retry&&L.cur){for(let m=0;m<L.cur.length;m++)L.fin[L.e0+m]=L.cur[m];L.e0+=L.cur.length;L.cur=[]}
+    L.hist.length=0;L.h0=cp;L.hvP.clear();if(L.retry){L.retry.h=cp;L.retry.k0=-1;L.retry.e0p=null}L._subKey=null}
+   else{let s=null;while(L.hist.length&&L.hist[L.hist.length-1].n>cp)s=L.hist.pop();
+    if(s){L.e0=s.e0;L.h0=s.h0;L.retry=s.retry;L.fixed=s.fixed;L.given=s.given;L._subKey=null}
+    for(const k of [...L.hvP.keys()])if(k>=cp)L.hvP.delete(k)}}
+  for(let k=cp;k<H;k++){if(k>=pk.length||L.tArr[k]==null)L.tArr[k]=now;if(k>=pk.length||pk[k]!==keys[k]||L.tChg[k]==null)L.tChg[k]=now}
+  L.tArr.length=H;L.tChg.length=H;L._pk=keys}
+ if(L.h0>H)L.h0=H;
+ const hf=Math.min(H,L.hFin??H),sc=(tok,j)=>j>=0&&j<N?wordScoreFast(tok,L.expN[j],foldC(L.expN[j]),koelnC(L.expN[j])):null,good=(tok,j)=>(sc(tok,j)??0)>=2.6;
  const fresh=k=>k===H-1&&(k>=hf||(!L.srLive&&Date.now()-(L.lastInput||0)<700));   // newest word, recognizer may still change it
+ const since=k=>now-(L.tChg[k]??now);
  // PokeLearn-Ohr: its newest word can still flip for a moment (der → des → das). A word is only called WRONG once it has stood for a
  // quarter of a second or another word has followed; right words turn green at once.
- const wait=(k,tok,ms)=>{if(L.eng!=="ohr"||!fresh(k))return false;const key=k+":"+tok.join("|"),now=lsNow();if(L._hk!==key){L._hk=key;L._ht=now}const left=(ms||OHRHOLD)-(now-L._ht);if(left<=0)return false;
-  clearTimeout(L._holdT2);L._holdT2=setTimeout(()=>{if(LS===L&&L.phase==="reading")lsUpdateFromHeard()},left+20);return true};
+ const wait=(k,ms)=>{if(!ear||!fresh(k))return false;const left=ms-since(k);if(left<=0)return false;lsAgain(L,left+20);return true};
+ const lone=(k,ms)=>{if(k!==H-1)return false;const left=ms-since(k);if(left<=0)return false;lsAgain(L,left+20);return true};   // last word, nothing after it yet
  // a word that is only the beginning of the expected one («ein» for «einen», «Hallen» for «Hallenbad») may still be growing:
- // the device recognizer writes letter by letter (wait while it is the newest word); the ear writes whole words (wait at most 0.6 s)
- const part=(k,tok,e)=>fresh(k)&&lsPartial(tok,e)&&(L.eng!=="ohr"||wait(k,tok,600));
- const stopAt=(w,kBad,st)=>{for(let m=0;m<w-L.e0;m++)L.fin[L.e0+m]=st[m];L.retry={idx:w,h:kBad+1,k0:kBad,key0:heard[kBad].join("|"),am:0,beeped:1};L.e0=w;lsBeep(false);lsPrepWord(w)};
- for(let guard=0;guard<60;guard++){
+ // the device recognizer writes letter by letter (wait while it is the newest word); the ear writes whole words (short wait; longer when
+ // it looks like the first half of a long word, which the ear often writes in two parts)
+ const cat=(k,n)=>{let s="";for(let q=0;q<n;q++)s+=heard[k+q][0];return s};
+ const pre=(s,e)=>s.length>=2&&s.length<e.length&&(e.startsWith(s)||foldC(e).startsWith(foldC(s)))?s.length:0;
+ const grows=(k,e)=>Math.max(lsPartial(heard[k],e)?Math.max(...heard[k].map(a=>pre(a,e))):0,k>0?pre(cat(k-1,2),e):0,k>1?pre(cat(k-2,3),e):0);   // letters of e written so far (also over two or three heard words: «aus marschier…»)
+ const part=(k,tok,e)=>{if(!fresh(k))return false;const g=grows(k,e);return!!g&&(!ear||wait(k,g>=3&&e.length-g>=3?OHRPART2:OHRPART))};
+ const isW=(s,j)=>{const e=L.expN[j];if(s===e||foldC(s)===foldC(e))return true;const al=LSALIAS.get(e);return!!(al&&al.has(s))};
+ // how many heard words from k on make up word j (a long word is sometimes written in two or three parts); 0 = it is not that word
+ const isAt=(k,j)=>j<0||j>=N||k<0||k>=H?0:good(heard[k],j)?1:k+1<H&&isW(cat(k,2),j)?2:k+2<H&&(L.expN[j].length>=8||LSALIAS.has(L.expN[j]))&&isW(cat(k,3),j)?3:0;
+ const snap=()=>L.hist.push({n:H,e0:L.e0,h0:L.h0,retry:L.retry?{...L.retry}:null,fixed:L.fixed,given:L.given});
+ const mark=(k,v)=>{if(k>=0&&k<H)L.hvP.set(k,v)};
+ // stop at word w. kBad: the word heard in its place — or (gap) the first word heard after it, when w itself was not heard at all.
+ const stopAt=(w,kBad,st,mh,gap,a0,t0)=>{snap();for(let m=0;m<w-L.e0;m++){L.fin[L.e0+m]=st[m];if(mh&&mh[m]!=null&&(st[m]==="ok"||st[m]==="bad"))mark(L.h0+mh[m],st[m])}
+  if(!gap)mark(kBad,"bad");L.retry={idx:w,h:gap?kBad:kBad+1,k0:kBad,key0:keys[kBad],gap:!!gap,a0:a0||0,t0:t0||1,tries:t0||1,am:a0||0,beeped:1,e0p:L.e0,t:now,nH:H};L.e0=w;lsBeep(false);lsPrepWord(w)};
+ const fixed=(idx,k,n,two,st)=>{snap();L.fin[idx]=st||"fixed";if(!st)L.fixed++;for(let q=0;q<n;q++)mark(k+q,"ok");if(two)L.fin[idx+1]="ok";L.e0=idx+1+(two?1:0);L.h0=k+n;L.retry=null;if(!st)lsBeep(true)};
+ // give up on a word: it counts as a mistake. say: after three attempts the app says it; otherwise the reader has simply read on.
+ const giveUp=(idx,hNext,say)=>{snap();L.fin[idx]="bad";L.e0=idx+1;L.h0=Math.min(H,Math.max(L.h0,hNext));L.retry=null;if(say){L.given++;if(!L.saidW.has(idx)){L.saidW.add(idx);lsSayWord(idx)}}};
+ for(let guard=0;guard<400;guard++){
   if(L.retry){const R=L.retry,idx=R.idx,e=L.expN[idx];if(R.h>H)R.h=H;
-   // the recognizer corrected the word it had misheard: it was right after all
-   const t0=heard[R.k0];if(t0&&t0.join("|")!==R.key0&&good(t0,idx)){L.fin[idx]="ok";L.e0=idx+1;L.h0=R.k0+1;L.retry=null;continue}
-   let tries=1,am=0,done=false,hold=false;
-   for(let k=R.h;k<H;k++){const tok=heard[k];
-    if(am>0&&good(tok,idx+1+am)){am++;if(am>=5){lsGiveUp(idx,am,k+1,false);done=true;break}continue}   // reading on: the same word can appear again further on
-    if(good(tok,idx)){L.fin[idx]="fixed";L.fixed++;L.e0=idx+1;L.h0=k+1;L.retry=null;lsBeep(true);done=true;break}
-    if(LSFILL.test(tok[0]||"")||[1,2,3].some(b=>idx-b>=0&&tok.includes(L.expN[idx-b])))continue;     // filler or run-up: not an attempt
-    if(good(tok,idx+1+am)){am++;if(am>=5){lsGiveUp(idx,am,k+1,false);done=true;break}continue}     // read on past the stop: not an attempt
+   // A stop is decided on the words heard so far. Words that follow at once (spoken before the reader could even see the stop) can show
+   // that it was wrong — the word is there after all, the recognizer had only begun differently: then the stop is taken back.
+   if(H>R.nH&&R.e0p!=null&&L._subKey===R.e0p+":"+L.h0&&L.tArr[H-1]-R.t<=LSREFUTE){const r2=lsAlign(L.expN.slice(R.e0p),heard.slice(L.h0),L._sc),q=idx-R.e0p;
+    if(r2.st.length>q&&r2.st[q]==="ok"&&!r2.st.slice(0,q).some(x=>x==="bad")){L.hist.pop();L.e0=R.e0p;L.retry=null;for(const k of [...L.hvP.keys()])if(k>=R.k0)L.hvP.delete(k);continue}}
+   // the word the reader was stopped for was only the first part of a long word, and the rest has followed: it was right
+   if(!R.gap){let hit=0,q=Math.max(L.h0,R.k0-2);for(;q<=R.k0;q++){const n=isAt(q,idx);if(n>=2&&q+n>R.k0){hit=n;break}}if(hit){fixed(idx,q,hit,false,"ok");continue}}
+   let tries=R.t0||1,am=R.a0||0,kOn=R.gap?R.h:-1,ru=-1,done=false,hold=false,tLast=L.tArr[R.k0]??-1e9,kTry=R.k0;
+   const nextTok=k=>{for(let q=k+1;q<H;q++)if(!LSFILL.test(heard[q][0]||""))return q;return-1};
+   for(let k=R.h;k<H&&!done;k++){const tok=heard[k];
+    const on=()=>{for(let s=0;s<=(kOn>=0?2:1);s++){const n=isAt(k,idx+1+am+s);if(n)return{s,n}}return null};
+    // reading on past the stop has priority once it has started (the same word can come again further on)
+    if(kOn>=0){const o=on();if(o){am+=o.s+1;k+=o.n-1;tries=1;if(am-(R.a0||0)>=5){giveUp(idx,kOn,false);done=true}continue}}
+    {const n=isAt(k,idx);if(n){fixed(idx,k,n);done=true;continue}}                                   // read right now: corrected
+    if(idx+1<N&&tok.some(a=>a===e+L.expN[idx+1])){fixed(idx,k,1,true);done=true;continue}           // written together with the next word
+    if(LSFILL.test(tok[0]||""))continue;                                                             // «äh»: not an attempt
+    // a run-up («der Hund ging» for «ging»): words before the stop, in their order, leading up to the word
+    let j=-1;if(ru>=0&&ru<idx&&good(tok,ru))j=ru;else for(let b=1;b<=LSRUN&&idx-b>=0;b++)if(good(tok,idx-b)){j=idx-b;break}
+    if(j>=0){const q=nextTok(k);if(q>=0&&(good(heard[q],j+1)||j+2<=idx&&good(heard[q],j+2)||isAt(q,idx))){ru=j+1;am=R.a0||0;kOn=-1;continue}}
+    if(kOn<0){const o=on();if(o){kOn=k;am+=o.s+1;k+=o.n-1;tries=1;continue}}                         // read on past the stop: not an attempt
+    if(j>=0&&k===H-1&&lone(k,LSRUHOLD)){hold=true;break}                                             // may be the start of a run-up: what follows decides
     if(part(k,tok,e)){hold=true;continue}                                                            // still being written
-    if(wait(k,tok))break;                                                                            // may still change
-    tries++;
-    if(tries>=3){lsGiveUp(idx,am,k+1,true);done=true;break}}
+    if(wait(k,OHRHOLD))break;                                                                        // may still change
+    if(kOn>=0&&lone(k,LSRUHOLD)){hold=true;break}                                                    // an unclear word while reading on: the next word decides
+    if(L.tArr[k]-tLast>=LSTRYGAP)tries++;tLast=L.tArr[k];kTry=k;mark(k,"bad")}                       // a wrong attempt (words in quick succession are one attempt)
    if(done)continue;
+   if(tries>=3){giveUp(idx,kTry+1,true);continue}
    if(tries>R.beeped){R.beeped=tries;lsBeep(false)}R.tries=tries;R.am=am;
-   if(hold){clearTimeout(L._holdT);L._holdT=setTimeout(()=>{if(LS===L&&L.phase==="reading")lsUpdateFromHeard()},320)}
-   L.cur=[];break}
+   if(hold)lsAgain(L,320);
+   L.cur=[];L.hvC=new Map();break}
   const key=L.e0+":"+L.h0;if(L._subKey!==key){L._subKey=key;L._sc={}}
   const r=lsAlign(L.expN.slice(L.e0),heard.slice(L.h0),L._sc);
-  // first misread word, judged at once (the newest word only waits while it is visibly incomplete)
-  let b=r.st.findIndex(x=>x==="bad");
-  if(b>=0&&r.mh[b]!=null){const k=L.h0+r.mh[b];if(part(k,heard[k],L.expN[L.e0+b])||wait(k,heard[k])){r.st=r.st.slice(0,b);b=-1}}
-  if(strict&&b>=0&&r.mh[b]!=null){stopAt(L.e0+b,L.h0+r.mh[b],r.st);continue}
-  // a different word heard where the next word should be: that is a misread too, even if it sounds nothing like it
-  if(strict&&r.tail!=null){const k=L.h0+r.tail,w=L.e0+r.i,tok=heard[k];
-   if(w<N&&!LSOOV.has(L.expN[w])&&!LSFILL.test(tok[0]||"")&&!(L.said&&tok.includes(L.said.w))&&![1,2,3,4,5,6].some(q=>w-q>=0&&good(tok,w-q))&&![1,2,3,4,5,6,7,8].some(q=>good(tok,w+q))&&!part(k,tok,L.expN[w])&&!wait(k,tok)){stopAt(w,k,r.st);continue}}
-  L.cur=r.st;break}
+  // the first word that is not right: another word was heard in its place — or (ear) a longer word was not heard at all
+  let b=-1,gap=false;for(let m=Math.max(0,L.frz.length-L.e0);m<r.st.length;m++){if(r.st[m]==="bad"&&r.mh[m]!=null){b=m;break}if(ear&&(r.st[m]==="skip"||r.st[m]==="miss")&&lsMustHear(L.expN[L.e0+m],L.e0+m)){b=m;gap=true;break}}
+  if(b>=0&&!gap){const k=L.h0+r.mh[b];if(part(k,heard[k],L.expN[L.e0+b])||wait(k,OHRHOLD)){r.st=r.st.slice(0,b);b=-1}else{stopAt(L.e0+b,k,r.st,r.mh);continue}}
+  if(b>=0){let m2=b+1;while(m2<r.st.length&&r.mh[m2]==null)m2++;let nOk=0;while(m2+nOk<r.st.length&&r.mh[m2+nOk]!=null)nOk++;
+   // the words heard after the gap prove it: one longer word (or two words) for a single missing word, more when several are missing —
+   // and the last of them must stand (a first guess of the recognizer sometimes jumps ahead for a moment)
+   const run=m2-b,need=run>=3?3:run===2||L.expN[L.e0+m2]&&L.expN[L.e0+m2].length<4?2:1;
+   if(nOk<need||wait(L.h0+r.mh[m2+need-1],OHRHOLD)){r.st=r.st.slice(0,b);b=-1}else{stopAt(L.e0+b,L.h0+r.m0[m2],r.st,r.mh,true,m2-b-1);continue}}
+  // a stray word at the end, where the next word should be: a misread too, even if it sounds nothing like it. The ear waits for what
+  // follows (the next word proves it; a noise is then simply passed over) and only stops on its own when nothing else comes.
+  else if(r.tail!=null){const k=L.h0+r.tail,w=L.e0+r.i,tok=heard[k];let stray=0;for(let q=k;q>k-r.tailN&&q>=0;q--)if(!LSFILL.test(heard[q][0]||""))stray++;
+   if(w<N&&!LSOOV.has(L.expN[w])&&!LSFILL.test(tok[0]||"")&&!(L.said&&tok.includes(L.said.w))&&![1,2,3,4,5,6].some(q=>w-q>=0&&good(tok,w-q))&&![1,2,3,4,5,6,7,8].some(q=>good(tok,w+q))&&!part(k,tok,L.expN[w])&&!(ear?lone(k,stray>=2?OHRHOLD:OHRTAIL):wait(k,OHRHOLD))){
+    let t0=1;for(let q=k;q>k-r.tailN+1&&q>0;q--)if(L.tArr[q]-L.tArr[q-1]>=LSTRYGAP&&!LSFILL.test(heard[q-1][0]||""))t0++;     // several stray words, one after the other with pauses: so many attempts already
+    stopAt(w,k,r.st,r.mh,false,0,Math.min(2,t0));continue}}
+  L.cur=r.st;L.hvC=new Map();for(let m=0;m<r.st.length;m++)if(r.mh[m]!=null&&(r.st[m]==="ok"||r.st[m]==="bad"))for(let q=r.m0[m];q<=r.mh[m];q++)L.hvC.set(L.h0+q,r.st[m]);break}
  L.wst=[...L.fin.slice(0,L.e0),...(L.retry?[]:L.cur||[])];
- L.pos=L.retry?L.retry.idx:Math.min(N,L.e0+((L.cur||[]).length))}
-// give up on a word: count it as a mistake, say it aloud, credit the words she already read past it, continue after them
-function lsGiveUp(idx,ahead,hNext,say){const L=LS;L.fin[idx]="bad";L.given++;for(let m=1;m<=ahead;m++)L.fin[idx+m]="ok";L.e0=idx+1+ahead;L.h0=hNext;L.retry=null;if(say)lsSayWord(idx)}
+ L.pos=L.retry?L.retry.idx:Math.min(N,L.e0+((L.cur||[]).length));
+ // Settled: a word the reader has left well behind keeps its colour, whatever the recognizer rewrites later (its final text for a long
+ // sentence sometimes differs from what it showed while listening) — a word that was green does not turn red afterwards.
+ {const fz=L.frz,pt=L._pst,tt=L._stT;for(let j=0;j<fz.length;j++)L.wst[j]=fz[j];if(L.pos<fz.length&&!L.retry)L.pos=fz.length;
+  for(let j=fz.length;j<L.wst.length;j++)if(pt[j]!==L.wst[j]){pt[j]=L.wst[j];tt[j]=now}
+  for(let j=fz.length;j<L.pos-LSFRZ;j++){if(L.wst[j]===undefined||now-tt[j]<LSFRZT)break;fz[j]=L.wst[j]}}}
 // the app says the word; what the microphone picks up of its own voice is ignored
 // A word is said in the natural recorded voice (the same as the dictations). Its sound is made ready at the FIRST failed try,
 // so after the third it plays at once. No recording yet: the on-device PokeLearn voice prepares it; the device voice only as last resort.
@@ -3143,11 +3226,20 @@ function lsBeep(good){if(LS&&LS.phase=="reading")return;   // no sounds while re
 // no banner: the word itself signals the stop — red, with a stronger ring on each new attempt (after the third it is read aloud)
 function lsRetryUI(){const L=LS,el=document.getElementById("lsRetry"),fx=document.getElementById("lsFocus");if(el)el.hidden=true;if(fx)fx.classList.toggle("stopped",!!L.retry)}
 function lsShowWarn(bad){const L=LS,wn=document.getElementById("lsWarn");if(!wn)return;wn.hidden=!bad;if(bad){const ln=LANGN[L.text.lang||"de"];wn.innerHTML=L.eng==="ohr"?"Ich höre etwas anderes als den Text. Lies laut und nah am Gerät – oder tippe «Neu beginnen».":`Das Mikrofon versteht nicht ${ln}. ${L.srLive?"Bitte deutlich und nah am Gerät lesen.":esc((LSLANGFIX[lsPlatform()]||LSLANGFIX.other).replace("%L",ln))} Dann «Neu beginnen».`}}
-function lsUpdateFromHeard(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="reading")return;const ta=document.getElementById("lsDict");if(!ta)return;const bh=document.getElementById("lsHow");if(bh&&L.srLive&&!L.srNeedTap&&ta.readOnly){const w=ta.value.trim().split(/\s+/).slice(-5).join(" ");bh.innerHTML=w?`<span class="micdot"></span><span class="muted">Ich höre:</span> ${esc(w.replace(/xxunkxx/g,"…"))}`:'<span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.'}
+// «Ich höre»: the last words the recognizer wrote, each in the colour of its verdict — green: it is the word of the text, red: it was heard
+// where another word stands. So it is plain to see why a word of the text is green or red. A word that was not heard at all is named.
+function lsHeardLine(L){const bh=document.getElementById("lsHow"),ta=document.getElementById("lsDict");if(!bh||!ta||!(L.srLive&&!L.srNeedTap&&ta.readOnly))return;
+ const txt=ta.value.trim(),raw=txt?txt.split(/\s+/):[];if(!raw.length){if(L._hl!==""){L._hl="";bh.innerHTML='<span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.'}return}
+ const v=new Map();if(L.h2r&&L.hvP&&L.fin)L.h2r.forEach((ri,k)=>{const x=(L.hvC&&L.hvC.get(k))||L.hvP.get(k);if(x&&v.get(ri)!=="bad")v.set(ri,x)});
+ let h="";for(let ri=Math.max(0,raw.length-5);ri<raw.length;ri++){const x=v.get(ri),w=raw[ri]==="xxunkxx"?"…":raw[ri];h+=" "+(x?`<span class="hw ${x}">${esc(w)}</span>`:esc(w))}
+ const R=L.fin?L.retry:null,note=R&&R.gap?` <span class="hw gap">· «${esc(L.T[L.W[R.idx]].t)}» nicht gehört</span>`:"";
+ const html=`<span class="micdot"></span><span class="muted">Ich höre:</span>${h}${note}`;if(L._hl!==html){L._hl=html;bh.innerHTML=html}}
+function lsUpdateFromHeard(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="reading")return;const ta=document.getElementById("lsDict");if(!ta)return;lsHeardLine(L);
  if(!L.t0&&!L.ms&&ta.value.trim()){L.t0=Date.now();L.timer=L.timer||setInterval(lsClock,500)}
  const heard=heardTokens(ta.value);
  // while (and just after) the app says a word itself, the microphone hears the app: skip that
- if(L.said&&Date.now()<L.said.until)for(let k=L.h0;k<heard.length;k++)if(heard[k].includes(L.said.w))heard[k]=["äh"];
+ if(L.said){const EK=L.echoK||(L.echoK=new Map());if(Date.now()<L.said.until)for(let k=L.h0;k<heard.length;k++)if(heard[k].includes(L.said.w))EK.set(k,L.said.w);
+  for(const [k,w] of [...EK]){if(heard[k]&&heard[k].includes(w))heard[k]=["äh"];else EK.delete(k)}}
  if(L.muteUntil&&Date.now()<L.muteUntil&&!L.retry){L.h0=Math.max(L.h0||0,heard.length);if(L.muteUntil!==Infinity){clearTimeout(L._muteT);L._muteT=setTimeout(()=>{if(LS===L&&L.phase==="reading")lsUpdateFromHeard()},L.muteUntil-Date.now()+30)}}
  // judged by the last words heard: are they words of this text at all? (a stop on a misread word is not a language problem)
  const rec=heard.slice(-10),inText=rec.filter(t=>t.some(x=>L.expSet.has(x))||t.some(x=>LSFILL.test(x))).length,wn=document.getElementById("lsWarn");
@@ -3157,13 +3249,13 @@ function lsUpdateFromHeard(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="readin
   L.srLangOv=alt;lsStopSR(L);L.srFin=null;L.srFinAlt=null;L.srAlt=null;L.srText="";ta.value="";L.fin=null;L.retry=null;lsStartSR();toast(`Mikrofon hört jetzt ${alt==="de-CH"?"Schweizer Hochdeutsch":"Hochdeutsch"}. Bitte nochmals von vorne lesen.`);lsPaint();return}
  if(bad&&!L.retry){lsPaint();lsShowWarn(true);return}   // not the text (other language or chatter): no judging, no stops
  try{lsAdvance(heard)}catch(err){console.error("lsAdvance",err);L.retry=null;try{const r=lsAlign(L.expN.slice(L.e0||0),heard.slice(L.h0||0),{});L.cur=r.st;L.wst=[...(L.fin||[]).slice(0,L.e0||0),...r.st];L.pos=(L.e0||0)+r.st.length}catch(e2){}}
- L.lastHeard=Date.now();lsPaint();lsRetryUI();
+ L.lastHeard=Date.now();lsPaint();lsRetryUI();lsHeardLine(L);
  if(document.getElementById("lsFocus"))lsKeepWord();else{const now=document.querySelector("#lsText .lw.now");if(now&&!L._scrollLock){L._scrollLock=true;now.scrollIntoView({block:"center"});setTimeout(()=>L._scrollLock=false,400)}}
  // wrong dictation language: many words heard, almost none match the text
  lsShowWarn(bad);
  const N=L.expN.length;
  if(L.pos>=N&&!L._done){L._done=true;clearTimeout(L._finT);L._finT=setTimeout(()=>{if(LS===L&&L.phase==="reading"){toast("Geschafft! Jetzt die Fragen.");lsFinishReading()}},700)}
- else if(L.pos>=N-3&&!L._done){clearTimeout(L._endT);L._endT=setTimeout(()=>{if(LS===L&&L.phase==="reading"&&!L._done&&Date.now()-L.lastHeard>=2400){L._done=true;for(let k=L.pos;k<N;k++)L.wst[k]=L.wst[k]||"soft";L.pos=N;lsPaint();toast("Geschafft! Jetzt die Fragen.");lsFinishReading()}},2500)}}
+ else if(L.pos>=N-3&&!L._done){clearTimeout(L._endT);L._endT=setTimeout(()=>{if(LS===L&&L.phase==="reading"&&!L._done&&Date.now()-L.lastHeard>=2400){L._done=true;if(L.retry)L.wst[L.retry.idx]="bad";for(let k=L.pos;k<N;k++)L.wst[k]=L.wst[k]||(L.eng==="ohr"?"skip":"soft");L.pos=N;lsPaint();toast("Geschafft! Jetzt die Fragen.");lsFinishReading()}},2500)}}
 function lsStart(t){lsStop();const T=toks(t.text);let s=0;const sIdx=[];T.forEach((tk,i)=>{sIdx.push(s);const nx=T[i+1];if(/^[.!?]$/.test(tk.t)&&!(nx&&((QUOTES.has(nx.t)&&!nx.q)||nx.t===",")))s++;else if(QUOTES.has(tk.t)&&!tk.q&&i>0&&/^[.!?]$/.test(T[i-1].t)&&!(nx&&nx.t===","))s++});
  const ns=Math.max(0,...sIdx)+1;
  const W=[];T.forEach((tk,i)=>{if(!isPunct(tk.t))W.push(i)});
@@ -3179,7 +3271,7 @@ function lsTextHtml(){const L=LS;let o="",wi=0;L.T.forEach((tk,i)=>{const sp=i&&
  const s=L.sIdx[i];o+=sp+`<span class="lw" data-wi="${i}" data-s="${s}">${esc(tk.t)}</span>`;wi++});return o}
 function lsPaint(){const L=LS;
  if(L.mode==="mic"){if(!L.spans||!L.spans[0]||!L.spans[0].isConnected){const byWi=new Map([...document.querySelectorAll("#lsText .lw")].map(el=>[+el.dataset.wi,el]));L.spans=L.W.map(ti=>byWi.get(ti));L.shown=[]}
-  const cls=k=>{if(L.retry&&k===L.retry.idx)return"lw retry now t"+Math.min(3,L.retry.tries);if(L.retry&&k>L.retry.idx)return"lw dim";const s=L.wst[k];return(s==="ok"?"lw ok":s==="fixed"?"lw ok fixed":s==="soft"?"lw ok soft":s==="bad"?"lw badw":s==="miss"?"lw miss":"lw")+(L.phase==="reading"&&k===L.pos&&!L.retry?" now":"")};
+  const cls=k=>{if(L.retry&&k===L.retry.idx)return"lw retry now t"+Math.min(3,L.retry.tries);if(L.retry&&k>L.retry.idx)return"lw dim";const s=L.wst[k];return(s==="ok"?"lw ok":s==="fixed"?"lw ok fixed":s==="soft"?"lw ok soft":s==="bad"?"lw badw":s==="miss"?"lw miss":s==="skip"?"lw skip":"lw")+(L.phase==="reading"&&k===L.pos&&!L.retry?" now":"")};
   for(let k=0;k<L.spans.length;k++){const c=cls(k);if(L.shown[k]!==c&&L.spans[k]){L.spans[k].className=c;L.shown[k]=c}}
   const set=(id,x)=>{const e=document.getElementById(id);if(e)e.textContent=x};const nb=L.wst.filter(x=>x==="bad"||x==="miss").length,nk=L.wst.filter(x=>x==="ok"||x==="soft"||x==="fixed").length;
   set("lsWords",L.pos+"/"+L.W.length);set("lsErr",nb);set("lsSent",(L.pos?Math.round(nk/L.pos*100):0)+"%");const lb=document.getElementById("lsSentL");if(lb)lb.textContent="Richtig";return}
@@ -3258,7 +3350,7 @@ function ohrGrammar(LEX,expN){const N=expN.length,forms=[],alts=[],oov=[],alias=
  const prevTok=i=>{for(let j=i-1;j>=0;j--)if(forms[j])return forms[j][forms[j].length-1];return""},nextTok=i=>{for(let j=i+1;j<N;j++)if(forms[j])return forms[j][0];return""};
  const vars=[],seen=new Set(),add=(i,v,cls)=>{const p=(prevTok(i)+" "+v+" "+nextTok(i)).trim();if(!seen.has(p)){seen.add(p);vars.push([p,cls])}};
  for(let i=0;i<N;i++){const f=forms[i],e=expN[i];if(!f)continue;for(const a of alts[i])add(i,a,"x");if(f.length!==1||/^\d+$/.test(e))continue;
-  const eF=foldC(e),eK=koelnC(e),ok=n=>n!==e&&(wordScoreFast([n],e,eF,eK)??0)<2.6,cand=new Map();    // only what the judge would count as a misreading
+  const eF=foldC(e),eK=koelnC(e),ok=n=>n!==e&&(lsScoreDev([n],e,eF,eK)??0)<2.6,cand=new Map();    // only what the judge would count as a misreading
   const fam=OHRFAM.get(f[0])||OHRFAM.get(e);if(fam)for(const w of fam){const v=ohrForm(LEX,w);if(v&&ok(lsNorm(v)))cand.set(v,"c")}
   if(e.length>=3){
    if(e.length>=5){const inf=[];for(const en of OHRENDS){if(en&&!e.endsWith(en))continue;const st=en?e.slice(0,-en.length):e;if(st.length<4)continue;
@@ -3491,7 +3583,8 @@ async function lsSayText(){const L=LS,gen=++L.gen;L.phase="tts";lsReader(documen
    const mark=ci=>{let cur=null;parts.forEach(p=>{if(p.at<=ci)cur=p});document.querySelectorAll("#lsText .lw.say").forEach(e=>e.classList.remove("say"));if(cur){const e=document.querySelector(`#lsText .lw[data-wi="${cur.i}"]`);if(e)e.classList.add("say")}};
    u.onboundary=e=>{if(e.name==="word"||e.charIndex!=null)mark(e.charIndex)};let to=setTimeout(res,txt.length*120+4000);u.onend=u.onerror=()=>{clearTimeout(to);res()};try{speechSynthesis.speak(u)}catch(e){res()}})}
  document.querySelectorAll("#lsText .lw.say").forEach(e=>e.classList.remove("say"));if(LS===L&&L.gen===gen){L.phase="ready";lsRender()}}
-function lsFinishReading(){const L=LS;lsStopSR(L);const ta=document.getElementById("lsDict");if(ta)ta.blur();if(L.t0){L.ms+=Date.now()-L.t0;L.t0=0}clearInterval(L.timer);L.timer=null;L.phase="quiz";L.qi=0;lsRender()}
+function lsFinishReading(){const L=LS;lsStopSR(L);if(L.mode==="mic"&&L.retry&&L.wst){L.wst[L.retry.idx]="bad";L.retry=null}   // a word still waiting in red stays a mistake
+ const ta=document.getElementById("lsDict");if(ta)ta.blur();if(L.t0){L.ms+=Date.now()-L.t0;L.t0=0}clearInterval(L.timer);L.timer=null;L.phase="quiz";L.qi=0;lsRender()}
 function lsQuiz(v){const L=LS,t=L.text,i=L.qi,q=t.q[i],opts=L.order[i],ans=L.qa[i];
  v.innerHTML=`<div class="row"><button class="btn small ghost" data-la="list">← Zurück</button><span class="pill">Frage ${i+1} von ${t.q.length}</span></div>
  <div class="q-head"><div class="progress"><i style="width:${i/t.q.length*100}%"></i></div></div>

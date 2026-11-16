@@ -10,7 +10,8 @@ GF=os.environ.get("GRAMMARS","grammars.json");UNK=int(os.environ.get("UNK","1"))
 LEXW=[l.strip() for l in open("web/ohr/de-lex.txt",encoding="utf8").read().split("\n")[1:6000]]
 VM=vosk.Model("models/vosk_x/slim/model")
 MIS=json.load(open(os.environ.get("MISFILE","miscues.json")));G=json.load(open(GF));keep=set(files[:N:step]) if step>1 else set(files[:N])
-if os.environ.get("MISFILE"): keep=set(m["f"] for m in MIS[:N:step]);audio={}
+audio={}
+if os.environ.get("MISFILE"): keep=set(m["f"] for m in MIS[:N:step])
 def aud(f):
     if f not in audio:
         if f.startswith("/"):
