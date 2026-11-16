@@ -360,6 +360,7 @@ textarea{resize:vertical;font-size:17px;line-height:1.5}
 .lswarn{grid-column:1/-1;background:var(--bad-bg);color:var(--bad);border-radius:10px;padding:8px 10px;font-size:14px;font-weight:700}
 .lsdict{font-size:17px;min-height:64px;max-height:110px;border-color:var(--accent);border-width:2px}
 .micdot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--bad);margin-right:6px;animation:nowp 1.2s infinite}
+.micdot{box-shadow:0 0 0 calc(var(--miclvl,0)*7px) color-mix(in srgb,var(--bad) 35%,transparent);transition:box-shadow .09s linear}   /* ring grows with the loudness the microphone hears */
 .lsbar{position:sticky;bottom:0;display:grid;gap:8px;padding-block:10px;background:linear-gradient(transparent,var(--bg) 30%)}
 .lsq .opt{font-size:17px}
 .lbtabs{display:flex;gap:6px;flex-wrap:wrap}
@@ -608,6 +609,7 @@ input[type=file]::file-selector-button{font:inherit;font-weight:700;border:0;bor
    capabilities: a document database in IndexedDB, Claude via the Anthropic API with a key the parents enter in
    the settings (stored only on this device), and the price search through Claude's web search. */
 const STANDALONE=!window.claude;
+const OHRBASE=STANDALONE?"ohr/":"";   // PokeLearn-Ohr (reading recognizer on the device): only in the stand-alone app
 const PL_KEYK="pl-claude-key";
 const plKey=()=>{try{return localStorage.getItem(PL_KEYK)||""}catch(e){return""}};
 const plKeyAt=()=>{try{return +localStorage.getItem(PL_KEYK+"-at")||0}catch(e){return 0}};
@@ -1916,7 +1918,7 @@ function renderEltern(){if(!unlocked)return pinGate(renderEltern);const v=docume
 <div class="item"><div class="t"><b>Kein offizielles Pokémon-Produkt.</b> PokeLearn ist ein privates Lernprojekt einer Familie und steht in keiner Verbindung zu Nintendo, Creatures, GAME FREAK oder The Pokémon Company. Pokémon und die Namen der Karten und Produkte sind Marken ihrer Inhaber. Produktbilder und Preise der Wunschliste stammen von den verlinkten Shops und dienen nur der eigenen Wunschliste. Die Sammelkarten im Album («Fabelwesen aus den Alpen») sind eigene Figuren.</div></div>
 <div class="item"><div class="t"><b>Lehrmittel.</b> Themen und Wörter orientieren sich an «Deutsch Sechs» und «dis donc! 6» (Lehrmittelverlag Zürich). Die Übungen und Texte sind eigene Inhalte, keine Kopien aus den Büchern. Die genauen Wörterlisten kommen über Heft-Fotos dazu.</div></div>
 <div class="item"><div class="t"><b>Daten.</b> Fortschritt, Heft-Einträge und Einstellungen bleiben auf dem Gerät${STANDALONE?" und – wenn der Abgleich eingeschaltet ist – in einem privaten Gist eures GitHub-Kontos":""}. Es gibt keine Werbung und kein Tracking. Fotos, Diktate und Lesetexte werden nur zum Auswerten an Claude (Anthropic) gesendet${STANDALONE?", mit eurem eigenen Schlüssel":""}.${STANDALONE?" Für die Vorlese-Stimme stehen die Diktat-Texte (ohne Namen, Fortschritt oder Fotos) in einem öffentlichen Gist; die Aufnahmen liegen im öffentlichen Ordner der Website. Eigene Texte aus Heft-Fotos darum ohne persönliche Angaben verwenden.":""}</div></div>
-<div class="item"><div class="t"><b>Stimmen und Software.</b> Aufnahmen: Qwen3-TTS (Alibaba Qwen, Apache-2.0). Stimme auf dem Gerät: Supertonic (Supertone, OpenRAIL-M) mit ONNX Runtime (Microsoft, MIT). Spracherkennung beim Lesen: Gerät bzw. Browser. KI-Funktionen: Claude (Anthropic).</div></div></div></div>
+<div class="item"><div class="t"><b>Stimmen und Software.</b> Aufnahmen: Qwen3-TTS (Alibaba Qwen, Apache-2.0). Stimme auf dem Gerät: Supertonic (Supertone, OpenRAIL-M) mit ONNX Runtime (Microsoft, MIT). Spracherkennung beim Lesen: PokeLearn-Ohr auf dem Gerät – Vosk/Kaldi (Alpha Cephei, Apache-2.0) mit dem deutschen Modell «vosk-model-small-de» (Apache-2.0); Worthäufigkeiten nach wordfreq (R. Speer, CC BY-SA 4.0). Der Ton verlässt dabei das Gerät nicht. Wahlweise die Erkennung des Geräts bzw. Browsers (Apple/Google). KI-Funktionen: Claude (Anthropic).</div></div></div></div>
   <div class="card"><p class="eyebrow">Warum die App so gebaut ist</p><div class="list" style="margin-top:8px;font-size:14px"><div class="item"><div class="t"><b>Abrufen statt Anschauen.</b> Jede Aufgabe verlangt eine Antwort – das stärkt das Gedächtnis deutlich mehr als Wiederlesen (Testing-Effekt).</div></div><div class="item"><div class="t"><b>Verteiltes Wiederholen.</b> Jeder Eintrag hat eine Stufe 0–5; richtig beantwortet rückt er auf (fällig nach 1, 3, 7, 14, 30 Tagen), falsch rückt er zurück.</div></div><div class="item"><div class="t"><b>Erst erkennen, dann schreiben.</b> Vokabeln beginnen als Auswahl, ab Stufe 2 muss er sie selbst tippen.</div></div><div class="item"><div class="t"><b>Sofortiges, erklärendes Feedback.</b> Jede Rückmeldung nennt die Regel; bei Fehlern erklärt Claude auf Wunsch kindgerecht.</div></div><div class="item"><div class="t"><b>Belohnung für Einsatz, nicht für Talent.</b> Geld gibt es pro richtiger Antwort und pro Runde – bewusst in kleinen Beträgen, damit sich eine Karte über Wochen verdient anfühlt; die Kartenpacks sind ein kleiner Überraschungs-Bonus, der echte Wunsch bleibt planbar und in Elternhand.</div></div><div class="item"><div class="t"><b>Diktat mit Selbstkorrektur.</b> Zuhören, schreiben, Kontrolllesen wie in der Schule. Danach wird jeder Fehler markiert und erklärt, und die Fehlerwörter kommen automatisch ins Wiederholungs-Deck.</div></div><div class="item"><div class="t"><b>Nie zweimal dieselbe Aufgabe.</b> Deutsch wird bei jeder Runde neu zusammengesetzt (tausende Satzkombinationen pro Thema, sofort und auch ohne Internet); bereits gezeigte Aufgaben merkt sich die App und lässt sie aus. Dazu mischt Claude laufend neue, geprüfte Sätze. Was oft falsch ist, kommt häufiger dran, aber immer mit neuen Sätzen.</div></div><div class="item"><div class="t"><b>Mix-Modus.</b> Fächer durcheinander (Interleaving) festigt das Unterscheiden – ideal vor Prüfungen.</div></div></div></div>`;elternFold(v);
   dkFillVoices();dkVoiceDiag();
   const readRate=()=>{S.rate=Math.max(3,Math.round(+v.querySelector("#wRate").value||33)*3)};
@@ -2909,15 +2911,21 @@ function lsList(v){const rec=lsRecommend(),sel=S.lsLevel||rec.level,left=lsBankL
   <p class="muted" style="margin:0;font-size:14px"><b>Empfehlung:</b> ${esc(rec.why)}</p></div>
  <div class="card" style="display:grid;gap:10px">
   <p class="muted" style="margin:0;font-size:13px">Mit Mikrofon: Jedes Wort wird sofort grün (richtig) oder rot (falsch). Bei einem roten Wort wartet der Text, bis es richtig gelesen ist – nach dem dritten Versuch sagt PokeLearn das Wort vor.</p>
-  <label class="row" style="gap:8px"><input type="checkbox" id="lsParent" style="width:auto" ${S.lsParent?"checked":""}> Ein Erwachsener hört zu und tippt falsch gelesene Wörter an</label>
-  <label class="row" style="gap:8px;flex-wrap:wrap"><span>Mikrofon hört Deutsch als</span><select id="lsSRde" style="width:auto;flex:1;min-width:180px">${[["de-DE","Hochdeutsch (de-DE, empfohlen)"],["de-CH","Schweizer Hochdeutsch (de-CH)"]].map(([v,t])=>`<option value="${v}" ${(S.srLang2&&S.srLang2.de||"de-DE")===v?"selected":""}>${t}</option>`).join("")}</select></label>
-  <p class="muted" style="margin:-4px 0 0;font-size:12px">Ausprobieren: Wählt die Variante, bei der «Ich höre» die Wörter am genauesten zeigt.</p>
-  <label class="row" style="gap:8px"><input type="checkbox" id="lsMN" style="width:auto" ${S.lsMN===true?"checked":""}> Mikrofon: m und n am Wortende nicht unterscheiden (in/im, an/am gelten als richtig). Nur einschalten, wenn die Diktierfunktion diese Endungen oft falsch hört.</label>
+  <label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="lsParent" style="width:auto;flex:none;margin-top:4px" ${S.lsParent?"checked":""}><span>Ein Erwachsener hört zu und tippt falsch gelesene Wörter an</span></label>
+  ${OHRBASE?`<label class="row" style="gap:8px;flex-wrap:wrap"><span>Zuhören mit</span><select id="lsEng" style="flex:1 1 170px;min-width:0;max-width:100%"><option value="ohr" ${S.lsEngine!=="dev"?"selected":""}>PokeLearn-Ohr</option><option value="dev" ${S.lsEngine==="dev"?"selected":""}>Gerät (Apple/Google)</option></select></label>
+  <p class="muted" id="lsEngSt" style="margin:-4px 0 0;font-size:12px"></p>
+  <label class="row" id="lsEarRow" style="gap:8px;flex-wrap:wrap" ${S.lsEngine==="dev"?"hidden":""}><span>Wie streng hört das Ohr?</span><select id="lsEar" style="flex:1 1 170px;min-width:0;max-width:100%">${[[0,"Grosszügig"],[1,"Normal"],[2,"Streng"]].map(([k,t])=>`<option value="${k}" ${(S.lsStrictEar??1)===k?"selected":""}>${t}</option>`).join("")}</select></label>`:""}
+  <label class="row" id="lsDevRow" style="gap:8px;flex-wrap:wrap" ${OHRBASE&&S.lsEngine!=="dev"?"hidden":""}><span>Mikrofon hört Deutsch als</span><select id="lsSRde" style="flex:1 1 170px;min-width:0;max-width:100%">${[["de-DE","Hochdeutsch (de-DE, empfohlen)"],["de-CH","Schweizer Hochdeutsch (de-CH)"]].map(([v,t])=>`<option value="${v}" ${(S.srLang2&&S.srLang2.de||"de-DE")===v?"selected":""}>${t}</option>`).join("")}</select></label>
+  <label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="lsMN" style="width:auto;flex:none;margin-top:4px" ${S.lsMN===true?"checked":""}><span>m und n am Wortende nicht unterscheiden (in/im, an/am, den/dem gelten als richtig). Nur einschalten, wenn diese Endungen oft falsch gehört werden.</span></label>
   <button class="btn primary" id="lsGo" data-la="go" style="font-size:19px;padding:16px">Lesetext «${sel[0].toUpperCase()+sel.slice(1)}» starten</button>
   <p class="muted" style="margin:0;font-size:13px">${left?`Noch ${left} vorbereitete ${left===1?"Text":"Texte"} auf dieser Stufe, danach schreibt Claude dir immer neue.`:"Claude schreibt dir einen ganz neuen Text mit Fragen. Du bekommst nie zweimal denselben."}</p>
   <div id="lsStatus" class="muted" hidden></div></div>
  ${H.length?`<div class="card"><p class="eyebrow" style="margin:0 0 8px">Zuletzt gelesen</p><div class="list">${H.map(x=>`<div class="item"><div class="t">${esc(x.title)}<small>${x.date} · ${x.level}${x.wpm?` · ${x.wpm} Wörter/Min.`:""} · ${x.q}/${x.qn} Fragen</small></div><span class="pill good">${x.points} P.</span></div>`).join("")}</div></div>`:""}`;
- v.querySelector("#lsParent").onchange=e=>{S.lsParent=e.target.checked;save()};v.querySelector("#lsMN").onchange=e=>{S.lsMN=e.target.checked;save()};v.querySelector("#lsSRde").onchange=e=>{S.srLang2=Object.assign({},S.srLang2,{de:e.target.value});save()}}
+ v.querySelector("#lsParent").onchange=e=>{S.lsParent=e.target.checked;save()};v.querySelector("#lsMN").onchange=e=>{S.lsMN=e.target.checked;save()};v.querySelector("#lsSRde").onchange=e=>{S.srLang2=Object.assign({},S.srLang2,{de:e.target.value});save()};
+ const eng=v.querySelector("#lsEng");if(eng){eng.onchange=e=>{S.lsEngine=e.target.value==="dev"?"dev":"ohr";save();v.querySelector("#lsEarRow").hidden=S.lsEngine==="dev";v.querySelector("#lsDevRow").hidden=S.lsEngine!=="dev";
+   if(S.lsEngine==="ohr"&&(OHR.st==="failed"||OHR.slow)){ohrGuard.ok();OHR.blocked=false;OHR.slow=false;OHR.p=null;OHR.st="idle"}   // chosen again on purpose: try once more
+   if(OHR.on("de")&&OHR.st==="idle")OHR.load();lsEngineUI()};
+  v.querySelector("#lsEar").onchange=e=>{S.lsStrictEar=+e.target.value;save()};if(OHR.on("de")&&OHR.st==="idle")OHR.load();lsEngineUI()}}
 function lsBoard(v){const tab=LS.tab||"alle";const all=(S.lsHist||[]).filter(x=>tab==="alle"||x.level===tab).slice().sort((a,b)=>b.points-a.points).slice(0,20);
  const best=lv=>{const r=(S.lsHist||[]).filter(x=>x.level===lv&&x.wpm);return r.length?Math.max(...r.map(x=>x.wpm)):null};
  v.innerHTML=`<div class="row"><button class="btn small ghost" data-la="list">← Zurück</button></div><div><p class="eyebrow">Lesen</p><h1 style="font-size:28px">Bestenliste</h1></div>
@@ -3004,7 +3012,7 @@ const _sd=new Map();const sndC=w=>{let v=_sd.get(w);if(v===undefined){v=LSLANG==
 // Small grammar words (articles, ein/kein/mein…, dies-, pronouns): here every ending matters (ein/einen, den/dem, seine/seinen, ihm/ihn).
 // These are the mistakes a reader really makes, so none of the tolerances for recognizer errors apply to them.
 const GRAMW=/^((k|m|d|s)?ein(e[mnrs]?)?|(unser|euer|ihr)(e[mnrs]?)?|(dies|jen|welch|jed|manch|solch)(e[mnrs]?)|der|die|das|den|dem|des|ihm|ihn|ihnen|mir|mich|dir|dich|uns|euch|im|in|am|an|zum|zur|vom|von|beim|bei)$/;
-function wordScoreFast(alts,e,eF,eK){let best=null;for(const a of alts){if(a===e)return 3;if(foldC(a)===eF)return 3;
+function wordScoreFast(alts,e,eF,eK){let best=null;for(const a of alts){if(a===e)return 3;if(a===OHRUNK){if(LSOOV.has(e))return 3;continue}if(LSALIAS.size){const al=LSALIAS.get(e);if(al&&al.has(a))return 3}if(foldC(a)===eF)return 3;
   if(LSLANG==="de"&&(GRAMW.test(e)||GRAMW.test(a))&&!(LSMN&&a.length===e.length&&a.slice(0,-1)===e.slice(0,-1)&&/[mn]/.test(a.slice(-1))&&/[mn]/.test(e.slice(-1)))){
    if(homo(a,e)){best=Math.max(best??-9,2.6);continue}                                   // das/dass
    if(GRAMW.test(e)&&GRAMW.test(a)){best=Math.max(best??-9,1);continue}                  // ein/einen, den/dem: a misread
@@ -3036,9 +3044,9 @@ function lsAlign(exp,heard,cache){const E=exp.length,H=heard.length;
   for(let j=jmin(i);j<=J;j++){let best=prev[j]>NEG/2?prev[j]-HX:NEG,b=1;
    if(j>0){if(row[j-1]>NEG/2){const g=row[j-1]-EGAP[j-1];if(g>best){best=g;b=2}}
     if(prev[j-1]>NEG/2){const m=S2(i-1,j-1);if(m!=null){const v=prev[j-1]+m;if(v>best){best=v;b=m>=2.6?3:4}}}
-    if(i>=2&&pp&&pp[j-1]>NEG/2&&heard[i-2].some(a=>heard[i-1].some(c=>a+c===exp[j-1]||foldC(a+c)===EF[j-1]))){const v=pp[j-1]+3;if(v>best){best=v;b=5}}
+    if(i>=2&&pp&&pp[j-1]>NEG/2&&heard[i-2].some(a=>heard[i-1].some(c=>a+c===exp[j-1]||foldC(a+c)===EF[j-1]||LSALIAS.size&&LSALIAS.has(exp[j-1])&&LSALIAS.get(exp[j-1]).has(a+c)))){const v=pp[j-1]+3;if(v>best){best=v;b=5}}
     if(j>=2&&prev[j-2]>NEG/2&&heard[i-1].some(a=>a===exp[j-2]+exp[j-1]||(exp[j-2].length>=3&&a.length>exp[j-2].length+1&&(a.startsWith(exp[j-2])||foldC(a).startsWith(EF[j-2]))&&(wordScoreFast([a.slice(exp[j-2].length)],exp[j-1],EF[j-1],EK[j-1])??0)>=2.6))){const v=prev[j-2]+6;if(v>best){best=v;b=6}}
-    if(i>=3&&dp[i-3]&&dp[i-3][j-1]>NEG/2&&exp[j-1].length>=8&&heard[i-3].some(a=>heard[i-2].some(c=>heard[i-1].some(d=>a+c+d===exp[j-1]||foldC(a+c+d)===EF[j-1])))){const v=dp[i-3][j-1]+3;if(v>best){best=v;b=7}}}
+    if(i>=3&&dp[i-3]&&dp[i-3][j-1]>NEG/2&&(exp[j-1].length>=8||LSALIAS.has(exp[j-1]))&&heard[i-3].some(a=>heard[i-2].some(c=>heard[i-1].some(d=>a+c+d===exp[j-1]||foldC(a+c+d)===EF[j-1]||LSALIAS.size&&LSALIAS.has(exp[j-1])&&LSALIAS.get(exp[j-1]).has(a+c+d))))){const v=dp[i-3][j-1]+3;if(v>best){best=v;b=7}}}
    row[j]=best;br[j]=b}
   dp.push(row);bk.push(br)}
  cache.dp=dp;cache.bk=bk;cache.keys=keys;if(ws.size>60000)ws.clear();if(!H)return{st:[],i:0};
@@ -3061,11 +3069,19 @@ function lsOnDict(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="reading")return
 // A wrong word stops the reader until it is read right; after three failed attempts the app says the word and reading goes on.
 // Run-up repeats and filler sounds are not attempts. A word the recognizer is still writing («Hallen…» for «Hallenbad») waits.
 const lsPartial=(tok,e)=>tok.some(a=>a.length>=2&&a.length<e.length&&(e.startsWith(a)||foldC(e).startsWith(foldC(a))));
+let lsNow=()=>performance.now();const OHRHOLD=250;
 function lsAdvance(heard){const L=LS,strict=true,N=L.expN.length;if(!LSSTRICT){LSSTRICT=true;L._subKey=null}if(LSMN!==(S.lsMN===true)){LSMN=S.lsMN===true;L._subKey=null}LSLANG=L.text.lang||"de";
  if(!L.fin){L.fin=[];L.e0=0;L.h0=0;L.retry=null;L.fixed=0;L.given=0}
  if(heard.length<L.h0)L.h0=heard.length;
  const H=heard.length,hf=Math.min(H,L.hFin??H),sc=(tok,j)=>j<N?wordScoreFast(tok,L.expN[j],foldC(L.expN[j]),koelnC(L.expN[j])):null,good=(tok,j)=>(sc(tok,j)??0)>=2.6;
  const fresh=k=>k===H-1&&(k>=hf||(!L.srLive&&Date.now()-(L.lastInput||0)<700));   // newest word, recognizer may still change it
+ // PokeLearn-Ohr: its newest word can still flip for a moment (der → des → das). A word is only called WRONG once it has stood for a
+ // quarter of a second or another word has followed; right words turn green at once.
+ const wait=(k,tok,ms)=>{if(L.eng!=="ohr"||!fresh(k))return false;const key=k+":"+tok.join("|"),now=lsNow();if(L._hk!==key){L._hk=key;L._ht=now}const left=(ms||OHRHOLD)-(now-L._ht);if(left<=0)return false;
+  clearTimeout(L._holdT2);L._holdT2=setTimeout(()=>{if(LS===L&&L.phase==="reading")lsUpdateFromHeard()},left+20);return true};
+ // a word that is only the beginning of the expected one («ein» for «einen», «Hallen» for «Hallenbad») may still be growing:
+ // the device recognizer writes letter by letter (wait while it is the newest word); the ear writes whole words (wait at most 0.6 s)
+ const part=(k,tok,e)=>fresh(k)&&lsPartial(tok,e)&&(L.eng!=="ohr"||wait(k,tok,600));
  const stopAt=(w,kBad,st)=>{for(let m=0;m<w-L.e0;m++)L.fin[L.e0+m]=st[m];L.retry={idx:w,h:kBad+1,k0:kBad,key0:heard[kBad].join("|"),am:0,beeped:1};L.e0=w;lsBeep(false);lsPrepWord(w)};
  for(let guard=0;guard<60;guard++){
   if(L.retry){const R=L.retry,idx=R.idx,e=L.expN[idx];if(R.h>H)R.h=H;
@@ -3077,7 +3093,8 @@ function lsAdvance(heard){const L=LS,strict=true,N=L.expN.length;if(!LSSTRICT){L
     if(good(tok,idx)){L.fin[idx]="fixed";L.fixed++;L.e0=idx+1;L.h0=k+1;L.retry=null;lsBeep(true);done=true;break}
     if(LSFILL.test(tok[0]||"")||[1,2,3].some(b=>idx-b>=0&&tok.includes(L.expN[idx-b])))continue;     // filler or run-up: not an attempt
     if(good(tok,idx+1+am)){am++;if(am>=5){lsGiveUp(idx,am,k+1,false);done=true;break}continue}     // read on past the stop: not an attempt
-    if(fresh(k)&&lsPartial(tok,e)){hold=true;continue}                                              // still being written
+    if(part(k,tok,e)){hold=true;continue}                                                            // still being written
+    if(wait(k,tok))break;                                                                            // may still change
     tries++;
     if(tries>=3){lsGiveUp(idx,am,k+1,true);done=true;break}}
    if(done)continue;
@@ -3088,11 +3105,11 @@ function lsAdvance(heard){const L=LS,strict=true,N=L.expN.length;if(!LSSTRICT){L
   const r=lsAlign(L.expN.slice(L.e0),heard.slice(L.h0),L._sc);
   // first misread word, judged at once (the newest word only waits while it is visibly incomplete)
   let b=r.st.findIndex(x=>x==="bad");
-  if(b>=0&&r.mh[b]!=null){const k=L.h0+r.mh[b];if(fresh(k)&&lsPartial(heard[k],L.expN[L.e0+b])){r.st=r.st.slice(0,b);b=-1}}
+  if(b>=0&&r.mh[b]!=null){const k=L.h0+r.mh[b];if(part(k,heard[k],L.expN[L.e0+b])||wait(k,heard[k])){r.st=r.st.slice(0,b);b=-1}}
   if(strict&&b>=0&&r.mh[b]!=null){stopAt(L.e0+b,L.h0+r.mh[b],r.st);continue}
   // a different word heard where the next word should be: that is a misread too, even if it sounds nothing like it
   if(strict&&r.tail!=null){const k=L.h0+r.tail,w=L.e0+r.i,tok=heard[k];
-   if(w<N&&!LSFILL.test(tok[0]||"")&&!(L.said&&tok.includes(L.said.w))&&![1,2,3,4,5,6].some(q=>w-q>=0&&good(tok,w-q))&&![1,2,3,4,5,6,7,8].some(q=>good(tok,w+q))&&!(fresh(k)&&lsPartial(tok,L.expN[w]))){stopAt(w,k,r.st);continue}}
+   if(w<N&&!LSOOV.has(L.expN[w])&&!LSFILL.test(tok[0]||"")&&!(L.said&&tok.includes(L.said.w))&&![1,2,3,4,5,6].some(q=>w-q>=0&&good(tok,w-q))&&![1,2,3,4,5,6,7,8].some(q=>good(tok,w+q))&&!part(k,tok,L.expN[w])&&!wait(k,tok)){stopAt(w,k,r.st);continue}}
   L.cur=r.st;break}
  L.wst=[...L.fin.slice(0,L.e0),...(L.retry?[]:L.cur||[])];
  L.pos=L.retry?L.retry.idx:Math.min(N,L.e0+((L.cur||[]).length))}
@@ -3115,8 +3132,8 @@ function lsPreloadWords(L){try{if(!lsFullVoice()||!STANDALONE)return;if(!VIDX.wo
   if(miss&&LIVE.ok())LIVE.preload()}catch(e){}}
 // The microphone is paused while the app speaks (phones cannot record and play at the same time) and started again right after.
 function lsSayWord(idx){const L=LS,w=L.T[L.W[idx]].t;toast(`Das Wort heisst: «${w}»`);try{speechSynthesis.cancel()}catch(e){}
- L.said={w:L.expN[idx],until:Date.now()+5000};L.muteUntil=Infinity;const live=!!L.sr;if(live){L.srPaused=true;lsStopSR(L)}
- let back=false;const resume=()=>{if(back)return;back=true;if(LS!==L)return;L.muteUntil=Date.now()+150;L.said.until=Date.now()+3500;
+ L.said={w:L.expN[idx],until:Date.now()+5000};L.muteUntil=Infinity;const live=!!L.sr;if(L.ohr)L.ohr.mute=true;else if(live){L.srPaused=true;lsStopSR(L)}
+ let back=false;const resume=()=>{if(back)return;back=true;if(LS!==L)return;if(L.ohr)L.ohr.mute=false;L.muteUntil=Date.now()+150;L.said.until=Date.now()+3500;
   if(live&&L.phase==="reading"){L.srPaused=false;lsStartSR()}};
  setTimeout(resume,Math.max(2500,w.length*260));   // never stay muted if the voice does not report its end
  Promise.resolve(lsVoiceWord(idx)).catch(()=>{}).then(()=>setTimeout(resume,60))}
@@ -3125,8 +3142,8 @@ function lsBeep(good){if(LS&&LS.phase=="reading")return;   // no sounds while re
  if(good)tone(880,0,.18,.08);else{tone(440,0,.16,.12);tone(330,.18,.26,.12)}}catch(e){}}
 // no banner: the word itself signals the stop — red, with a stronger ring on each new attempt (after the third it is read aloud)
 function lsRetryUI(){const L=LS,el=document.getElementById("lsRetry"),fx=document.getElementById("lsFocus");if(el)el.hidden=true;if(fx)fx.classList.toggle("stopped",!!L.retry)}
-function lsShowWarn(bad){const L=LS,wn=document.getElementById("lsWarn");if(!wn)return;wn.hidden=!bad;if(bad){const ln=LANGN[L.text.lang||"de"];wn.innerHTML=`Das Mikrofon versteht nicht ${ln}. ${L.srLive?"Bitte deutlich und nah am Gerät lesen.":esc((LSLANGFIX[lsPlatform()]||LSLANGFIX.other).replace("%L",ln))} Dann «Neu beginnen».`}}
-function lsUpdateFromHeard(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="reading")return;const ta=document.getElementById("lsDict");if(!ta)return;const bh=document.getElementById("lsHow");if(bh&&L.srLive&&!L.srNeedTap&&ta.readOnly){const w=ta.value.trim().split(/\s+/).slice(-5).join(" ");bh.innerHTML=w?`<span class="micdot"></span><span class="muted">Ich höre:</span> ${esc(w)}`:'<span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.'}
+function lsShowWarn(bad){const L=LS,wn=document.getElementById("lsWarn");if(!wn)return;wn.hidden=!bad;if(bad){const ln=LANGN[L.text.lang||"de"];wn.innerHTML=L.eng==="ohr"?"Ich höre etwas anderes als den Text. Lies laut und nah am Gerät – oder tippe «Neu beginnen».":`Das Mikrofon versteht nicht ${ln}. ${L.srLive?"Bitte deutlich und nah am Gerät lesen.":esc((LSLANGFIX[lsPlatform()]||LSLANGFIX.other).replace("%L",ln))} Dann «Neu beginnen».`}}
+function lsUpdateFromHeard(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="reading")return;const ta=document.getElementById("lsDict");if(!ta)return;const bh=document.getElementById("lsHow");if(bh&&L.srLive&&!L.srNeedTap&&ta.readOnly){const w=ta.value.trim().split(/\s+/).slice(-5).join(" ");bh.innerHTML=w?`<span class="micdot"></span><span class="muted">Ich höre:</span> ${esc(w.replace(/xxunkxx/g,"…"))}`:'<span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.'}
  if(!L.t0&&!L.ms&&ta.value.trim()){L.t0=Date.now();L.timer=L.timer||setInterval(lsClock,500)}
  const heard=heardTokens(ta.value);
  // while (and just after) the app says a word itself, the microphone hears the app: skip that
@@ -3206,10 +3223,179 @@ function lesenLink(t){const back=location.ancestorOrigins&&location.ancestorOrig
 function lesenCode(code,id){const c=String(code||"").toUpperCase().replace(/[^2-9A-Z]/g,"").replace(/O/g,"0").replace(/[I]/g,"1");if(c.length!==7)return null;let v=0n;for(const ch of c){const i=LESEN_B32.indexOf(ch);if(i<0)return null;v=v*32n+BigInt(i)}
  const chk=Number(v&4095n),wpm=Number((v>>12n)&511n),errs=Number((v>>21n)&127n),acc=Number((v>>28n)&127n);
  if(parseInt(hashStr(`${LESEN_SECRET}|${id}|${acc}|${errs}|${wpm}`),36)%4096!==chk)return null;return{acc,errs,wpm,code:c}}
+// <ohr>
+// ===== PokeLearn-Ohr · Grammatik: der Erkenner kennt den Text =====
+// The recognizer (Kaldi/Vosk, on the device) only listens for the words of this text – plus the misreadings a reader really makes.
+// For every word the text itself is by far the most likely thing to hear (prior R : 1); a misreading is only reported when the
+// sound clearly says so. That keeps false alarms low and still catches ein/einen, den/dem, war/waren, Tasche/Tische.
+const OHRFAM=(()=>{const F=[["der","die","das","den","dem","des"],["ein","eine","einen","einem","einer","eines"],["im","in"],["am","an"],["zum","zur","zu"],["vom","von"],["beim","bei"],
+  ["ihm","ihn","ihnen"],["mir","mich"],["dir","dich"],["war","waren","wäre"],["hat","hatte","hatten","haben","habe"],["ist","sind"],["wird","werden","wurde","wurden"],
+  ["kann","konnte","können"],["will","wollte","wollen"],["muss","musste","müssen"],["soll","sollte","sollen"],["er","es"],["sie","sich"],["wir","wie"],["man","mann"],["nicht","nichts"],["sein","sind"]];
+ for(const s of["kein","mein","dein","sein","ihr","unser","euer"])F.push(["","e","en","em","er","es"].map(e=>s+e));
+ for(const s of["dies","jen","welch","jed","manch","solch"])F.push(["e","en","em","er","es"].map(e=>s+e));
+ const m=new Map();for(const f of F)for(const w of f){let s=m.get(w);if(!s)m.set(w,s=new Set());for(const x of f)if(x!==w)s.add(x)}return m})();
+let OHRNEAR=15000,OHRNEAR3=700;
+const OHRNOISE=/^(ach|aha|ahh|ähm|hey|hmm|oha|ohh|uhh|nee|naja|tja|oje|puh|huch|wow|okay|hallo|haha|hihi|hoppla|ups|pst|psst)$/;   // sounds a reader makes without reading: never taken for a word
+const OHRENDS=["","e","en","em","er","es","s","n","t","te","ten","st","et"],OHRALPHA="abcdefghijklmnopqrstuvwxyzäöü";
+function ohrLexParse(txt){const nl=txt.indexOf("\n"),nc=parseInt(txt.slice(0,nl),10),words=txt.slice(nl+1).split("\n");if(!words[words.length-1])words.pop();
+ const voc=new Set(words),rank=new Map();for(let i=0;i<nc;i++)rank.set(words[i],i);return{voc,rank,nc,top:words.slice(0,6000).filter(w=>w.length>=3&&!OHRNOISE.test(w))}}
+// spelling of a (normalised) word in the recognizer's vocabulary: as it is, or with ß for ss
+function ohrForm(LEX,n){if(LEX.voc.has(n))return n;if(n.includes("ss")){const all=n.replace(/ss/g,"ß");if(LEX.voc.has(all))return all;
+  for(let i=n.indexOf("ss");i>=0;i=n.indexOf("ss",i+1)){const c=n.slice(0,i)+"ß"+n.slice(i+2);if(LEX.voc.has(c))return c}}return null}
+// a compound the recognizer does not know is given as its parts (Trinkflasche → trink flasche); the judge joins them again
+function ohrSplit(LEX,n,depth){if(n.length<6)return null;let best=null,bs=-1;
+ for(let i=3;i<=n.length-3;i++){let a=ohrForm(LEX,n.slice(0,i));if(!a&&/[sn]$/.test(n.slice(0,i))&&i>4)a=ohrForm(LEX,n.slice(0,i-1));if(!a)continue;
+  let b=ohrForm(LEX,n.slice(i)),bb=b?[b]:null;if(!bb&&depth>0)bb=ohrSplit(LEX,n.slice(i),depth-1);if(!bb)continue;
+  const sc=Math.min(i,n.length-i)-(bb.length-1)*2+(LEX.rank.has(a)?2:0)+(LEX.rank.has(bb[0])?2:0);if(sc>bs){bs=sc;best=[a,...bb]}}
+ return best}
+// expN: normalised words of the text (the judge's form). Returns the pieces of the grammar; the caller sets how strict it is.
+function ohrGrammar(LEX,expN){const N=expN.length,forms=[],alts=[],oov=[],alias=new Map();
+ for(let i=0;i<N;i++){const e=expN[i];let f=null,al=[];
+  if(/^\d+$/.test(e)){const c=numWords(e).map(w=>ohrForm(LEX,w)||(ohrSplit(LEX,w,1)||[]).join(" ")).filter(Boolean);f=c.length?c[0].split(" "):null;al=c.slice(1)}
+  else{const v=ohrForm(LEX,e);f=v?[v]:ohrSplit(LEX,e,1);if(!f&&e.length>3&&e.endsWith("s")){const b=ohrForm(LEX,e.slice(0,-1));if(b)f=[b]}}   // «Mias» → mia
+  forms.push(f);alts.push(al);if(!f)oov.push(i);
+  else{const j=lsNorm(f.join(""));if(j!==e&&!/^\d+$/.test(e)){let a=alias.get(e);if(!a)alias.set(e,a=new Set());a.add(j)}}}   // what the recognizer writes for this word when it is not the word itself
+ const prevTok=i=>{for(let j=i-1;j>=0;j--)if(forms[j])return forms[j][forms[j].length-1];return""},nextTok=i=>{for(let j=i+1;j<N;j++)if(forms[j])return forms[j][0];return""};
+ const vars=[],seen=new Set(),add=(i,v,cls)=>{const p=(prevTok(i)+" "+v+" "+nextTok(i)).trim();if(!seen.has(p)){seen.add(p);vars.push([p,cls])}};
+ for(let i=0;i<N;i++){const f=forms[i],e=expN[i];if(!f)continue;for(const a of alts[i])add(i,a,"x");if(f.length!==1||/^\d+$/.test(e))continue;
+  const eF=foldC(e),eK=koelnC(e),ok=n=>n!==e&&(wordScoreFast([n],e,eF,eK)??0)<2.6,cand=new Map();    // only what the judge would count as a misreading
+  const fam=OHRFAM.get(f[0])||OHRFAM.get(e);if(fam)for(const w of fam){const v=ohrForm(LEX,w);if(v&&ok(lsNorm(v)))cand.set(v,"c")}
+  if(e.length>=3){
+   if(e.length>=5){const inf=[];for(const en of OHRENDS){if(en&&!e.endsWith(en))continue;const st=en?e.slice(0,-en.length):e;if(st.length<4)continue;
+     for(const e2 of OHRENDS){const n=st+e2;if(n===e)continue;const v=ohrForm(LEX,n);if(v&&LEX.rank.has(v)&&!cand.has(v)&&!inf.includes(v)&&ok(lsNorm(v)))inf.push(v)}}
+    inf.sort((a,b)=>LEX.rank.get(a)-LEX.rank.get(b));for(const v of inf.slice(0,5))cand.set(v,"e")}
+   const E1=new Set();for(let k=0;k<=e.length;k++){for(const a of OHRALPHA)E1.add(e.slice(0,k)+a+e.slice(k));if(k<e.length){if(e.length>3)E1.add(e.slice(0,k)+e.slice(k+1));for(const a of OHRALPHA)E1.add(e.slice(0,k)+a+e.slice(k+1))}}
+   const near=[];for(const n of E1){if(n===e)continue;const v=ohrForm(LEX,n);if(!v||cand.has(v))continue;const r=LEX.rank.get(v);
+    // only everyday words count as possible misreadings (short ones must be very common: no «dei», «ups», «dns»)
+    if(r!==undefined&&r<(v.length<=3?OHRNEAR3:OHRNEAR)&&ok(lsNorm(v)))near.push(v)}
+   near.sort((a,b)=>LEX.rank.get(a)-LEX.rank.get(b));for(const v of near.slice(0,5))cand.set(v,"n")}
+  for(const[v,cls]of cand)add(i,v,cls)}
+ return{forms,phrase:forms.filter(Boolean).map(f=>f.join(" ")).join(" "),vars,oov,alias}}
+// the grammar the recognizer gets: the text R times, each kind of misreading with its own weight (prior of the text = R : weight).
+// A loop of everyday words catches the reader saying something completely different («Garten» for «Wald»).
+function ohrPhrases(LEX,g,o){const R=o.R||300,k={x:R,c:o.kc||1,e:o.ke||1,n:o.kn||1},out=[],have=new Set(g.phrase.split(" "));for(let i=0;i<R;i++)out.push(g.phrase);
+ for(const[p,cls]of g.vars){for(const w of p.split(" "))have.add(w);for(let i=0;i<k[cls];i++)out.push(p)}
+ let n=0;for(const w of LEX.top){if(n>=(o.G??1500))break;if(have.has(w))continue;n++;for(let i=0;i<(o.kg||3);i++)out.push(w)}
+ out.push("[unk]");return out}
+// ===== PokeLearn-Ohr · Motor: Mikrofon → Erkenner im Gerät → gehörte Wörter =====
+// Own microphone pipeline (no browser speech service): the sound stays on the device, nothing restarts while reading,
+// and the recognizer answers about 0.2 s after a word – the same on phone, tablet and computer.
+let LSOOV=new Set();           // words of the text the recognizer does not know (names, rare compounds): never judged
+let LSALIAS=new Map();         // how the recognizer writes a word it only knows in parts or in another form (orientierung+sinn, mia for «Mias»)
+const OHRUNK="xxunkxx";        // the recognizer heard a word that is not in the text and not one of the expected misreadings
+// Safety net for small devices: if the page died twice while the ear was loading or starting (out of memory), the ear stays off
+// on this device and the device's recognizer listens – so reading can never be locked out. Choosing the ear again re-arms it.
+const ohrGuard={key:"pl-ohr-guard",get(){try{return JSON.parse(localStorage.getItem(this.key)||"null")}catch(e){return null}},put(g){try{localStorage.setItem(this.key,JSON.stringify(g))}catch(e){}},
+ arm(){const g=this.get()||{n:0};g.on=1;g.t=Date.now();this.put(g)},ease(){const g=this.get();if(g&&g.on){g.on=0;this.put(g)}},ok(){try{localStorage.removeItem(this.key)}catch(e){}},
+ crashed(){const g=this.get();if(!g)return false;if(g.on){g.n=(g.n||0)+1;g.on=0;g.t=Date.now();this.put(g)}return g.n>=2&&Date.now()-g.t<7*864e5}};
+const OHR={st:"idle",err:"",p:null,model:null,lex:null,slow:false,blocked:ohrGuard.crashed(),
+ on(lang){return!!OHRBASE&&(lang||"de")==="de"&&S.lsEngine!=="dev"&&!this.slow&&this.st!=="failed"&&typeof WebAssembly==="object"&&typeof Worker==="function"
+   &&!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)&&!!(window.AudioContext||window.webkitAudioContext)},
+ load(){if(this.p)return this.p;if(this.blocked){this.st="failed";this.err="das Laden ist auf diesem Gerät zweimal abgebrochen";return this.p=Promise.resolve(false)}
+  this.st="loading";this.err="";ohrGuard.arm();const base=new URL(OHRBASE,location.href).href;
+  const work=(async()=>{
+   if(!window.Vosk)await new Promise((res,rej)=>{const s=document.createElement("script");s.src=base+"vosk.js";s.onload=res;s.onerror=()=>rej(new Error("Programm nicht geladen"));document.head.appendChild(s)});
+   const lexP=fetch(base+"de-lex.txt").then(r=>{if(!r.ok)throw new Error("Wortliste "+r.status);return r.text()});
+   const head=await fetch(base+"de-model.tar.gz",{method:"HEAD"}).catch(()=>null);if(head&&!head.ok)throw new Error("Modell "+head.status);   // (no answer at all: maybe offline – a saved copy still works)
+   const model=await Vosk.createModel(base+"de-model.tar.gz",-1);
+   this.lex=ohrLexParse(await lexP);this.model=model;return true})();
+  const guard=new Promise((_,rej)=>setTimeout(()=>rej(new Error("Zeit abgelaufen")),180000));
+  this.p=Promise.race([work,guard]).then(()=>{this.st="ready";ohrGuard.ok();return true}).catch(e=>{this.st="failed";this.err=String(e&&e.message||e);ohrGuard.ok();return false}).then(r=>{try{lsEngineUI()}catch(e){}return r});
+  return this.p}};
+// strictness: how sure the ear must be before it reports a misreading (prior of the text : weight of a misreading).
+// Measured with real voices (2 900 words each): Normal ≈ 0.5 false stops per 100 words; Streng ≈ 1.1 and catches more small words.
+const ohrOpts=()=>{const k=S.lsStrictEar??1;return k===2?{R:300,kc:20,ke:3,kn:8}:k===0?{R:600,kc:1,ke:1,kn:1}:{R:300,kc:3,ke:1,kn:2}};
+// --- sound: band-limited resampling to 16 kHz; «warp» plays a child's voice slightly lower so it sounds like the adult voices the recognizer learnt from
+function ohrResampler(fs){const st={fs,alpha:1,buf:new Float32Array(0),t:0,tab:null,half:0,step:0,PH:32};
+ const build=()=>{st.step=st.fs/(16000*st.alpha);const fc=Math.min(1,1/st.step)*.92,half=st.half=Math.ceil(8/fc),PH=st.PH,tab=st.tab=new Float32Array((PH+1)*2*half);
+  for(let p=0;p<=PH;p++){const fr=p/PH;let sum=0;for(let k=0;k<2*half;k++){const d=(k-half+1)-fr,x=d*fc,s=x===0?1:Math.sin(Math.PI*x)/(Math.PI*x),w=.5+.5*Math.cos(Math.PI*d/half),c=Math.abs(d)<half?s*w:0;tab[p*2*half+k]=c;sum+=c}
+   for(let k=0;k<2*half;k++)tab[p*2*half+k]/=sum||1}};
+ build();st.setAlpha=a=>{if(Math.abs(a-st.alpha)>.004){st.alpha=a;build()}};
+ st.push=x=>{const b=new Float32Array(st.buf.length+x.length);b.set(st.buf);b.set(x,st.buf.length);const half=st.half,n2=2*half,out=[];let t=st.t;
+  if(t<half-1)t=half-1;
+  while(t+half<b.length){const i0=Math.floor(t),ph=Math.round((t-i0)*st.PH),o=ph*n2,s0=i0-half+1;let acc=0;for(let k=0;k<n2;k++)acc+=b[s0+k]*st.tab[o+k];out.push(acc);t+=st.step}
+  const keep=Math.max(0,Math.floor(t)-half);st.buf=b.slice(keep);st.t=t-keep;return Float32Array.from(out)};
+ return st}
+// --- pitch of the voice (median of voiced moments): children's voices are higher, the recognizer hears them better slightly lowered
+function ohrPitch(O,x){const P=O.pit||(O.pit={dec:Math.max(1,Math.round(O.fs/8000)),acc:0,n:0,ring:new Float32Array(512),w:0,cnt:0,f0:[]});const fs8=O.fs/P.dec;
+ for(let i=0;i<x.length;i++){P.acc+=x[i];if(++P.n===P.dec){P.ring[P.w++&511]=P.acc/P.dec;P.acc=0;P.n=0;if(++P.cnt>=512&&P.cnt%256===0){
+   const f=new Float32Array(512);let e=0;for(let k=0;k<512;k++){f[k]=P.ring[(P.w+k)&511];e+=f[k]*f[k]}if(e/512<1e-5)continue;
+   const lo=Math.floor(fs8/420),hi=Math.ceil(fs8/75);let best=0,bl=0;const r=[];
+   for(let lag=lo;lag<=hi;lag++){let a=0,b=0,c=0;for(let k=0;k<512-lag;k++){a+=f[k]*f[k+lag];b+=f[k]*f[k];c+=f[k+lag]*f[k+lag]}const v=a/Math.sqrt(b*c+1e-12);r[lag]=v;if(v>best){best=v;bl=lag}}
+   if(best<.62)continue;for(let lag=lo;lag<bl;lag++)if(r[lag]>=.9*best&&r[lag]>=(r[lag-1]||0)&&r[lag]>=(r[lag+1]||0)){bl=lag;break}
+   P.f0.push(fs8/bl);P.nv=(P.nv||0)+1;if(P.f0.length>400)P.f0.shift();P.fresh=true}}}
+ if(P.fresh&&P.nv>=60&&!(P.nv%30)){P.fresh=false;const s=[...P.f0].sort((a,b)=>a-b),m=s[s.length>>1];O.f0=m;return m}return 0}   // about two seconds of voiced sound before the first estimate
+const ohrAlpha=f0=>!f0||f0<=185?1:f0>=300?1.2:1+(f0-185)/115*.2;
+// --- start listening (called from the tap on the microphone)
+async function ohrStart(L){const AC=window.AudioContext||window.webkitAudioContext;let ctx;try{ctx=new AC({latencyHint:"interactive"})}catch(e){try{ctx=new AC()}catch(e2){return false}}
+ try{ctx.resume()}catch(e){}
+ ohrGuard.arm();
+ const O=L.ohr={ctx,fs:ctx.sampleRate,fin:[],part:[],mute:false,out:[],outN:0,sent:[],lag:0,late:0,dead:false,chunks:0,peak:0,lvl:0,tLvl:0,t0:performance.now()};
+ try{O.stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}})}
+ catch(e){ohrStop(L);return false}
+ if(LS!==L||L.phase!=="reading"||L.ohr!==O){ohrStop(L,O);return true}
+ try{O.stream.getAudioTracks().forEach(t=>{t.onended=()=>{if(LS===L&&L.ohr===O&&L.phase==="reading"){ohrStop(L);L.srLive=false;L.srNeedTap=true;lsMicUI()}}})}catch(e){}
+ try{const g=O.g=ohrGrammar(OHR.lex,L.expN);LSOOV=new Set(g.oov.map(i=>L.expN[i]));LSALIAS=g.alias;L._subKey=null;
+  ohrNewRec(L,O);
+  const src=O.src=ctx.createMediaStreamSource(O.stream);O.rs=ohrResampler(O.fs);O.rs.setAlpha(ohrAlpha(S.ohrF0||0));
+  const sink=ctx.createGain();sink.gain.value=0;sink.connect(ctx.destination);
+  let ok=false;
+  if(ctx.audioWorklet&&window.AudioWorkletNode){try{
+    const code='class P extends AudioWorkletProcessor{constructor(){super();this.b=new Float32Array(2048);this.n=0}process(i){const c=i[0]&&i[0][0];if(c){this.b.set(c,this.n);this.n+=c.length;if(this.n>=2048-128){this.port.postMessage(this.b.slice(0,this.n));this.n=0}}return true}}registerProcessor("ohr-tap",P)';
+    const url=URL.createObjectURL(new Blob([code],{type:"application/javascript"}));await ctx.audioWorklet.addModule(url);URL.revokeObjectURL(url);
+    const node=O.node=new AudioWorkletNode(ctx,"ohr-tap",{numberOfInputs:1,numberOfOutputs:1,channelCount:1});node.port.onmessage=e=>ohrFeed(L,O,e.data);src.connect(node);node.connect(sink);ok=true}catch(e){}}
+  if(!ok){const node=O.node=ctx.createScriptProcessor(2048,1,1);node.onaudioprocess=e=>ohrFeed(L,O,new Float32Array(e.inputBuffer.getChannelData(0)));src.connect(node);node.connect(sink)}
+ }catch(e){console.error("ohr",e);ohrStop(L);return false}
+ if(LS!==L||L.phase!=="reading"||L.ohr!==O){ohrStop(L,O);return true}
+ L.eng="ohr";L.srLive=true;L.srNeedTap=false;lsMicUI();
+ O.wd=setInterval(()=>{if(LS!==L||L.ohr!==O||L.phase!=="reading"){clearInterval(O.wd);return}const t=performance.now()-O.t0;
+  if((t>6000&&!O.chunks)||(O.sent.length>30&&t>8000)){clearInterval(O.wd);O.dead=true;OHR.slow=true;ohrStop(L);L.srLive=false;L.eng="";lsStartSR();lsMicUI();return}   // no sound reaches the ear, or it has stopped answering
+  if(!O.safe&&t>5000&&O.chunks>20){O.safe=true;ohrGuard.ok()}
+  if(t>9000&&O.peak<.003&&!O.quiet){O.quiet=true;toast("Ich höre nichts. Ist das Mikrofon erlaubt und nicht stumm?")}
+  // the sound stopped coming (another app took the microphone, the phone was locked): one tap continues where the reader was
+  if(O.chunks&&!document.hidden&&performance.now()-O.tLast>4000){clearInterval(O.wd);ohrStop(L);L.srLive=false;L.srNeedTap=true;lsMicUI()}},2000);
+ return true}
+function ohrNewRec(L,O){if(O.rec){try{O.rec.remove()}catch(e){}}O.fin=[];O.part=[];O.sent=[];O.out=[];O.outN=0;
+ const rec=O.rec=new OHR.model.KaldiRecognizer(16000,JSON.stringify(ohrPhrases(OHR.lex,O.g,ohrOpts())));
+ const got=()=>{const t=O.sent.shift();if(t){O.lag=performance.now()-t;
+   // a device that cannot keep up (answers more than 2 s late, again and again) switches to the device's own recognizer
+   if(O.lag>2000){if(++O.late>=6&&!O.dead){O.dead=true;OHR.slow=true;ohrStop(L);if(LS===L&&L.phase==="reading"){L.srLive=false;lsStartSR();lsMicUI()}}}else O.late=0}};
+ const show=()=>{if(LS!==L||L.ohr!==O||O.rec!==rec)return;const words=[...O.fin,...O.part];L.srFin=O.fin;L.srFinN=O.fin.length;L.srAlt=words.map(()=>OHRNOALT);L.srText=words.join(" ");
+  const ta=document.getElementById("lsDict");if(ta){ta.value=L.srText;lsOnDict()}};
+ const W=t=>String(t||"").split(/\s+/).filter(Boolean).map(w=>w==="[unk]"?OHRUNK:w);
+ rec.on("partialresult",m=>{got();const p=W(m&&m.result&&m.result.partial);if(p.join(" ")!==O.part.join(" ")){if(!O.part.length)O.utt0=performance.now();O.tChg=performance.now();O.part=p;show()}});
+ rec.on("result",m=>{got();const w=W(m&&m.result&&m.result.text);O.part=[];O.utt0=0;O.flush=0;if(w.length){O.fin=O.fin.concat(w)}show()});
+ rec.on("error",m=>{console.error("ohr rec",m&&m.error)})}
+const OHRNOALT=new Set();
+function ohrFeed(L,O,x){if(LS!==L||L.ohr!==O||!O.rec||O.dead)return;
+ let pk=0;for(let i=0;i<x.length;i+=4){const v=x[i]<0?-x[i]:x[i];if(v>pk)pk=v}O.chunks++;O.tLast=performance.now();if(pk>O.peak)O.peak=pk;O.lvl=Math.max(O.lvl*.7,pk);
+ const now=performance.now();if(now-O.tLvl>90){O.tLvl=now;document.documentElement.style.setProperty("--miclvl",Math.min(1,O.lvl*5).toFixed(2))}
+ const f0=ohrPitch(O,x);if(f0){const a=ohrAlpha(f0);if(Math.abs(a-O.rs.alpha)>.03&&now-(O.tWarp||-1e9)>5000){O.tWarp=now;O.rs.setAlpha(a)}}   // adjust in clear steps only, not with every sentence melody
+ O.spk=Math.max((O.spk||0)*.995,O.lvl);if(O.lvl<.22*O.spk){if(!O.quiet0)O.quiet0=now}else O.quiet0=0;
+ if(O.part.length&&O.utt0&&!O.flush&&now-O.utt0>10000&&now-(O.tChg||0)>300&&O.quiet0&&now-O.quiet0>200){O.flush=now;try{O.rec.retrieveFinalResult()}catch(e){}}
+ if(O.mute)return;const y=O.rs.push(x);if(!y.length)return;O.out.push(y);O.outN+=y.length;
+ if(O.outN>=1600){const c=new Float32Array(O.outN);let o=0;for(const p of O.out){c.set(p,o);o+=p.length}O.out=[];O.outN=0;
+  if(O.sent.length>40)return;                                   // far behind: drop sound instead of queueing more
+  O.sent.push(performance.now());try{O.rec.acceptWaveformFloat(c,16000)}catch(e){}}}
+function ohrStop(L,O){O=O||(L&&L.ohr);if(!O)return;if(L&&L.ohr===O)L.ohr=null;if(!O.safe)ohrGuard.ease();
+ try{if(O.f0&&O.pit&&O.pit.nv>=120&&Math.abs((S.ohrF0||0)-O.f0)>6){S.ohrF0=Math.round(O.f0);save()}}catch(e){}   // remember the reader's voice pitch for the next time
+ try{O.node&&(O.node.port?(O.node.port.onmessage=null):(O.node.onaudioprocess=null))}catch(e){}
+ try{O.src&&O.src.disconnect()}catch(e){}try{O.node&&O.node.disconnect()}catch(e){}
+ try{O.stream&&O.stream.getTracks().forEach(t=>t.stop())}catch(e){}try{O.rec&&O.rec.remove()}catch(e){}O.rec=null;clearInterval(O.wd);try{O.ctx&&O.ctx.close()}catch(e){}document.documentElement.style.removeProperty("--miclvl")}
+// status line on the reading start card
+function lsEngineUI(){const el=document.getElementById("lsEngSt");if(!el)return;if(!OHRBASE){el.textContent="";return}
+ if(S.lsEngine==="dev"){el.textContent="Die Spracherkennung von Apple bzw. Google schreibt mit, was sie hört; der Ton geht dafür an deren Dienst.";return}
+ const st=OHR.slow?"Auf diesem Gerät zu langsam – es hört die Erkennung des Geräts zu.":OHR.st==="ready"?"✓ bereit":OHR.st==="loading"?"wird geladen … (einmalig etwa 40 MB, danach sofort bereit; bis dahin hört die Erkennung des Geräts zu)":OHR.st==="failed"?"nicht verfügbar ("+OHR.err+") – es hört die Erkennung des Geräts zu.":"";
+ el.textContent="Kennt den Text und hört nur auf seine Wörter; der Ton bleibt auf dem Gerät. "+st}
+document.addEventListener("visibilitychange",()=>{const O=LS&&LS.ohr;if(O&&!document.hidden&&O.ctx&&O.ctx.state!=="running")try{O.ctx.resume()}catch(e){}
+ if(document.hidden)ohrGuard.ease();else if(OHR.st==="loading"||(O&&!O.safe))ohrGuard.arm()});
+addEventListener("pagehide",()=>ohrGuard.ease());
+// </ohr>
 let lsSRBlocked=false;
 // first choice: listen directly in the page (like the original LeseStar); falls back to device dictation if the app does not allow it
 const SRFALL={"de-CH":"de-DE","fr-CH":"fr-FR","en-GB":"en-US"};
-const lsLive=()=>STANDALONE&&!lsSRBlocked&&!!(window.SpeechRecognition||window.webkitSpeechRecognition);
+const lsEar=()=>OHR.on(LS&&LS.text&&LS.text.lang)&&OHR.st==="ready";   // the on-device recognizer is loaded and may be used for this text
+const lsLive=()=>STANDALONE&&(lsEar()||!lsSRBlocked&&!!(window.SpeechRecognition||window.webkitSpeechRecognition));
 let lsNoPhrases=false;
 // Each recognizer result comes with several guesses (alternatives). They are lined up word by word with the chosen guess,
 // so a word counts as read when ANY guess heard it right (recognizers often hear the right word but rank it second).
@@ -3222,6 +3408,9 @@ function srAltWords(res,bestIdx){const base=res[bestIdx].transcript.trim().split
     if(i>0&&O[j-1])alt[i-1].add(B[i-1]+O[j-1]);j--}}}
  return{words:base,alt}}
 let lsNetFails=0;
+// Start listening: the PokeLearn-Ohr when it is ready (and the text is German), otherwise the device's own recognizer.
+function lsListen(L){L.eng="";LSOOV=new Set();LSALIAS=new Map();if(lsEar()){L.eng="ohr";ohrStart(L).then(ok=>{if(!ok&&LS===L&&L.phase==="reading"&&!L.ohr){L.eng="";lsStartSR();lsMicUI();const ta=document.getElementById("lsDict");if(ta&&!lsLive())ta.focus()}});return}
+ if(OHR.on(L.text.lang)&&OHR.st==="idle")OHR.load();lsStartSR()}
 function lsStartSR(){const L=LS,SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!L||!SR||lsSRBlocked)return;let r;try{r=new SR()}catch(e){lsSRBlocked=true;return}
  const lang=L.text.lang||"de";r.lang=L.srLangOv||(S.srLang2&&S.srLang2[lang])||SRLANG[lang]||"de-DE";r.continuous=true;r.interimResults=true;try{r.maxAlternatives=5}catch(x){}const want=new Set(L.expN);
  // text and guesses survive restarts of the recognizer (it stops by itself after pauses or about a minute)
@@ -3246,11 +3435,11 @@ function lsStartSR(){const L=LS,SR=window.SpeechRecognition||window.webkitSpeech
  r.onend=()=>{if(inter.length){L.srFin.push(...inter);L.srFinAlt.push(...interAlt);inter=[];interAlt=[];show()}   // words still open when it stopped are kept
   if(LS===L&&L.sr===r&&L.phase==="reading"&&!lsSRBlocked){setTimeout(()=>{if(LS===L&&L.sr===r&&L.phase==="reading")try{r.start()}catch(x){L.sr=null;try{lsStartSR()}catch(y){}if(!L.sr){L.srNeedTap=true;lsMicUI()}}},lsNetFails?400:0)}};
  L.sr=r;L.srNeedTap=false;try{r.start()}catch(e){L.sr=null;if(L.srLive){L.srNeedTap=true;lsMicUI()}else lsSRBlocked=true}}
-function lsStopSR(L){L=L||LS;if(L&&L.sr){const r=L.sr;L.sr=null;try{r.onend=null;r.onerror=null;r.onresult=null;r.abort()}catch(e){}}}
+function lsStopSR(L){L=L||LS;if(L&&L.ohr)ohrStop(L);if(L&&L.sr){const r=L.sr;L.sr=null;try{r.onend=null;r.onerror=null;r.onresult=null;r.abort()}catch(e){}}}
 function lsMicUI(){const L=LS,el=document.getElementById("lsHow"),lab=document.getElementById("lsMicLab");if(!L||!el)return;
  if(L.srNeedTap&&L.phase==="reading"){el.innerHTML='<button class="btn small primary" data-la="micResume">🎤 Weiterlesen</button> <span class="muted">Das Mikrofon hat pausiert.</span>';if(lab)lab.textContent="Pause";return}
  if(L.srLive){el.innerHTML='<span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.';if(lab)lab.textContent="Ich höre zu";const ta=document.getElementById("lsDict");if(ta&&document.activeElement===ta&&matchMedia("(pointer:coarse)").matches)ta.blur()}
- else if(lsLive()){el.innerHTML='<span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.';if(lab)lab.textContent="Ich höre zu"}
+ else if(L.eng==="ohr"&&L.ohr||L.eng!=="ohr"&&STANDALONE&&!lsSRBlocked&&!!(window.SpeechRecognition||window.webkitSpeechRecognition)){el.innerHTML='<span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.';if(lab)lab.textContent="Ich höre zu"}   // the recognizer of this reading is about to listen
  else{el.innerHTML='<span class="muted">'+esc(LSHOW[lsPlatform()]||LSHOW.other)+'</span>';if(lab)lab.textContent="Lies laut vor";const st=document.querySelector(".lsstrip");if(st)st.classList.remove("live");const ta=document.getElementById("lsDict");if(ta&&ta.readOnly){ta.readOnly=false;ta.removeAttribute("tabindex");ta.placeholder="Tippe hier, dann aufs Mikrofon der Tastatur";if(STANDALONE)ta.focus()}}}
 // keep the reading view inside the part of the screen the keyboard leaves free
 function lsFit(){const el=document.getElementById("lsFocus");if(!el)return;const vv=window.visualViewport;let top=0,ht=window.innerHeight;
@@ -3374,10 +3563,10 @@ document.getElementById("lsView").addEventListener("click",e=>{const L=LS;
  if(a==="code"){const inp=document.getElementById("lsCode"),v=inp?inp.value:"";const c=lesenCode(v,L.text.id);if(!c){toast("Dieser Code passt nicht zu diesem Text. Schau nochmals auf der Lese-Seite nach.");if(inp){inp.select()}return}
   S.lsCodes=S.lsCodes||[];if(S.lsCodes.includes(L.text.id+":"+c.code)){toast("Diesen Code hast du schon eingelöst. Lies den Text nochmals, dann gibt es einen neuen.");return}S.lsCodes=[...S.lsCodes,L.text.id+":"+c.code].slice(-300);
   L.mode="ext";L.ext=c;L.read=true;const words=dkWords(L.T);L.ms=c.wpm?Math.round(words/c.wpm*60000):0;L.t0=0;save();lsFinishReading();return}
- if(a==="mic"){acUnlock();try{speechSynthesis.cancel()}catch(x){}L.gen++;L.mode="mic";L.phase="reading";L.read=true;L.pos=0;L.wst=[];L._done=false;L.srLive=false;L.srFin=null;L.srFinAlt=null;L.srAlt=null;L.srText="";L.fin=null;lsPreloadWords(L);vjSchedule();lsReader(document.getElementById("lsView"));const ta=document.getElementById("lsDict");if(ta&&!lsLive())ta.focus();lsStartSR();return}
+ if(a==="mic"){acUnlock();try{speechSynthesis.cancel()}catch(x){}L.gen++;L.mode="mic";L.phase="reading";L.read=true;L.pos=0;L.wst=[];L._done=false;L.srLive=false;L.srFin=null;L.srFinAlt=null;L.srAlt=null;L.srText="";L.fin=null;lsPreloadWords(L);vjSchedule();lsReader(document.getElementById("lsView"));const ta=document.getElementById("lsDict");if(ta&&!lsLive())ta.focus();lsListen(L);return}
  if(a==="micExit"){const ta=document.getElementById("lsDict");if(ta)ta.blur();lsStop();L.mode=null;L.phase="ready";L.ms=0;L.t0=0;L.wst=[];L.pos=0;lsRender();return}
- if(a==="micResume"){L.srNeedTap=false;lsNetFails=0;lsStartSR();lsMicUI();return}
- if(a==="micClear"){L._done=false;clearTimeout(L._endT);clearTimeout(L._finT);L.fin=null;L.srFin=null;L.srFinAlt=null;L.srAlt=null;L.srText="";L.retry=null;L.cur=[];const ta=document.getElementById("lsDict");if(ta){ta.value="";if(!L.srLive)ta.focus()}if(L.sr){lsStopSR(L);lsStartSR()}L.wst=[];L.pos=0;L._done=false;L.ms=0;L.t0=0;clearInterval(L.timer);L.timer=null;lsClock();lsPaint();return}
+ if(a==="micResume"){L.srNeedTap=false;lsNetFails=0;lsListen(L);lsMicUI();return}
+ if(a==="micClear"){L._done=false;clearTimeout(L._endT);clearTimeout(L._finT);L.fin=null;L.srFin=null;L.srFinAlt=null;L.srAlt=null;L.srText="";L.retry=null;L.cur=[];const ta=document.getElementById("lsDict");if(ta){ta.value="";if(!L.srLive)ta.focus()}if(L.ohr)ohrNewRec(L,L.ohr);else if(L.sr){lsStopSR(L);lsStartSR()}L.wst=[];L.pos=0;L._done=false;L.ms=0;L.t0=0;clearInterval(L.timer);L.timer=null;lsClock();lsPaint();return}
  if(a==="micDone"){if(!L.pos){toast(lsLive()?"Noch nichts gehört. Lies den Text laut und deutlich vor.":"Noch nichts gehört. Tippe ins Feld und dann auf das Mikrofon der Tastatur.");return}lsFinishReading();return}
  if(a==="read"){L.mode="tap";acUnlock();try{speechSynthesis.cancel()}catch(x){}L.gen++;L.phase="reading";L.read=true;L.si=0;L.t0=Date.now();L.timer=setInterval(lsClock,500);lsReader(document.getElementById("lsView"));return}
  if(a==="tts"){lsSayText();return}

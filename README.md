@@ -8,6 +8,7 @@ Die Lern-App PokeLearn als eigenständige Website (GitHub Pages): <https://domal
 * `cards/` – Kartenkatalog, Fotos, Preisliste
 * `audio/v/` – fertig aufgenommene Diktate (Qwen3-TTS, Apache-2.0), erstellt von der Action «Diktat-Stimme»
   (`tools/voice_jobs.py`, `tools/voice_render.py`, `tools/voice_clean.py`, Stimmen in `tools/voices/`)
+* `ohr/` – das PokeLearn-Ohr: Spracherkennung beim Lesen direkt auf dem Gerät (Vosk/Kaldi, kennt den Text; siehe `ohr/README.md`)
 * `voice/` – Stimme auf dem Gerät für noch nicht aufgenommene Texte (Supertonic, OpenRAIL-M; Lizenz in `voice/st3/`)
 * `tools/update_prices.py` – wöchentliche Preisliste (Action «Weekly price list», schreibt `cards/prices.json`)
 * `.github/workflows/pages.yml` – Deployment bei jedem Push auf `main`
