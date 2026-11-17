@@ -132,8 +132,8 @@ function needSpace(p,n){if(!p||!n)return false;if(CLOSEP.test(n.t))return false;
 function joinPlain(T){let o="";T.forEach((tk,i)=>{o+=(i&&needSpace(T[i-1],tk)?" ":"")+tk.t});return o}
 const dkWords=T=>T.filter(t=>!isPunct(t.t)).length;
 const ttsOK=()=>{try{return "speechSynthesis" in window&&typeof SpeechSynthesisUtterance!=="undefined"}catch(e){return false}};
-function acGet(){if(!AC){const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;acSession();try{AC=new C()}catch(e){return null}}return AC}
-function acUnlock(){pelUnlock();const c=acGet();if(!c)return;acSession();try{if(c.state!=="running")c.resume().catch(()=>{})}catch(e){}try{const b=c.createBuffer(1,1,22050),s=c.createBufferSource();s.buffer=b;s.connect(c.destination);s.start(0)}catch(e){}
+function acGet(){if(!AC){const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;try{if(navigator.audioSession)navigator.audioSession.type="playback"}catch(e){}try{AC=new C()}catch(e){return null}}return AC}
+function acUnlock(){pelUnlock();const c=acGet();if(!c)return;try{if(navigator.audioSession)navigator.audioSession.type="playback"}catch(e){}try{if(c.state!=="running")c.resume().catch(()=>{})}catch(e){}try{const b=c.createBuffer(1,1,22050),s=c.createBufferSource();s.buffer=b;s.connect(c.destination);s.start(0)}catch(e){}
  // iPhone/iPad suspend an idle audio context – a silent loop keeps it awake while the voice is still being computed
  try{if(!acKeep){const b=c.createBuffer(1,c.sampleRate,c.sampleRate),s=c.createBufferSource(),g=c.createGain();g.gain.value=0;s.buffer=b;s.loop=true;s.connect(g);g.connect(c.destination);s.start(0);acKeep=s}}catch(e){}}
 function hashStr(s){let h=2166136261;for(const ch of s){h^=ch.codePointAt(0);h=Math.imul(h,16777619)}return(h>>>0).toString(36)}
@@ -165,7 +165,7 @@ function lsRecommend(){const H=S.lsHist||[];if(!H.length)return{level:"mittel",w
  if(qp>=.75&&(fast||!l.wpm)&&i<2)return{level:LEVELS[i+1],why:f+". Du bist bereit für die nächste Stufe!"};
  if(qp<.5&&i>0)return{level:LEVELS[i-1],why:f+". Übe zuerst eine Stufe leichter."};
  return{level:l.level,why:f+". Bleib noch bei dieser Stufe."}}
-function lsStop(){if(!LS)return;clearInterval(LS._poll);lsStopSR(LS);acSession(true);LS.gen=(LS.gen||0)+1;try{speechSynthesis.cancel()}catch(e){}clearInterval(LS.timer);LS.timer=null}
+function lsStop(){if(!LS)return;clearInterval(LS._poll);lsStopSR(LS);LS.gen=(LS.gen||0)+1;try{speechSynthesis.cancel()}catch(e){}clearInterval(LS.timer);LS.timer=null}
 function lsRender(){const v=document.getElementById("lsView");if(!v)return;if(!LS||LS.phase==="list")return lsList(v);if(LS.phase==="board")return lsBoard(v);if(LS.phase==="quiz")return lsQuiz(v);if(LS.phase==="result")return lsResult(v);lsReader(v)}
 function lsList(v){const rec=lsRecommend(),sel=S.lsLevel||rec.level,left=lsBankLeft(sel).length,H=(S.lsHist||[]).slice(0,4);
  v.innerHTML=`<div class="row"><button class="btn small ghost" data-la="home">← Zurück</button><button class="btn small" data-la="board" style="margin-left:auto">Bestenliste</button></div>
@@ -174,7 +174,7 @@ function lsList(v){const rec=lsRecommend(),sel=S.lsLevel||rec.level,left=lsBankL
   <div class="lvgrid">${LEVELS.map(l=>`<button class="lvcard ${l===sel?"on":""}" data-lslvl="${l}"><span class="row" style="gap:6px;justify-content:space-between"><b>${l[0].toUpperCase()+l.slice(1)}</b>${l===rec.level?'<span class="pill good">Empfohlen</span>':""}</span><small class="muted">${LSINFO[l]} · Ziel ${LSTARGET[l]} Wörter/Min.</small>${(n=>n?`<span class="lvdone">✓ ${n} gelesen</span>`:"")((S.lsHist||[]).filter(x=>x.level===l).length)}</button>`).join("")}</div>
   <p class="muted" style="margin:0;font-size:14px"><b>Empfehlung:</b> ${esc(rec.why)}</p></div>
  <div class="card" style="display:grid;gap:10px">
-  <p class="muted" style="margin:0;font-size:13px">Mit Mikrofon: Oben bei «Ich höre» steht, was verstanden wurde. <b style="color:var(--good)">Grün</b>: genau so gehört, wie es im Text steht. <b style="color:var(--bad)">Rot</b>: anders gehört oder ausgelassen – der Text wartet, bis das Wort richtig gelesen ist (nach dem dritten Versuch sagt PokeLearn es vor). <span style="text-decoration:underline dotted;text-underline-offset:3px">Grau gepunktet</span>: ein kleines Wort wurde nicht gehört (kein Fehler). <span style="opacity:.6">${BUILD}</span></p>
+  <p class="muted" style="margin:0;font-size:13px">Mit Mikrofon: Oben bei «Ich höre» steht, was verstanden wurde. <b style="color:var(--good)">Grün</b>: genau so gehört, wie es im Text steht. <b style="color:var(--bad)">Rot</b>: anders gehört oder ausgelassen – der Text wartet, bis das Wort richtig gelesen ist (nach dem dritten Versuch sagt PokeLearn es vor). <span style="text-decoration:underline dotted;text-underline-offset:3px">Grau gepunktet</span>: ein kleines Wort wurde nicht gehört (kein Fehler).</p>
   <label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="lsParent" style="width:auto;flex:none;margin-top:4px" ${S.lsParent?"checked":""}><span>Ein Erwachsener hört zu und tippt falsch gelesene Wörter an</span></label>
   ${OHRBASE?`<label class="row" style="gap:8px;flex-wrap:wrap"><span>Zuhören mit</span><select id="lsEng" style="flex:1 1 170px;min-width:0;max-width:100%"><option value="ohr" ${S.lsEngine!=="dev"?"selected":""}>PokeLearn-Ohr</option><option value="dev" ${S.lsEngine==="dev"?"selected":""}>Gerät (Apple/Google)</option></select></label>
   <p class="muted" id="lsEngSt" style="margin:-4px 0 0;font-size:12px"></p>
@@ -490,7 +490,7 @@ function lsPreloadWords(L){try{if(!lsFullVoice()||!STANDALONE)return;if(!VIDX.wo
 // The microphone is paused while the app speaks (phones cannot record and play at the same time) and started again right after.
 function lsSayWord(idx){const L=LS,w=L.T[L.W[idx]].t;toast(`Das Wort heisst: «${w}»`);try{speechSynthesis.cancel()}catch(e){}
  L.said={w:L.expN[idx],until:Date.now()+5000};L.muteUntil=Infinity;const live=!!L.sr;if(L.ohr)L.ohr.mute=true;else if(live){L.srPaused=true;lsStopSR(L)}
- let back=false;const resume=()=>{if(back)return;back=true;if(LS!==L)return;if(L.ohr){L.ohr.mute=false;L.ohr.sayT=L.ohr.nzT=performance.now()}L.muteUntil=Date.now()+150;L.said.until=Date.now()+3500;
+ let back=false;const resume=()=>{if(back)return;back=true;if(LS!==L)return;if(L.ohr)L.ohr.mute=false;L.muteUntil=Date.now()+150;L.said.until=Date.now()+3500;
   if(live&&L.phase==="reading"){L.srPaused=false;lsStartSR()}};
  setTimeout(resume,Math.max(2500,w.length*260)+(L.prep&&L.prep[idx]&&L.prep[idx].live?4000:0));   // never stay muted if the voice does not report its end (a word the device has to make first takes longer)
  Promise.resolve(lsVoiceWord(idx)).catch(()=>{}).then(()=>setTimeout(resume,60))}
@@ -502,12 +502,6 @@ function lsRetryUI(){const L=LS,el=document.getElementById("lsRetry"),fx=documen
 function lsShowWarn(bad){const L=LS,wn=document.getElementById("lsWarn");if(!wn)return;wn.hidden=!bad;if(bad){const ln=LANGN[L.text.lang||"de"];wn.innerHTML=L.eng==="ohr"?"Ich höre etwas anderes als den Text. Lies laut und nah am Gerät – oder tippe «Neu beginnen».":`Das Mikrofon versteht nicht ${ln}. ${L.srLive?"Bitte deutlich und nah am Gerät lesen.":esc((LSLANGFIX[lsPlatform()]||LSLANGFIX.other).replace("%L",ln))} Dann «Neu beginnen».`}}
 // «Ich höre»: the last words the recognizer wrote, each in the colour of its verdict — green: it is the word of the text, red: it was heard
 // where another word stands. So it is plain to see why a word of the text is green or red. A word that was not heard at all is named.
-// Tap on the «Ich höre» line: a small line shows what microphone and ear are doing right now (for finding faults on a device).
-function lsDiag(){const L=LS,el=document.getElementById("lsDiag");if(!el)return;if(!S.lsDiag||!L||L.phase!=="reading"){el.hidden=true;return}el.hidden=false;const O=L.ohr;let t=BUILD+" · ";
- if(O){const tr=O.stream&&O.stream.getAudioTracks()[0];t+=`Ohr · Pegel ${O.lvl.toFixed(3)} · Ton ${O.chunks} · Antworten ${O.msgs||0} · wartend ${O.sent.length} · ${Math.round(O.lag)} ms · neu ${O.revN||0}/${O.reN||0} · ${O.ctx.state}${tr?(tr.muted?" · STUMM":"")+" · "+tr.readyState:""}${O.mute?" · Pause":""}`}
- else t+=(L.sr?"Gerät":"kein Mikrofon")+(L.srNeedTap?" · wartet auf Tipp":"");
- try{if(navigator.audioSession)t+=" · "+navigator.audioSession.type}catch(e){}el.textContent=t}
-setInterval(()=>{if(S&&S.lsDiag&&LS&&LS.phase==="reading")lsDiag()},500);
 function lsHeardLine(L){const bh=document.getElementById("lsHow"),ta=document.getElementById("lsDict");if(!bh||!ta||!(L.srLive&&!L.srNeedTap&&ta.readOnly))return;
  const txt=ta.value.trim(),raw=txt?txt.split(/\s+/):[];if(!raw.length){if(L._hl!==""){L._hl="";bh.innerHTML='<span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.'}return}
  const v=new Map();if(L.h2r&&L.hvP&&L.fin)L.h2r.forEach((ri,k)=>{const x=(L.hvC&&L.hvC.get(k))||L.hvP.get(k);if(x&&v.get(ri)!=="bad")v.set(ri,x)});
@@ -561,7 +555,7 @@ function lsPaint(){const L=LS;
 function lsClock(){const L=LS;const ms=L.ms+(L.t0?Date.now()-L.t0:0);const s=Math.floor(ms/1000);const e=document.getElementById("lsTime");if(e)e.textContent=Math.floor(s/60)+":"+String(s%60).padStart(2,"0")}
 function lsFocusView(v){const L=LS,t=L.text,lang=t.lang||"de";
  v.innerHTML=`<div class="lsfocus" id="lsFocus" lang="${lang}">
-  <div class="lsstrip ${lsLive()?"live":""}"><div class="lsheard" id="lsHow" onclick="S.lsDiag=!S.lsDiag;lsDiag()"><span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.</div><div id="lsDiag" class="muted" hidden style="font-size:11px;line-height:1.3;padding:2px 6px;word-break:break-word"></div>
+  <div class="lsstrip ${lsLive()?"live":""}"><div class="lsheard" id="lsHow"><span class="micdot"></span><b>Ich höre zu.</b> Lies den Text laut vor.</div>
    <textarea id="lsDict" lang="${lang==="de"?"de-CH":lang}" rows="1" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="Was das Mikrofon hört" ${lsLive()?'readonly tabindex="-1"':''} placeholder="${lsLive()?"Hier erscheint, was ich höre …":"Tippe hier, dann aufs Mikrofon der Tastatur"}"></textarea>
    <div class="lsbtns"><button class="btn small primary" data-la="micDone">${IC.check} Fertig gelesen</button><button class="btn small ghost" data-la="micClear">Neu beginnen</button><button class="btn small ghost" data-la="micExit" aria-label="Beenden">✕</button></div>
    <div class="lsretry" id="lsRetry" hidden aria-live="assertive"></div>
@@ -698,21 +692,12 @@ function ohrPitch(O,x){const P=O.pit||(O.pit={dec:Math.max(1,Math.round(O.fs/800
    P.f0.push(fs8/bl);P.nv=(P.nv||0)+1;if(P.f0.length>400)P.f0.shift();P.fresh=true}}}
  if(P.fresh&&P.nv>=60&&!(P.nv%30)){P.fresh=false;const s=[...P.f0].sort((a,b)=>a-b),m=s[s.length>>1];O.f0=m;return m}return 0}   // about two seconds of voiced sound before the first estimate
 const ohrAlpha=f0=>!f0||f0<=185?1:f0>=300?1.2:1+(f0-185)/115*.2;
-const OHRMIC={audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}};
-// The microphone went dead (iPhone: after the app has spoken, the phone can take the microphone away from the page; the sound that still
-// arrives is pure silence). Fetch it again and go on listening; if the phone does not allow that without a tap, show «Weiterlesen».
-async function ohrReacquire(L,O){if(O.reN>=3||O.reBusy)return;O.reBusy=true;O.reN=(O.reN||0)+1;O.nzT=performance.now();acSession();
- try{try{await O.ctx.resume()}catch(e){}const st=await navigator.mediaDevices.getUserMedia(OHRMIC);if(LS!==L||L.ohr!==O){st.getTracks().forEach(t=>t.stop());return}
-  const old=O.stream;try{O.src.disconnect()}catch(e){}O.stream=st;O.src=O.ctx.createMediaStreamSource(st);O.src.connect(O.node);try{old.getTracks().forEach(t=>{t.onended=null;t.stop()})}catch(e){}
-  st.getAudioTracks().forEach(t=>{t.onended=()=>{if(LS===L&&L.ohr===O&&L.phase==="reading"){ohrStop(L);L.srLive=false;L.srNeedTap=true;lsMicUI()}}});O.nzT=performance.now()}
- catch(e){if(LS===L&&L.ohr===O&&L.phase==="reading"){ohrStop(L);L.srLive=false;L.srNeedTap=true;lsMicUI()}}finally{O.reBusy=false}}
 // --- start listening (called from the tap on the microphone)
 async function ohrStart(L){const AC=window.AudioContext||window.webkitAudioContext;let ctx;try{ctx=new AC({latencyHint:"interactive"})}catch(e){try{ctx=new AC()}catch(e2){return false}}
  try{ctx.resume()}catch(e){}
  ohrGuard.arm();
  const O=L.ohr={ctx,fs:ctx.sampleRate,fin:[],part:[],mute:false,out:[],outN:0,sent:[],lag:0,late:0,dead:false,chunks:0,peak:0,lvl:0,tLvl:0,t0:performance.now()};
- acSession();
- try{O.stream=await navigator.mediaDevices.getUserMedia(OHRMIC)}
+ try{O.stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}})}
  catch(e){ohrStop(L);return false}
  if(LS!==L||L.phase!=="reading"||L.ohr!==O){ohrStop(L,O);return true}
  try{O.stream.getAudioTracks().forEach(t=>{t.onended=()=>{if(LS===L&&L.ohr===O&&L.phase==="reading"){ohrStop(L);L.srLive=false;L.srNeedTap=true;lsMicUI()}}})}catch(e){}
@@ -733,9 +718,6 @@ async function ohrStart(L){const AC=window.AudioContext||window.webkitAudioConte
   if(O.sent.length>30&&t>8000&&ohrRevive(L,O))return;                                                                    // it has stopped answering: start it afresh
   if((t>6000&&!O.chunks)||(O.sent.length>30&&t>8000)){clearInterval(O.wd);ohrGiveWay(L,O);return}                        // no sound reaches the ear, or it cannot be woken
   if(!O.safe&&t>5000&&O.chunks>20){O.safe=true;ohrGuard.ok()}
-  {const now=performance.now(),tr=O.stream&&O.stream.getAudioTracks()[0],muted=!!(tr&&tr.muted);if(!muted)O.muT=0;else if(!O.muT)O.muT=now;     // dead microphone: the track is muted, or after the app spoke only pure silence arrives
-   if(!O.mute&&!document.hidden&&((muted&&now-O.muT>1500)||(O.sayT&&now-O.sayT<30000&&now-(O.nzT||O.t0)>3000&&now-O.sayT>3000))){ohrReacquire(L,O);return}
-   try{if(O.ctx.state!=="running"&&!document.hidden)O.ctx.resume()}catch(e){}}
   if(t>9000&&O.peak<.003&&!O.quiet){O.quiet=true;toast("Ich höre nichts. Ist das Mikrofon erlaubt und nicht stumm?")}
   // the sound stopped coming (another app took the microphone, the phone was locked): one tap continues where the reader was
   if(O.chunks&&!document.hidden&&performance.now()-O.tLast>4000){clearInterval(O.wd);ohrStop(L);L.srLive=false;L.srNeedTap=true;lsMicUI()}},2000);
@@ -747,7 +729,7 @@ function ohrRevive(L,O){const now=performance.now();if(O.dead||(O.revN||0)>=3)re
 function ohrGiveWay(L,O){O.dead=true;OHR.slow=true;ohrStop(L);if(LS===L&&L.phase==="reading"){L.srLive=false;L.eng="";toast("Das PokeLearn-Ohr kommt auf diesem Gerät nicht nach – jetzt hört die Erkennung des Geräts zu.");lsStartSR();lsMicUI()}}
 function ohrNewRec(L,O){if(O.rec){try{O.rec.remove()}catch(e){}}O.fin=[];O.part=[];O.sent=[];O.out=[];O.outN=0;
  const rec=O.rec=new OHR.model.KaldiRecognizer(16000,JSON.stringify(ohrPhrases(OHR.lex,O.g,ohrOpts())));
- const got=()=>{O.msgs=(O.msgs||0)+1;const t=O.sent.shift();if(t){O.lag=performance.now()-t;
+ const got=()=>{const t=O.sent.shift();if(t){O.lag=performance.now()-t;
    // a device that cannot keep up (answers more than 2 s late, again and again) switches to the device's own recognizer
    if(O.lag>2000){if(++O.late>=6&&!O.dead&&O.rec===rec&&!ohrRevive(L,O))ohrGiveWay(L,O)}else O.late=0}};
  const show=()=>{if(LS!==L||L.ohr!==O||O.rec!==rec)return;const words=[...O.fin,...O.part];L.srFin=O.fin;L.srFinN=O.fin.length;L.srAlt=words.map(()=>OHRNOALT);L.srText=words.join(" ");
@@ -758,7 +740,7 @@ function ohrNewRec(L,O){if(O.rec){try{O.rec.remove()}catch(e){}}O.fin=[];O.part=
  rec.on("error",m=>{console.error("ohr rec",m&&m.error)})}
 const OHRNOALT=new Set();
 function ohrFeed(L,O,x){if(LS!==L||L.ohr!==O||!O.rec||O.dead)return;
- let pk=0;for(let i=0;i<x.length;i+=4){const v=x[i]<0?-x[i]:x[i];if(v>pk)pk=v}if(pk>1e-5)O.nzT=performance.now();O.chunks++;O.tLast=performance.now();if(pk>O.peak)O.peak=pk;O.lvl=Math.max(O.lvl*.7,pk);
+ let pk=0;for(let i=0;i<x.length;i+=4){const v=x[i]<0?-x[i]:x[i];if(v>pk)pk=v}O.chunks++;O.tLast=performance.now();if(pk>O.peak)O.peak=pk;O.lvl=Math.max(O.lvl*.7,pk);
  const now=performance.now();if(now-O.tLvl>90){O.tLvl=now;document.documentElement.style.setProperty("--miclvl",Math.min(1,O.lvl*5).toFixed(2))}
  const f0=ohrPitch(O,x);if(f0){const a=ohrAlpha(f0);if(Math.abs(a-O.rs.alpha)>.03&&now-(O.tWarp||-1e9)>5000){O.tWarp=now;O.rs.setAlpha(a)}}   // adjust in clear steps only, not with every sentence melody
  O.spk=Math.max((O.spk||0)*.995,O.lvl);if(O.lvl<.22*O.spk){if(!O.quiet0)O.quiet0=now}else O.quiet0=0;
@@ -799,7 +781,7 @@ function srAltWords(res,bestIdx){const base=res[bestIdx].transcript.trim().split
  return{words:base,alt}}
 let lsNetFails=0;
 // Start listening: the PokeLearn-Ohr when it is ready (and the text is German), otherwise the device's own recognizer.
-function lsListen(L){acSession();L.eng="";LSOOV=new Set();LSALIAS=new Map();if(lsEar()){L.eng="ohr";ohrStart(L).then(ok=>{if(!ok&&LS===L&&L.phase==="reading"&&!L.ohr){L.eng="";lsStartSR();lsMicUI();const ta=document.getElementById("lsDict");if(ta&&!lsLive())ta.focus()}});return}
+function lsListen(L){L.eng="";LSOOV=new Set();LSALIAS=new Map();if(lsEar()){L.eng="ohr";ohrStart(L).then(ok=>{if(!ok&&LS===L&&L.phase==="reading"&&!L.ohr){L.eng="";lsStartSR();lsMicUI();const ta=document.getElementById("lsDict");if(ta&&!lsLive())ta.focus()}});return}
  if(OHR.on(L.text.lang)&&OHR.st==="idle")OHR.load();lsStartSR()}
 function lsStartSR(){const L=LS,SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!L||!SR||lsSRBlocked)return;let r;try{r=new SR()}catch(e){lsSRBlocked=true;return}
  const lang=L.text.lang||"de";r.lang=L.srLangOv||(S.srLang2&&S.srLang2[lang])||SRLANG[lang]||"de-DE";r.continuous=true;r.interimResults=true;try{r.maxAlternatives=5}catch(x){}const want=new Set(L.expN);
