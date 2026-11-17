@@ -70,17 +70,23 @@ async function ohrStart(L){const AC=window.AudioContext||window.webkitAudioConte
  if(LS!==L||L.phase!=="reading"||L.ohr!==O){ohrStop(L,O);return true}
  L.eng="ohr";L.srLive=true;L.srNeedTap=false;lsMicUI();
  O.wd=setInterval(()=>{if(LS!==L||L.ohr!==O||L.phase!=="reading"){clearInterval(O.wd);return}const t=performance.now()-O.t0;
-  if((t>6000&&!O.chunks)||(O.sent.length>30&&t>8000)){clearInterval(O.wd);O.dead=true;OHR.slow=true;ohrStop(L);L.srLive=false;L.eng="";lsStartSR();lsMicUI();return}   // no sound reaches the ear, or it has stopped answering
+  if(O.sent.length>30&&t>8000&&ohrRevive(L,O))return;                                                                    // it has stopped answering: start it afresh
+  if((t>6000&&!O.chunks)||(O.sent.length>30&&t>8000)){clearInterval(O.wd);ohrGiveWay(L,O);return}                        // no sound reaches the ear, or it cannot be woken
   if(!O.safe&&t>5000&&O.chunks>20){O.safe=true;ohrGuard.ok()}
   if(t>9000&&O.peak<.003&&!O.quiet){O.quiet=true;toast("Ich höre nichts. Ist das Mikrofon erlaubt und nicht stumm?")}
   // the sound stopped coming (another app took the microphone, the phone was locked): one tap continues where the reader was
   if(O.chunks&&!document.hidden&&performance.now()-O.tLast>4000){clearInterval(O.wd);ohrStop(L);L.srLive=false;L.srNeedTap=true;lsMicUI()}},2000);
  return true}
+// The ear fell behind or went silent — usually because the device was busy with something else for a moment. It is started afresh and
+// keeps listening; the words read so far stay. Only when that happens again and again in one reading is the device too slow for it.
+function ohrRevive(L,O){const now=performance.now();if(O.dead||(O.revN||0)>=3)return false;O.revN=(O.revN||0)+1;O.revT=now;O.late=0;
+ const keep=O.fin.concat(O.part);try{ohrNewRec(L,O)}catch(e){return false}O.fin=keep;L.srFin=O.fin;L.srFinN=keep.length;return true}
+function ohrGiveWay(L,O){O.dead=true;OHR.slow=true;ohrStop(L);if(LS===L&&L.phase==="reading"){L.srLive=false;L.eng="";toast("Das PokeLearn-Ohr kommt auf diesem Gerät nicht nach – jetzt hört die Erkennung des Geräts zu.");lsStartSR();lsMicUI()}}
 function ohrNewRec(L,O){if(O.rec){try{O.rec.remove()}catch(e){}}O.fin=[];O.part=[];O.sent=[];O.out=[];O.outN=0;
  const rec=O.rec=new OHR.model.KaldiRecognizer(16000,JSON.stringify(ohrPhrases(OHR.lex,O.g,ohrOpts())));
  const got=()=>{const t=O.sent.shift();if(t){O.lag=performance.now()-t;
    // a device that cannot keep up (answers more than 2 s late, again and again) switches to the device's own recognizer
-   if(O.lag>2000){if(++O.late>=6&&!O.dead){O.dead=true;OHR.slow=true;ohrStop(L);if(LS===L&&L.phase==="reading"){L.srLive=false;lsStartSR();lsMicUI()}}}else O.late=0}};
+   if(O.lag>2000){if(++O.late>=6&&!O.dead&&O.rec===rec&&!ohrRevive(L,O))ohrGiveWay(L,O)}else O.late=0}};
  const show=()=>{if(LS!==L||L.ohr!==O||O.rec!==rec)return;const words=[...O.fin,...O.part];L.srFin=O.fin;L.srFinN=O.fin.length;L.srAlt=words.map(()=>OHRNOALT);L.srText=words.join(" ");
   const ta=document.getElementById("lsDict");if(ta){ta.value=L.srText;lsOnDict()}};
  const W=t=>String(t||"").split(/\s+/).filter(Boolean).map(w=>w==="[unk]"?OHRUNK:w);

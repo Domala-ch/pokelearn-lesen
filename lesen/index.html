@@ -466,7 +466,9 @@ function lsAdvance(heard){const L=LS,N=L.expN.length,ear=L.eng==="ohr";
 const lsFullVoice=()=>typeof vWordRecAny==="function"&&typeof LIVE!=="undefined";   // the separate reading page has only the device voice
 function lsPrepWord(idx){const L=LS;if(!L||!L.T||L.W[idx]==null||!lsFullVoice())return;const w=L.T[L.W[idx]].t,lang=L.text.lang||"de";L.prep=L.prep||{};if(L.prep[idx])return;
  const rec=vWordRecAny(w,lang);if(rec){L.prep[idx]={rec,p:recLoad(rec.file).catch(()=>null)};return}
- if(LIVE.ok()){try{LIVE.warm([w],lang,.9,3)}catch(e){}L.prep[idx]={live:true}}else L.prep[idx]={dev:true}}
+ // No recording of this word: the voice on the device makes it. That is heavy work — while the ear is listening it would slow the ear
+ // down until it falls behind, so it is only done once the word is really said (the ear pauses then anyway).
+ if(LIVE.ok()){if(!(L.ohr&&!L.ohr.mute)){try{LIVE.warm([w],lang,.9,3)}catch(e){}}L.prep[idx]={live:true}}else L.prep[idx]={dev:true}}
 function lsVoiceWord(idx){const L=LS,w=L.T[L.W[idx]].t,lang=L.text.lang||"de";if(!lsFullVoice())return speak(w,lang,.8);lsPrepWord(idx);const pr=L.prep[idx];acUnlock();
  if(pr.rec)return recPlay(pr.rec.file,pr.rec.seg,1,.1).then(r=>r==="recerror"?speakDev(w,lang,.85):r);
  if(pr.live&&LIVE.engine())return liveSpeak(w,lang,.9).then(r=>r==="livefail"?speakDev(w,lang,.85):r);   // on-device voice only once it is loaded (no waiting)
@@ -480,7 +482,7 @@ function lsSayWord(idx){const L=LS,w=L.T[L.W[idx]].t;toast(`Das Wort heisst: «$
  L.said={w:L.expN[idx],until:Date.now()+5000};L.muteUntil=Infinity;const live=!!L.sr;if(L.ohr)L.ohr.mute=true;else if(live){L.srPaused=true;lsStopSR(L)}
  let back=false;const resume=()=>{if(back)return;back=true;if(LS!==L)return;if(L.ohr)L.ohr.mute=false;L.muteUntil=Date.now()+150;L.said.until=Date.now()+3500;
   if(live&&L.phase==="reading"){L.srPaused=false;lsStartSR()}};
- setTimeout(resume,Math.max(2500,w.length*260));   // never stay muted if the voice does not report its end
+ setTimeout(resume,Math.max(2500,w.length*260)+(L.prep&&L.prep[idx]&&L.prep[idx].live?4000:0));   // never stay muted if the voice does not report its end (a word the device has to make first takes longer)
  Promise.resolve(lsVoiceWord(idx)).catch(()=>{}).then(()=>setTimeout(resume,60))}
 function lsBeep(good){if(LS&&LS.phase=="reading")return;   // no sounds while reading aloud: on phones any sound switches the microphone off
  try{const c=acGet();if(!c)return;if(c.state!=="running"){c.resume().catch(()=>{})}const t0=c.currentTime;const tone=(f,at,dur,vol)=>{const o=c.createOscillator(),g=c.createGain();o.type=good?"sine":"square";o.frequency.value=f;g.gain.setValueAtTime(.0001,t0+at);g.gain.exponentialRampToValueAtTime(vol,t0+at+.02);g.gain.exponentialRampToValueAtTime(.0001,t0+at+dur);o.connect(g).connect(c.destination);o.start(t0+at);o.stop(t0+at+dur+.02)};
@@ -703,17 +705,23 @@ async function ohrStart(L){const AC=window.AudioContext||window.webkitAudioConte
  if(LS!==L||L.phase!=="reading"||L.ohr!==O){ohrStop(L,O);return true}
  L.eng="ohr";L.srLive=true;L.srNeedTap=false;lsMicUI();
  O.wd=setInterval(()=>{if(LS!==L||L.ohr!==O||L.phase!=="reading"){clearInterval(O.wd);return}const t=performance.now()-O.t0;
-  if((t>6000&&!O.chunks)||(O.sent.length>30&&t>8000)){clearInterval(O.wd);O.dead=true;OHR.slow=true;ohrStop(L);L.srLive=false;L.eng="";lsStartSR();lsMicUI();return}   // no sound reaches the ear, or it has stopped answering
+  if(O.sent.length>30&&t>8000&&ohrRevive(L,O))return;                                                                    // it has stopped answering: start it afresh
+  if((t>6000&&!O.chunks)||(O.sent.length>30&&t>8000)){clearInterval(O.wd);ohrGiveWay(L,O);return}                        // no sound reaches the ear, or it cannot be woken
   if(!O.safe&&t>5000&&O.chunks>20){O.safe=true;ohrGuard.ok()}
   if(t>9000&&O.peak<.003&&!O.quiet){O.quiet=true;toast("Ich höre nichts. Ist das Mikrofon erlaubt und nicht stumm?")}
   // the sound stopped coming (another app took the microphone, the phone was locked): one tap continues where the reader was
   if(O.chunks&&!document.hidden&&performance.now()-O.tLast>4000){clearInterval(O.wd);ohrStop(L);L.srLive=false;L.srNeedTap=true;lsMicUI()}},2000);
  return true}
+// The ear fell behind or went silent — usually because the device was busy with something else for a moment. It is started afresh and
+// keeps listening; the words read so far stay. Only when that happens again and again in one reading is the device too slow for it.
+function ohrRevive(L,O){const now=performance.now();if(O.dead||(O.revN||0)>=3)return false;O.revN=(O.revN||0)+1;O.revT=now;O.late=0;
+ const keep=O.fin.concat(O.part);try{ohrNewRec(L,O)}catch(e){return false}O.fin=keep;L.srFin=O.fin;L.srFinN=keep.length;return true}
+function ohrGiveWay(L,O){O.dead=true;OHR.slow=true;ohrStop(L);if(LS===L&&L.phase==="reading"){L.srLive=false;L.eng="";toast("Das PokeLearn-Ohr kommt auf diesem Gerät nicht nach – jetzt hört die Erkennung des Geräts zu.");lsStartSR();lsMicUI()}}
 function ohrNewRec(L,O){if(O.rec){try{O.rec.remove()}catch(e){}}O.fin=[];O.part=[];O.sent=[];O.out=[];O.outN=0;
  const rec=O.rec=new OHR.model.KaldiRecognizer(16000,JSON.stringify(ohrPhrases(OHR.lex,O.g,ohrOpts())));
  const got=()=>{const t=O.sent.shift();if(t){O.lag=performance.now()-t;
    // a device that cannot keep up (answers more than 2 s late, again and again) switches to the device's own recognizer
-   if(O.lag>2000){if(++O.late>=6&&!O.dead){O.dead=true;OHR.slow=true;ohrStop(L);if(LS===L&&L.phase==="reading"){L.srLive=false;lsStartSR();lsMicUI()}}}else O.late=0}};
+   if(O.lag>2000){if(++O.late>=6&&!O.dead&&O.rec===rec&&!ohrRevive(L,O))ohrGiveWay(L,O)}else O.late=0}};
  const show=()=>{if(LS!==L||L.ohr!==O||O.rec!==rec)return;const words=[...O.fin,...O.part];L.srFin=O.fin;L.srFinN=O.fin.length;L.srAlt=words.map(()=>OHRNOALT);L.srText=words.join(" ");
   const ta=document.getElementById("lsDict");if(ta){ta.value=L.srText;lsOnDict()}};
  const W=t=>String(t||"").split(/\s+/).filter(Boolean).map(w=>w==="[unk]"?OHRUNK:w);
