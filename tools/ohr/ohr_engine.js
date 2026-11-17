@@ -47,12 +47,21 @@ function ohrPitch(O,x){const P=O.pit||(O.pit={dec:Math.max(1,Math.round(O.fs/800
    P.f0.push(fs8/bl);P.nv=(P.nv||0)+1;if(P.f0.length>400)P.f0.shift();P.fresh=true}}}
  if(P.fresh&&P.nv>=60&&!(P.nv%30)){P.fresh=false;const s=[...P.f0].sort((a,b)=>a-b),m=s[s.length>>1];O.f0=m;return m}return 0}   // about two seconds of voiced sound before the first estimate
 const ohrAlpha=f0=>!f0||f0<=185?1:f0>=300?1.2:1+(f0-185)/115*.2;
+const OHRMIC={audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}};
+// The microphone went dead (iPhone: after the app has spoken, the phone can take the microphone away from the page; the sound that still
+// arrives is pure silence). Fetch it again and go on listening; if the phone does not allow that without a tap, show «Weiterlesen».
+async function ohrReacquire(L,O){if(O.reN>=3||O.reBusy)return;O.reBusy=true;O.reN=(O.reN||0)+1;O.nzT=performance.now();acSession();
+ try{try{await O.ctx.resume()}catch(e){}const st=await navigator.mediaDevices.getUserMedia(OHRMIC);if(LS!==L||L.ohr!==O){st.getTracks().forEach(t=>t.stop());return}
+  const old=O.stream;try{O.src.disconnect()}catch(e){}O.stream=st;O.src=O.ctx.createMediaStreamSource(st);O.src.connect(O.node);try{old.getTracks().forEach(t=>{t.onended=null;t.stop()})}catch(e){}
+  st.getAudioTracks().forEach(t=>{t.onended=()=>{if(LS===L&&L.ohr===O&&L.phase==="reading"){ohrStop(L);L.srLive=false;L.srNeedTap=true;lsMicUI()}}});O.nzT=performance.now()}
+ catch(e){if(LS===L&&L.ohr===O&&L.phase==="reading"){ohrStop(L);L.srLive=false;L.srNeedTap=true;lsMicUI()}}finally{O.reBusy=false}}
 // --- start listening (called from the tap on the microphone)
 async function ohrStart(L){const AC=window.AudioContext||window.webkitAudioContext;let ctx;try{ctx=new AC({latencyHint:"interactive"})}catch(e){try{ctx=new AC()}catch(e2){return false}}
  try{ctx.resume()}catch(e){}
  ohrGuard.arm();
  const O=L.ohr={ctx,fs:ctx.sampleRate,fin:[],part:[],mute:false,out:[],outN:0,sent:[],lag:0,late:0,dead:false,chunks:0,peak:0,lvl:0,tLvl:0,t0:performance.now()};
- try{O.stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}})}
+ acSession();
+ try{O.stream=await navigator.mediaDevices.getUserMedia(OHRMIC)}
  catch(e){ohrStop(L);return false}
  if(LS!==L||L.phase!=="reading"||L.ohr!==O){ohrStop(L,O);return true}
  try{O.stream.getAudioTracks().forEach(t=>{t.onended=()=>{if(LS===L&&L.ohr===O&&L.phase==="reading"){ohrStop(L);L.srLive=false;L.srNeedTap=true;lsMicUI()}}})}catch(e){}
@@ -73,6 +82,9 @@ async function ohrStart(L){const AC=window.AudioContext||window.webkitAudioConte
   if(O.sent.length>30&&t>8000&&ohrRevive(L,O))return;                                                                    // it has stopped answering: start it afresh
   if((t>6000&&!O.chunks)||(O.sent.length>30&&t>8000)){clearInterval(O.wd);ohrGiveWay(L,O);return}                        // no sound reaches the ear, or it cannot be woken
   if(!O.safe&&t>5000&&O.chunks>20){O.safe=true;ohrGuard.ok()}
+  {const now=performance.now(),tr=O.stream&&O.stream.getAudioTracks()[0],muted=!!(tr&&tr.muted);if(!muted)O.muT=0;else if(!O.muT)O.muT=now;     // dead microphone: the track is muted, or after the app spoke only pure silence arrives
+   if(!O.mute&&!document.hidden&&((muted&&now-O.muT>1500)||(O.sayT&&now-O.sayT<30000&&now-(O.nzT||O.t0)>3000&&now-O.sayT>3000))){ohrReacquire(L,O);return}
+   try{if(O.ctx.state!=="running"&&!document.hidden)O.ctx.resume()}catch(e){}}
   if(t>9000&&O.peak<.003&&!O.quiet){O.quiet=true;toast("Ich höre nichts. Ist das Mikrofon erlaubt und nicht stumm?")}
   // the sound stopped coming (another app took the microphone, the phone was locked): one tap continues where the reader was
   if(O.chunks&&!document.hidden&&performance.now()-O.tLast>4000){clearInterval(O.wd);ohrStop(L);L.srLive=false;L.srNeedTap=true;lsMicUI()}},2000);
@@ -84,7 +96,7 @@ function ohrRevive(L,O){const now=performance.now();if(O.dead||(O.revN||0)>=3)re
 function ohrGiveWay(L,O){O.dead=true;OHR.slow=true;ohrStop(L);if(LS===L&&L.phase==="reading"){L.srLive=false;L.eng="";toast("Das PokeLearn-Ohr kommt auf diesem Gerät nicht nach – jetzt hört die Erkennung des Geräts zu.");lsStartSR();lsMicUI()}}
 function ohrNewRec(L,O){if(O.rec){try{O.rec.remove()}catch(e){}}O.fin=[];O.part=[];O.sent=[];O.out=[];O.outN=0;
  const rec=O.rec=new OHR.model.KaldiRecognizer(16000,JSON.stringify(ohrPhrases(OHR.lex,O.g,ohrOpts())));
- const got=()=>{const t=O.sent.shift();if(t){O.lag=performance.now()-t;
+ const got=()=>{O.msgs=(O.msgs||0)+1;const t=O.sent.shift();if(t){O.lag=performance.now()-t;
    // a device that cannot keep up (answers more than 2 s late, again and again) switches to the device's own recognizer
    if(O.lag>2000){if(++O.late>=6&&!O.dead&&O.rec===rec&&!ohrRevive(L,O))ohrGiveWay(L,O)}else O.late=0}};
  const show=()=>{if(LS!==L||L.ohr!==O||O.rec!==rec)return;const words=[...O.fin,...O.part];L.srFin=O.fin;L.srFinN=O.fin.length;L.srAlt=words.map(()=>OHRNOALT);L.srText=words.join(" ");
@@ -95,7 +107,7 @@ function ohrNewRec(L,O){if(O.rec){try{O.rec.remove()}catch(e){}}O.fin=[];O.part=
  rec.on("error",m=>{console.error("ohr rec",m&&m.error)})}
 const OHRNOALT=new Set();
 function ohrFeed(L,O,x){if(LS!==L||L.ohr!==O||!O.rec||O.dead)return;
- let pk=0;for(let i=0;i<x.length;i+=4){const v=x[i]<0?-x[i]:x[i];if(v>pk)pk=v}O.chunks++;O.tLast=performance.now();if(pk>O.peak)O.peak=pk;O.lvl=Math.max(O.lvl*.7,pk);
+ let pk=0;for(let i=0;i<x.length;i+=4){const v=x[i]<0?-x[i]:x[i];if(v>pk)pk=v}if(pk>1e-5)O.nzT=performance.now();O.chunks++;O.tLast=performance.now();if(pk>O.peak)O.peak=pk;O.lvl=Math.max(O.lvl*.7,pk);
  const now=performance.now();if(now-O.tLvl>90){O.tLvl=now;document.documentElement.style.setProperty("--miclvl",Math.min(1,O.lvl*5).toFixed(2))}
  const f0=ohrPitch(O,x);if(f0){const a=ohrAlpha(f0);if(Math.abs(a-O.rs.alpha)>.03&&now-(O.tWarp||-1e9)>5000){O.tWarp=now;O.rs.setAlpha(a)}}   // adjust in clear steps only, not with every sentence melody
  O.spk=Math.max((O.spk||0)*.995,O.lvl);if(O.lvl<.22*O.spk){if(!O.quiet0)O.quiet0=now}else O.quiet0=0;
