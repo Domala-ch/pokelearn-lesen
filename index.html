@@ -3183,7 +3183,8 @@ function lsAdvance(heard){const L=LS,N=L.expN.length,ear=L.eng==="ohr";
    // the words heard after the gap prove it: one longer word (or two words) for a single missing word, more when several are missing —
    // and the last of them must stand (a first guess of the recognizer sometimes jumps ahead for a moment)
    const run=m2-b,need=run>=3?3:run===2||L.expN[L.e0+m2]&&L.expN[L.e0+m2].length<4?2:1;
-   if(nOk<need||wait(L.h0+r.mh[m2+need-1],OHRHOLD)){r.st=r.st.slice(0,b);b=-1}else{stopAt(L.e0+b,L.h0+r.m0[m2],r.st,r.mh,true,m2-b-1);continue}}
+   const atEnd=nOk>0&&L.e0+m2+nOk>=N,nd=atEnd?Math.min(need,nOk):need;     // at the very end of the text no further words can follow: what is there decides
+   if(nOk<nd||wait(L.h0+r.mh[m2+nd-1],OHRHOLD)){r.st=r.st.slice(0,b);b=-1}else{stopAt(L.e0+b,L.h0+r.m0[m2],r.st,r.mh,true,m2-b-1);continue}}
   // a stray word at the end, where the next word should be: a misread too, even if it sounds nothing like it. The ear waits for what
   // follows (the next word proves it; a noise is then simply passed over) and only stops on its own when nothing else comes.
   else if(r.tail!=null){const k=L.h0+r.tail,w=L.e0+r.i,tok=heard[k];let stray=0;for(let q=k;q>k-r.tailN&&q>=0;q--)if(!LSFILL.test(heard[q][0]||""))stray++;
