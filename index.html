@@ -3204,9 +3204,19 @@ function lsAdvance(heard){const L=LS,N=L.expN.length,ear=L.eng==="ohr";
 const lsFullVoice=()=>typeof vWordRecAny==="function"&&typeof LIVE!=="undefined";   // the separate reading page has only the device voice
 function lsPrepWord(idx){const L=LS;if(!L||!L.T||L.W[idx]==null||!lsFullVoice())return;const w=L.T[L.W[idx]].t,lang=L.text.lang||"de";L.prep=L.prep||{};if(L.prep[idx])return;
  const rec=vWordRecAny(w,lang);if(rec){L.prep[idx]={rec,p:recLoad(rec.file).catch(()=>null)};return}
- // No recording of this word: the voice on the device makes it. That is heavy work — while the ear is listening it would slow the ear
- // down until it falls behind, so it is only done once the word is really said (the ear pauses then anyway).
- if(LIVE.ok()){if(!(L.ohr&&!L.ohr.mute)){try{LIVE.warm([w],lang,.9,3)}catch(e){}}L.prep[idx]={live:true}}else L.prep[idx]={dev:true}}
+ // No recording of this word: the voice on the device makes it — at once, ahead of everything else, so it is ready by the third attempt.
+ // (Normally it is ready long before: lsWarmPlan makes these words ahead of the reader.)
+ if(LIVE.ok()){const k=w.toLowerCase();if(!(L.warmed&&L.warmed.has(k))){(L.warmed||(L.warmed=new Set())).add(k);try{LIVE.warm([w],lang,.9,3)}catch(e){}}L.prep[idx]={live:true}}else L.prep[idx]={dev:true}}
+// Words without a recording are made by the voice on the device BEFORE they are needed: from the moment the text is shown, one word at a
+// time, always the next ones ahead of the reader. One at a time and only while the ear keeps up — making a word is heavy work for a
+// phone, and the ear must not fall behind because of it.
+function lsWarmPlan(L){try{if(!L||L!==LS||L._wT||!lsFullVoice()||!STANDALONE||!LIVE.ok())return;const lang=L.text.lang||"de";L.warmed=L.warmed||new Set();
+  const todo=()=>{let first=-1;for(let j=0;j<L.W.length;j++){const w=L.T[L.W[j]].t,k=w.toLowerCase();if(w.length<2||L.warmed.has(k)||(VIDX.words&&vWordRecAny(w,lang)))continue;if(j>=(L.pos||0))return j;if(first<0)first=j}return first};
+  if(todo()<0)return;LIVE.preload();
+  L._wT=setInterval(()=>{if(LS!==L||L.phase==="quiz"||L.phase==="result"||!LIVE.ok()){clearInterval(L._wT);L._wT=0;return}
+   const O=L.ohr;if(O&&!O.mute&&(O.lag>500||O.sent.length>2||performance.now()-(O.revT||-1e9)<8000))return;      // the ear is busy: wait
+   if(!LIVE.engine())return;                                                                                      // the voice itself is still loading
+   const j=todo();if(j<0){clearInterval(L._wT);L._wT=0;return}const w=L.T[L.W[j]].t;L.warmed.add(w.toLowerCase());try{LIVE.warm([w],lang,.9,j<(L.pos||0)+12?2:1)}catch(e){}},L.phase==="reading"?1200:700)}catch(e){}}
 function lsVoiceWord(idx){const L=LS,w=L.T[L.W[idx]].t,lang=L.text.lang||"de";if(!lsFullVoice())return speak(w,lang,.8);lsPrepWord(idx);const pr=L.prep[idx];acUnlock();
  if(pr.rec)return recPlay(pr.rec.file,pr.rec.seg,1,.1).then(r=>r==="recerror"?speakDev(w,lang,.85):r);
  if(pr.live&&LIVE.engine())return liveSpeak(w,lang,.9).then(r=>r==="livefail"?speakDev(w,lang,.85):r);   // on-device voice only once it is loaded (no waiting)
@@ -3263,7 +3273,7 @@ function lsStart(t){lsStop();const T=toks(t.text);let s=0;const sIdx=[];T.forEac
  const W=[];T.forEach((tk,i)=>{if(!isPunct(tk.t))W.push(i)});
  LS={phase:"ready",text:t,T,sIdx,ns:Math.max(1,ns),si:0,t0:0,ms:0,bad:new Set(),gen:0,qi:0,qa:[],parent:!!S.lsParent,order:t.q.map(q=>shuffle(q[1].map((a,k)=>({a,ok:k===0})))),
   W,expN:W.map(i=>lsNorm(T[i].t)),wst:[],pos:0,mode:null};
- LS.expSet=new Set(LS.expN);LSLANG=t.lang||"de";_frk.clear();_sd.clear();
+ LS.expSet=new Set(LS.expN);LSLANG=t.lang||"de";_frk.clear();_sd.clear();{const L0=LS;setTimeout(()=>lsWarmPlan(L0),400)}
  // names and other capitalised words inside a sentence: the recognizer often spells them differently
  // (German: every noun is capitalised, so only words that look like names — no article or adjective right before them)
  const DETR=/^(der|die|das|den|dem|des|ein|eine|einen|einem|einer|eines|kein\w*|mein\w*|dein\w*|sein\w*|ihr\w*|unser\w*|euer\w*|eure\w*|dies\w*|jed\w*|welch\w*|all\w*|viel\w*|wenig\w*|manch\w*|zum|zur|im|am|beim|vom|ins|ans|aufs|\w+(e|en|er|es|em))$/i;
