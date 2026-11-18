@@ -1246,8 +1246,8 @@ function vocabSheet(t,k){const rows=vocabRows(t);if(!rows.length)return;const ol
   <div class="row" style="gap:6px"><button class="btn small ${hide===0?"teal":""}" data-vs="h0">Beides zeigen</button>${lang!=="de"?`<button class="btn small ${hide===2?"teal":""}" data-vs="h2">Deutsch verdecken</button><button class="btn small ${hide===1?"teal":""}" data-vs="h1">${esc(LN)} verdecken</button>`:`<button class="btn small ${hide===2?"teal":""}" data-vs="h2">Antwort verdecken</button>`}</div>
   <div style="overflow:auto;min-height:0"><table class="vtab"><thead><tr><th>${lang==="de"?"Frage / Wort":esc(LN)}</th><th>${lang==="de"?"Antwort":"Deutsch"}</th><th></th></tr></thead><tbody>${rows.map((r,i)=>`<tr data-row="${i}"><td class="${hide===1?"cov":""}">${esc(r.a)}</td><td class="${hide===2?"cov":""}">${esc(r.b)}</td><td>${lang!=="de"||r.type!=="rule"?`<button class="qsay" data-vs="say" data-row="${i}" aria-label="Vorlesen">🔊</button>`:""}</td></tr>`).join("")}</tbody></table></div>
   <p class="muted" style="margin:0;font-size:13px">Tipp: Erst verdecken und selbst sagen, dann antippen und prüfen – so bleibt es besser hängen als nur lesen.</p></div>`};
- draw();document.body.appendChild(el);
- el.addEventListener("click",e=>{const b=e.target.closest("[data-vs]");if(b){const a=b.dataset.vs;if(a==="close"){el.remove();return}if(a==="h0"){hide=0;draw();return}if(a==="h1"){hide=1;draw();return}if(a==="h2"){hide=2;draw();return}if(a==="say"){const r=rows[+b.dataset.row];acUnlock();try{speechSynthesis.cancel()}catch(x){}speak(r.a,r.lang,.85);return}}
+ draw();document.body.appendChild(el);wordsWarm(rows.filter(r=>r.lang!=="de"||r.type!=="rule").map(r=>r.a),lang);
+ el.addEventListener("click",e=>{const b=e.target.closest("[data-vs]");if(b){const a=b.dataset.vs;if(a==="close"){el.remove();return}if(a==="h0"){hide=0;draw();return}if(a==="h1"){hide=1;draw();return}if(a==="h2"){hide=2;draw();return}if(a==="say"){const r=rows[+b.dataset.row];sayWord(r.a,r.lang);return}}
   const td=e.target.closest("td.cov");if(td){td.classList.remove("cov");return}if(e.target===el)el.remove()})}
 function dueCount(ids){const n=Date.now();return ids.filter(id=>{const p=S.progress[id];return p&&p.due<=n&&p.box<5}).length}
 function newCount(ids){return ids.filter(id=>!S.progress[id]).length}
@@ -1276,16 +1276,16 @@ function questionFor0(id){
     return{id,topic:t.name,rule:t.rule,kind:"mc",q:it.q.replace("___",'<span class="gap"></span>'),a:it.a,opts:shuffle([...it.opts])}}
   if(subj==="fr"||subj==="en"){const pool=subj==="fr"?FR[key]:EN[key];const [fw,de]=pool[+idx].split("|");const lang=subj==="fr"?"Französisch":"Englisch";const p=prog(id);
     // box 0-1: recognise (MC); box 2+: produce (type)
-    const lv=R&&R.level;if((lv==="schwer"||p.box>=2&&lv!=="leicht")&&!fw.includes("…")){return{id,topic:(subj==="fr"?FRT:ENT)[key],rule:`${de} = ${fw}`,kind:"type",q:`Auf ${lang}: <b>${de}</b>`,a:[fw],hint:subj==="fr"?"Mit Artikel (le/la/l'), wenn es ein Nomen ist.":"Verben mit «to»."}}
+    const lv=R&&R.level;if((lv==="schwer"||p.box>=2&&lv!=="leicht")&&!fw.includes("…")){return{id,topic:(subj==="fr"?FRT:ENT)[key],rule:`${de} = ${fw}`,kind:"type",q:`Auf ${lang}: <b>${de}</b>`,a:[fw],sayAfter:{t:fw,lang:subj},hint:subj==="fr"?"Mit Artikel (le/la/l'), wenn es ein Nomen ist.":"Verben mit «to»."}}
     const dir=Math.random()<.5;const others=shuffle(pool.filter((_,i)=>i!==+idx)).slice(0,3).map(s=>s.split("|")[dir?1:0]);
-    return{id,topic:(subj==="fr"?FRT:ENT)[key],rule:`${fw} = ${de}`,kind:"mc",q:dir?`Was heisst <b>${fw}</b>?`:`Auf ${lang}: <b>${de}</b>`,a:[dir?de:fw],opts:shuffle([dir?de:fw,...others])}}
+    return{id,topic:(subj==="fr"?FRT:ENT)[key],rule:`${fw} = ${de}`,kind:"mc",[dir?"say":"sayAfter"]:{t:fw,lang:subj},q:dir?`Was heisst <b>${fw}</b>?`:`Auf ${lang}: <b>${de}</b>`,a:[dir?de:fw],opts:shuffle([dir?de:fw,...others])}}
   if(subj==="ma"){const t=MA[key];const sk="ma:"+key,seen=qSeenSet(sk);let g=t.gen();for(let k=0;k<12&&seen.has(qhash(g.q));k++)g=t.gen();qMarkSeen(sk,[qhash(g.q)]);return{id,topic:t.name,rule:g.why||t.rule,kind:g.opts?"mc":"type",q:g.q,a:g.a,opts:g.opts?shuffle([...g.opts]):null,hint:g.hint||"Nur die Zahl eingeben.",inputMode:"decimal"}}
-  if(subj==="heft"){const d=S.deck.find(x=>x.id===key);if(!d)return null;const p=prog(id);const same=S.deck.filter(x=>x.subj===d.subj&&x.id!==d.id);
+  if(subj==="heft"){const d=S.deck.find(x=>x.id===key);if(!d)return null;const p=prog(id);const same=S.deck.filter(x=>x.subj===d.subj&&x.id!==d.id),fx=(d.subj==="fr"||d.subj==="en")&&d.type==="vocab"?{t:d.front,lang:d.subj}:null;
     if(d.type==="spell")return{id,topic:(d.src==="diktat"?"Diktat-Fehlerwort · ":"Mein Heft · ")+SUBJ[d.subj].name,rule:d.back?`Richtig: ${d.back}`:"Merkwort aus deinem Heft.",kind:"type",q:`Schreibe richtig: «${esc(d.front)}»`+(d.ctx?`<br><span class="muted" style="font-size:17px;font-weight:500">${esc(d.ctx)}</span>`:""),a:[d.back||d.front]};
     if(d.type==="rule")return{id,topic:(unitOf(d)?unitOf(d)+" · ":"Mein Heft · ")+SUBJ[d.subj].name,rule:d.back,kind:"mc",q:d.front,a:[d.back],opts:shuffle([d.back,...shuffle(same.filter(x=>x.type==="rule")).slice(0,3).map(x=>x.back)].filter((v,i,a)=>a.indexOf(v)===i))};
-    if(p.box>=2||same.length<3)return{id,topic:(unitOf(d)?unitOf(d)+" · ":"Mein Heft · ")+SUBJ[d.subj].name,rule:`${d.front} = ${d.back}`,kind:"type",q:`Übersetze: <b>${d.front}</b>`,a:[d.back]};
+    if(p.box>=2||same.length<3)return{id,topic:(unitOf(d)?unitOf(d)+" · ":"Mein Heft · ")+SUBJ[d.subj].name,rule:`${d.front} = ${d.back}`,kind:"type",say:fx,q:`Übersetze: <b>${d.front}</b>`,a:[d.back]};
     const dir=Math.random()<.5;const others=shuffle(same).slice(0,3).map(x=>dir?x.back:x.front);
-    return{id,topic:(unitOf(d)?unitOf(d)+" · ":"Mein Heft · ")+SUBJ[d.subj].name,rule:`${d.front} = ${d.back}`,kind:"mc",q:dir?`Was heisst <b>${d.front}</b>?`:`Übersetze: <b>${d.back}</b>`,a:[dir?d.back:d.front],opts:shuffle([dir?d.back:d.front,...others])}}
+    return{id,topic:(unitOf(d)?unitOf(d)+" · ":"Mein Heft · ")+SUBJ[d.subj].name,rule:`${d.front} = ${d.back}`,kind:"mc",[dir?"say":"sayAfter"]:fx,q:dir?`Was heisst <b>${d.front}</b>?`:`Übersetze: <b>${d.back}</b>`,a:[dir?d.back:d.front],opts:shuffle([dir?d.back:d.front,...others])}}
   return null;
 }
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
@@ -1454,6 +1454,9 @@ function startRound(subj,topic,level){level=RLV[level]?level:"mittel";
   R={subj,topic,level,seq,i:0,correct:0,first:0,combo:0,best:0,coins:0,log:[]};
   show("play");nextQ();
 }
+// after answering: listen to the foreign word in the PokeLearn voice
+function fbSay(q){const w=q&&(q.sayAfter||q.say);if(!w||!w.t)return;const fb=document.getElementById("fbText");if(!fb||fb.querySelector("[data-fbsay]"))return;
+ fb.insertAdjacentHTML("beforeend",` <button class="qsay" data-fbsay aria-label="Anhören: ${esc(w.t)}">🔊 ${esc(vSpoken(w.t))}</button>`);fb.querySelector("[data-fbsay]").onclick=()=>sayWord(w.t,w.lang)}
 function qSpeak(q){try{const tx=q.q.replace(/<span class="gap"><\/span>|_{3,}/g," Lücke ").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim()+(q.kind==="mc"&&q.opts?". "+q.opts.map(o=>String(o).replace(/<[^>]+>/g,"")).join(", oder "):"");
  speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(tx);const v=dkVoice("de");if(v)u.voice=v;u.lang=v?v.lang:"de-DE";u.rate=.9;speechSynthesis.speak(u)}catch(e){}}
 function nextQ(){
@@ -1462,8 +1465,10 @@ function nextQ(){
   const q=questionFor(R.seq[R.i]);if(!q){R.i++;return nextQ()}R.q=q;R.tries=0;
   document.getElementById("qbar").style.width=(R.i/R.seq.length*100)+"%";
   document.getElementById("qTopic").textContent=q.topic+(q.note?" · "+q.note:"");
-  document.getElementById("qPrompt").innerHTML=q.q+(gradeOf()<=3&&ttsOK()?`<button class="qsay" id="qSay" aria-label="Vorlesen">🔊</button>`:"");
+  document.getElementById("qPrompt").innerHTML=q.q+(q.say&&q.say.t?`<button class="qsay" id="qSayW" aria-label="Anhören">🔊</button>`:gradeOf()<=3&&ttsOK()?`<button class="qsay" id="qSay" aria-label="Vorlesen">🔊</button>`:"");
   const qs=document.getElementById("qSay");if(qs){qs.onclick=()=>qSpeak(q);if(gradeOf()<=2)setTimeout(()=>qSpeak(q),250)}
+  const qw=document.getElementById("qSayW");if(qw)qw.onclick=()=>sayWord(q.say.t,q.say.lang);
+  {const ws={};R.seq.slice(R.i,R.i+5).forEach(id=>{const x=qWordOf(id);if(x)(ws[x[1]]=ws[x[1]]||[]).push(x[0])});Object.entries(ws).forEach(([l,w])=>wordsWarm(w,l))}
   const body=document.getElementById("qBody");body.innerHTML="";
   const fb=document.getElementById("fb");fb.className="feedback";document.getElementById("explainOut").textContent="";document.getElementById("explainBtn").hidden=true;
   document.getElementById("next").hidden=true;
@@ -1484,14 +1489,14 @@ function answer(val,btn){
     if(first){p.box=Math.min(5,p.box+1);subAdj(q,-1)}p.c++;p.due=Date.now()+INT[p.box]*864e5;
     const d=S.history[today()]=S.history[today()]||{c:0,w:0};d.c++;
     fb.className="feedback show good";document.getElementById("fbTitle").textContent=near?"Fast richtig":first?pick(["Richtig!","Super!","Genau!","Stark!"]):"Jetzt stimmt's";
-    document.getElementById("fbText").innerHTML=xfb+(near?`Richtig wäre: <b>${q.a[0]}</b>. `:"")+(q.rule||"")+` <span class="muted">${gainTxt(gain)}</span>`;
+    document.getElementById("fbText").innerHTML=xfb+(near?`Richtig wäre: <b>${q.a[0]}</b>. `:"")+(q.rule||"")+` <span class="muted">${gainTxt(gain)}</span>`;fbSay(q);
     if(btn)btn.classList.add("good");document.querySelectorAll(".opt").forEach(b=>{if(b!==btn)b.classList.add("dim")});
     R.log.push({id:q.id,ok:true,first,q:q.q,a:q.a[0]});document.getElementById("next").hidden=false;checkDaily();save();
   }else{R.combo=0;p.w++;S.wrongTotal++;const d=S.history[today()]=S.history[today()]||{c:0,w:0};d.w++;
     if(btn){btn.classList.add("bad");btn.disabled=true}
     {p.box=Math.max(0,p.box-1);p.due=Date.now();
       fb.className="feedback show bad";document.getElementById("fbTitle").textContent=m.hint?"Fast – aber nicht ganz":"Noch nicht";
-      document.getElementById("fbText").innerHTML=xfb+(m.hint?esc(m.hint)+" ":"")+(q.check?(q.a[0]&&!/^(alle Paare|ein Programm)/.test(q.a[0])?`Lösung: <b>${String(q.a[0]).replace(/\.$/,"")}</b>. `:""):`Richtig: <b>${q.a[0]}</b>. `)+(q.rule||"");if(q._reveal)try{q._reveal()}catch(e){}
+      document.getElementById("fbText").innerHTML=xfb+(m.hint?esc(m.hint)+" ":"")+(q.check?(q.a[0]&&!/^(alle Paare|ein Programm)/.test(q.a[0])?`Lösung: <b>${String(q.a[0]).replace(/\.$/,"")}</b>. `:""):`Richtig: <b>${q.a[0]}</b>. `)+(q.rule||"");fbSay(q);if(q._reveal)try{q._reveal()}catch(e){}
       document.querySelectorAll(".opt").forEach(b=>{if(normX(b.textContent)===normX(q.a[0]))b.classList.add("good")});
       R.log.push({id:q.id,ok:false,yours:typeof val==="string"?val:"",q:q.q,a:q.a[0]});subAdj(q,1);document.getElementById("next").hidden=false;
       if(sample&&(!q.check||["tapword","order","cat","numline","clock","shade","grid","map"].includes(q.kind))){const eb=document.getElementById("explainBtn");eb.hidden=false;eb.onclick=()=>explain(q,typeof val==="string"?val:"")}
@@ -2563,6 +2568,22 @@ function vWordsList(){const out=[],have=new Set(),add=(lang,t)=>{const sp=vSpoke
  return out.slice(0,2500)}
 const lsWordsOf=t=>toks(t.text).filter(x=>!isPunct(x.t)).map(x=>x.t);
 function vWordRec(text,lang){if(!STANDALONE||!VIDX.words)return null;const r=VIDX.words[vWKey(lang,text)];return r?{file:VREPO+r.file,seg:r.seg}:null}
+// A word to listen to (word lists, game rounds, paper test): the recorded PokeLearn voice of the dictations; a word that is not
+// recorded yet is said by the PokeLearn voice on the device (prepared ahead by wordsWarm) — the device's own voice only as a last resort.
+function sayWord(w,lang){const t=vSpoken(w);if(!t)return Promise.resolve("ok");acUnlock();try{speechSynthesis.cancel()}catch(e){}
+ const wr=vWordRecAny(t,lang)||vWordRecAny(String(w),lang);if(wr)return recPlay(wr.file,wr.seg,1,.1).then(r=>r==="recerror"?sayLive(t,lang):r);
+ return sayLive(t,lang)}
+function sayLive(t,lang){if(!LIVE.ok())return speakDev(t,lang,.85);if(!LIVE.engine())toast("Die PokeLearn-Stimme wird geladen …");return liveSpeak(t,lang,.9).then(r=>r==="livefail"?speakDev(t,lang,.85):r)}
+// words that are not recorded yet: the PokeLearn voice prepares them in the background, one after the other (never while the reading ear listens),
+// and they go on the list for the next recording round so they are soon recorded for good
+const WW={q:[],t:0,done:new Set()};
+function wordsWarm(words,lang){try{if(!STANDALONE)return;const add=[];for(const w of words){const t=vSpoken(w);if(!t||t.length>140)continue;const k=lang+"|"+t;if(WW.done.has(k)||vWordRecAny(t,lang))continue;WW.done.add(k);add.push([t,lang])}
+ if(!add.length)return;vjSchedule();if(!LIVE.ok())return;WW.q=add.concat(WW.q);LIVE.preload();
+ if(!WW.t)WW.t=setInterval(()=>{if(!WW.q.length||!LIVE.ok()){clearInterval(WW.t);WW.t=0;return}if(!LIVE.engine())return;
+  if(LS&&LS.phase==="reading"&&LS.ohr&&!LS.ohr.mute)return;const[t,l]=WW.q.shift();try{LIVE.warm([t],l,.9,2)}catch(e){}},700)}catch(e){}}
+// the word of a learning item that can be listened to (foreign word of a vocabulary item)
+function qWordOf(id){const m=String(id).match(/^(fr|en):([^:]+):(\d+)$/);if(m){const L=(m[1]==="fr"?FR:EN)[m[2]],it=L&&L[+m[3]];return it?[String(it).split("|")[0],m[1]]:null}
+ if(String(id).startsWith("heft:")){const d=(S.deck||[]).find(x=>"heft:"+x.id===id);if(d&&d.type==="vocab"&&(d.subj==="fr"||d.subj==="en")&&d.front)return[d.front,d.subj]}return null}
 function vWordRecAny(w,lang){const t=String(w),lo=t.charAt(0).toLowerCase()+t.slice(1),up=t.charAt(0).toUpperCase()+t.slice(1);return vWordRec(t,lang)||vWordRec(lo,lang)||vWordRec(up,lang)}
 function vStatus(){const langs=Object.keys(LANGN);const L=vJobsList();const ready=L.filter(j=>VIDX.texts[`${j.lang}-${j.v}-${j.id}-${j.h}`]);
  return{total:L.length,ready:ready.length,per:langs.map(l=>[l,ready.filter(j=>j.lang===l).length,L.filter(j=>j.lang===l).length])}}
@@ -3867,7 +3888,7 @@ function ptItem(d,subj,m){const L={pid:d.pid,did:d.did,front:d.front,back:d.back
  return{...L,prompt:d.front,target:d.front,lang:subj,show:m==="dict"?null:subj}}
 function ptMake(items,subj,dir,mixOrder){const list=mixOrder===false?items.slice():shuffle(items.slice());
  const sides=dir==="mix"?shuffle(list.map((_,i)=>i%2?"f2de":"de2f")):null;return list.map((d,i)=>ptItem(d,subj,sides?sides[i]:dir))}
-function ptStart(items,subj,dir,title,o){o=o||{};PT={phase:o.print?"photo":"show",printed:!!o.print,key:!!o.key,list:ptMake(items,subj,dir,o.shuffle),subj,dir,title,i:0,at:Date.now()};ptSave();
+function ptStart(items,subj,dir,title,o){o=o||{};if(dir==="dict")wordsWarm(items.map(x=>x.front),subj);PT={phase:o.print?"photo":"show",printed:!!o.print,key:!!o.key,list:ptMake(items,subj,dir,o.shuffle),subj,dir,title,i:0,at:Date.now()};ptSave();
  if(o.print)ptPdf(true);ptRender()}
 // the worksheet: exactly the words, order and directions of this test — so the photo of it can be checked number by number
 function ptPdf(open){const st=document.getElementById("ptSt")||document.getElementById("ptPdfSt");
@@ -3879,7 +3900,7 @@ function ptOpen(){PT=S.ptCur&&S.ptCur.list&&S.ptCur.list.length&&S.ptCur.phase!=
 function ptSave(){S.ptCur=PT&&PT.phase!=="setup"?JSON.parse(JSON.stringify({...PT,res:PT.phase==="result"?PT.res:null})):null;save()}
 function ptTargetLang(t){return t.dir==="de2f"?t.subj:t.dir==="dict"||t.dir==="copy"?t.subj:"de"}
 const ptLang=(t,PT)=>t.lang||ptTargetLang(PT);
-function ptSay(t){try{acUnlock();try{speechSynthesis.cancel()}catch(x){}speak(t.front,PT.subj,.8)}catch(e){}}
+function ptSay(t){try{sayWord(t.front,PT.subj)}catch(e){}}
 function ptRender(){const v=document.getElementById("ptView");if(!v)return;if(!PT)PT={phase:"setup"};
  const back=`<button class="btn small ghost" data-ptback style="justify-self:start">← ${PT.phase==="setup"?"Zurück zum Heft":"Test abbrechen"}</button>`;
  if(PT.phase==="setup"){const U=ptUnits(),keys=Object.keys(U).filter(k=>U[k].items.length).sort((a,b)=>(U[b].heft-U[a].heft)||U[a].name.localeCompare(U[b].name,"de",{numeric:true}));

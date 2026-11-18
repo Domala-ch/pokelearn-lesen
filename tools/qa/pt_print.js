@@ -7,7 +7,7 @@ await ctx.addInitScript(()=>{if(localStorage.getItem("lernquest.v1"))return;loca
   ...["Gefährlichkeit","Straße","Ärger","wahrscheinlich"].map((w,i)=>({id:"d"+i,subj:"de",type:"spell",front:w,back:"",unit:"Merkwörter 5",at:1}))]}))});
 const p=await ctx.newPage();p.on("pageerror",e=>console.log("PAGEERR",e.message));await p.route("**/ohr/**",r=>r.abort());await p.route("**/fonts.googleapis.com/**",r=>r.abort());
 await p.goto("http://localhost:8770/index.html");await p.waitForTimeout(1300);
-await p.evaluate(()=>{const e=document.getElementById("standSheet");if(e)e.remove();window.__pdf=[];window.__said=[];speak=(t,l)=>{window.__said.push(l+":"+t);return Promise.resolve()};
+await p.evaluate(()=>{const e=document.getElementById("standSheet");if(e)e.remove();window.__pdf=[];window.__said=[];sayWord=(t,l)=>{window.__said.push(l+":"+t);return Promise.resolve()};
  wordSheetOut=(blob,name)=>{blob.arrayBuffer().then(a=>{const u=new Uint8Array(a);let s="";for(let i=0;i<u.length;i+=8192)s+=String.fromCharCode.apply(null,u.subarray(i,i+8192));window.__pdf.push({name,b64:btoa(s)})})}});
 const pdf=async()=>{await p.waitForTimeout(300);const x=await p.evaluate(()=>window.__pdf.pop());if(!x)return"";const f="qa/wpdf/"+x.name;fs.writeFileSync(f,Buffer.from(x.b64,"base64"));return f};
 // Wörterliste: no print button any more
