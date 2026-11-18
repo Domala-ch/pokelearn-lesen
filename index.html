@@ -220,6 +220,7 @@ main{flex:1;overflow-y:auto;padding-block:18px 24px;padding-left:max(16px,env(sa
 .ptprev{display:flex;gap:8px;flex-wrap:wrap}.ptprev img{width:96px;height:128px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
 .gapword{display:inline-block;margin-top:8px;font-family:ui-monospace,Menlo,monospace;font-size:26px;letter-spacing:.18em;color:var(--teal)}
 .gradepill{font:inherit;font-weight:800;font-size:14px;padding:6px 12px;border-radius:999px;border:1.5px solid var(--teal);background:var(--surface);color:var(--teal);cursor:pointer;white-space:nowrap}
+.wsmodes{display:flex;flex-wrap:wrap;gap:6px}
 .vtab{width:100%;border-collapse:collapse;font-size:16px}.vtab th{text-align:left;font-size:12px;color:var(--muted);padding:4px 6px;border-bottom:1px solid var(--line)}.vtab td{padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}.vtab td:first-child{font-weight:700}.vtab td.cov{color:transparent;background:var(--surface-2);border-radius:6px;cursor:pointer;user-select:none}.vtab td{position:relative}.vtab td.cov::after{content:"antippen";color:var(--muted);font-size:12px;font-weight:600;position:absolute;left:8px;top:9px}.vtab .qsay{font-size:18px;background:none;border:0;padding:2px 4px}
 .lvtile.focus{border:2px solid var(--gold);box-shadow:0 0 0 3px rgba(240,180,41,.18)}.focusbadge{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.02em;background:var(--gold);color:var(--gold-ink);border-radius:999px;padding:2px 8px;vertical-align:middle;margin-right:2px}
 .gsheet{position:fixed;inset:0;z-index:80;background:rgba(10,20,40,.45);display:grid;place-items:end center;padding:12px}
@@ -1173,14 +1174,101 @@ function heftTopicsOf(sj){const g={};(S.deck||[]).forEach(d=>{if(d.subj!==sj)ret
 // word list of a topic (foreign word | German), for looking at and learning
 function vocabRows(t){const rows=[];(t.ids||[]).forEach(id=>{const m=id.match(/^(fr|en):([^:]+):(\d+)$/);if(m){const L=(m[1]==="fr"?FR:EN)[m[2]];const it=L&&L[+m[3]];if(it){const[a,b]=it.split("|");rows.push({a,b,lang:m[1],id})}return}
  if(id.startsWith("heft:")){const d=(S.deck||[]).find(x=>"heft:"+x.id===id);if(d&&d.front)rows.push({a:d.front,b:d.back||"",lang:d.subj==="fr"||d.subj==="en"?d.subj:"de",id,type:d.type})}});return rows}
-function vocabSheet(t,k){const rows=vocabRows(t);if(!rows.length)return;const old=document.getElementById("vocabSheet");if(old)old.remove();const el=document.createElement("div");el.id="vocabSheet";el.className="gsheet";let hide=0;const lang=rows[0].lang,LN=lang==="de"?"Deutsch":LANGN[lang];
- const draw=()=>{el.innerHTML=`<div class="card gsheetin" role="dialog" aria-label="Wörterliste" style="max-height:92vh;display:grid;grid-template-rows:auto auto 1fr;gap:10px"><div class="row" style="justify-content:space-between;align-items:center"><div><p class="eyebrow" style="margin:0">Wörterliste · ${rows.length} Einträge</p><h2 style="font-size:20px;margin:0">${esc(t.name)}</h2></div><button class="btn small ghost" data-vs="close" aria-label="Schliessen">✕</button></div>
-  <div class="row" style="gap:6px"><button class="btn small ${hide===0?"teal":""}" data-vs="h0">Beides zeigen</button>${lang!=="de"?`<button class="btn small ${hide===2?"teal":""}" data-vs="h2">Deutsch verdecken</button><button class="btn small ${hide===1?"teal":""}" data-vs="h1">${esc(LN)} verdecken</button>`:`<button class="btn small ${hide===2?"teal":""}" data-vs="h2">Antwort verdecken</button>`}</div>
+// <wpdf>
+// ---- Wörterliste als Arbeitsblatt (PDF, A4) zum Ausdrucken: ein Wort wird gezeigt, daneben eine Linie für das andere Wort.
+// The PDF is written by hand (no library, works offline): Helvetica with WinAnsi encoding covers German, French and English
+// (äöüß, éèêëàâçîïôûùœ, ’ « » …). Widths are measured with Arial on a canvas — Arial has the same widths as Helvetica.
+const PDFWA={"€":128,"‚":130,"„":132,"…":133,"‹":139,"Œ":140,"‘":145,"’":146,"“":147,"”":148,"•":149,"–":150,"—":151,"›":155,"œ":156,"Ÿ":159};
+function pdfStr(s){s=String(s).normalize("NFC").replace(/[→⇒]/g,"-").replace(/ /g," ");let o="(";for(const ch of s){let c=PDFWA[ch]||ch.charCodeAt(0);if(c>255||(c>=127&&c<160&&!PDFWA[ch]))c=63;
+  if(c===40||c===41||c===92)o+="\\"+ch;else if(c<32||c>126)o+="\\"+c.toString(8).padStart(3,"0");else o+=ch}return o+")"}
+const _pdfCv=document.createElement("canvas").getContext("2d");
+function pdfW(s,size,bold){_pdfCv.font=(bold?"bold ":"")+"100px Arial, Helvetica, 'Liberation Sans', sans-serif";return _pdfCv.measureText(String(s)).width/100*size}
+function pdfWrap(s,size,bold,w){const words=String(s).split(/\s+/).filter(Boolean),lines=[];let cur="";
+ for(const x of words){const t=cur?cur+" "+x:x;if(pdfW(t,size,bold)<=w||!cur)cur=t;else{lines.push(cur);cur=x}}if(cur)lines.push(cur);
+ return lines.flatMap(l=>{if(pdfW(l,size,bold)<=w)return[l];const out=[];let c="";for(const ch of l){if(pdfW(c+ch,size,bold)>w&&c){out.push(c);c=ch}else c+=ch}if(c)out.push(c);return out})}
+// pages: arrays of drawing ops → PDF bytes (A4 595×842 pt, origin bottom left)
+function pdfBuild(pages,title){const objs=[];const add=s=>{objs.push(s);return objs.length};
+ add("<< /Type /Catalog /Pages 2 0 R >>");add("PAGES");add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+ const kids=[];for(const ops of pages){const c=ops.join("\n");const ci=add(`<< /Length ${c.length} >>\nstream\n${c}\nendstream`);kids.push(add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${ci} 0 R >>`))}
+ objs[1]=`<< /Type /Pages /Kids [${kids.map(k=>k+" 0 R").join(" ")}] /Count ${kids.length} >>`;const info=add(`<< /Title ${pdfStr(title)} /Producer (PokeLearn) >>`);
+ let out="%PDF-1.4\n%\xe2\xe3\xcf\xd3\n";const off=[];objs.forEach((o,i)=>{off.push(out.length);out+=`${i+1} 0 obj\n${o}\nendobj\n`});
+ const xr=out.length;out+=`xref\n0 ${objs.length+1}\n0000000000 65535 f \n`+off.map(o=>String(o).padStart(10,"0")+" 00000 n \n").join("")+`trailer\n<< /Size ${objs.length+1} /Root 1 0 R /Info ${info} 0 R >>\nstartxref\n${xr}\n%%EOF`;
+ const u=new Uint8Array(out.length);for(let i=0;i<out.length;i++)u[i]=out.charCodeAt(i)&255;return new Blob([u],{type:"application/pdf"})}
+// mode: "a" show the first word (foreign / question), "b" show the second (German / answer), "mix" either, "dict" only lines (words are read aloud)
+function wordSheetPdf(t,rows,opt){const lang=rows[0].lang,LN=lang==="de"?"":LANGN[lang],de=lang==="de";
+ const copy=de&&rows.some(r=>!r.b),nameA=de?"Wort":LN,nameB=copy?"Abschreiben":de?"Antwort":"Deutsch";
+ let R=rows.map((r,i)=>({...r,n:i+1}));if(opt.shuffle)R=shuffle(R).map((r,i)=>({...r,n:i+1}));
+ const sides=R.map((_,i)=>opt.mode==="mix"?(i%2?"a":"b"):opt.mode);if(opt.mode==="mix"){const s=shuffle(sides.slice());s.forEach((x,i)=>sides[i]=x)}
+ const ML=48,MR=48,W=595-ML-MR,TOP=842-48,BOT=56,colN=26,colP=Math.round((W-colN)*.46),colW=W-colN-colP;
+ const instr=opt.mode==="dict"?"Hör gut zu und schreibe jedes Wort auf die Linie."
+  :opt.mode==="mix"?(de?"Schreibe zu jedem Wort das passende andere Wort.":`Schreibe die Übersetzung: zu deutschen Wörtern das ${LN.toLowerCase()}e, zu ${LN.toLowerCase()}en das deutsche Wort.`)
+  :opt.mode==="a"?(copy?"Schreibe jedes Wort sorgfältig ab – Buchstabe für Buchstabe.":de?"Schreibe die Antwort auf die Linie.":`Schreibe zu jedem ${LN.toLowerCase()}en Wort das deutsche Wort.`)
+  :(de?"Schreibe das passende Wort auf die Linie.":`Schreibe zu jedem deutschen Wort das ${LN.toLowerCase()}e Wort${lang==="fr"?" – mit Artikel":""}.`);
+ const pages=[];let ops=null,y=0;
+ const txt=(x,yy,s,size,bold,gray)=>{ops.push(`${gray!=null?gray+" g ":"0 g "}BT /F${bold?2:1} ${size} Tf ${x.toFixed(1)} ${yy.toFixed(1)} Td ${pdfStr(s)} Tj ET`)};
+ const line=(x1,y1,x2,y2,gray,w)=>ops.push(`${gray} G ${w} w ${x1.toFixed(1)} ${y1.toFixed(1)} m ${x2.toFixed(1)} ${y2.toFixed(1)} l S`);
+ const box=(x,yy,w,h,gray)=>ops.push(`${gray} g ${x.toFixed(1)} ${yy.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)} re f`);
+ const fit=(s,size,bold,w,min)=>{let z=size;while(z>min&&pdfW(s,z,bold)>w)z-=.5;return z};
+ const head=(title,sub,first)=>{ops=[];pages.push(ops);y=TOP;
+  if(first){const z=fit(title,19,true,W,12);txt(ML,y-z,title,z,true);y-=z+8;for(const l of pdfWrap(sub,10.5,false,W)){txt(ML,y-10.5,l,10.5,false,.35);y-=14}
+   y-=10;txt(ML,y-10,"Name",10,false,.35);line(ML+32,y-11,ML+250,y-11,.55,.6);txt(ML+290,y-10,"Datum",10,false,.35);line(ML+325,y-11,ML+W,y-11,.55,.6);y-=30}
+  else{txt(ML,y-11,title,11,true,.35);y-=24}};
+ const tableHead=(hA,hB)=>{box(ML,y-20,W,20,.93);txt(ML+6,y-14,"Nr.",9,true,.3);txt(ML+colN+6,y-14,hA,9,true,.3);txt(ML+colN+colP+6,y-14,hB,9,true,.3);y-=24};
+ const title="Wörterliste – "+t.name.replace(/^Aus dem Heft · /,"");
+ const hA=opt.mode==="dict"?"":opt.mode==="mix"?"Wort":opt.mode==="a"?nameA:nameB,hB=opt.mode==="dict"?"Wort":opt.mode==="mix"?"Übersetzung":opt.mode==="a"?nameB:nameA;
+ head(title,instr,true);tableHead(hA,hB);
+ const RH=opt.mode==="dict"?30:29;
+ R.forEach((r,i)=>{const sd=sides[i],show=sd==="a"?r.a:r.b,tag=opt.mode==="mix"?(sd==="a"?nameB:nameA):"";
+  // a long word gets smaller rather than broken apart (it is meant to be read — and copied — as one word); long phrases wrap
+  const wmax=colP-12,longest=String(show).split(/\s+/).reduce((m,x)=>Math.max(m,pdfW(x,12.5,false)),0);let z=longest>wmax?Math.max(8.5,12.5*wmax/longest-.1):12.5;
+  let ls=opt.mode==="dict"?[]:pdfWrap(show,z,false,wmax);if(ls.length>2){z=Math.min(z,11);ls=pdfWrap(show,z,false,wmax)}const h=Math.max(RH,ls.length*(z+2.5)+12);
+  if(y-h<BOT){head(title,"",false);tableHead(hA,hB)}
+  if(i%2===1)box(ML,y-h,W,h,.975);
+  txt(ML+6,y-h+10,String(r.n),10,false,.45);
+  if(opt.mode==="dict"){line(ML+colN+6,y-h+8,ML+W-6,y-h+8,.5,.7)}
+  else{ls.forEach((l,q)=>txt(ML+colN+6,y-h+10+(ls.length-1-q)*(z+2.5),l,z));line(ML+colN+colP+6,y-h+8,ML+W-6,y-h+8,.5,.7);if(tag)txt(ML+W-6-pdfW(tag,7),y-h+12,tag,7,false,.6)}
+  y-=h});
+ if(opt.key){ops=[];pages.push(ops);y=TOP;const z=fit("Lösungen – "+t.name,16,true,W,11);txt(ML,y-z,"Lösungen – "+t.name.replace(/^Aus dem Heft · /,""),z,true);y-=z+16;
+  const cA=Math.round((W-colN)/2);box(ML,y-18,W,18,.93);txt(ML+6,y-13,"Nr.",9,true,.3);txt(ML+colN+6,y-13,opt.mode==="dict"?"Wort":nameA,9,true,.3);if(opt.mode!=="dict"&&!copy)txt(ML+colN+cA+6,y-13,nameB,9,true,.3);y-=22;
+  R.forEach((r,i)=>{const la=pdfWrap(r.a,10.5,false,(opt.mode==="dict"||copy?W-colN:cA)-12),lb=opt.mode==="dict"||copy?[]:pdfWrap(r.b,10.5,false,cA-12),h=Math.max(la.length,lb.length,1)*13+6;
+   if(y-h<BOT){ops=[];pages.push(ops);y=TOP}
+   if(i%2===1)box(ML,y-h,W,h,.975);txt(ML+6,y-13,String(r.n),9.5,false,.45);la.forEach((l,q)=>txt(ML+colN+6,y-13-q*13,l,10.5,sides[i]==="a"&&opt.mode!=="dict"));lb.forEach((l,q)=>txt(ML+colN+cA+6,y-13-q*13,l,10.5,sides[i]==="b"));y-=h})}
+ pages.forEach((p,i)=>{ops=p;const f=`PokeLearn · ${t.name.replace(/^Aus dem Heft · /,"")} · Seite ${i+1} von ${pages.length}`;txt(ML,30,f,8,false,.55)});
+ return{blob:pdfBuild(pages,title),pages:pages.length}}
+// hand the PDF over: phone → share sheet (print, save to Files, AirDrop …); computer → open it (the browser's viewer prints)
+function wordSheetOut(blob,name,stEl){const f=new File([blob],name,{type:"application/pdf"});const say=s=>{if(stEl)stEl.textContent=s};
+ if(navigator.canShare&&navigator.canShare({files:[f]})&&/iPhone|iPad|Android|Mobile/i.test(navigator.userAgent+(navigator.maxTouchPoints>1?" Mobile":""))){navigator.share({files:[f],title:name}).then(()=>say("")).catch(e=>{if(!e||e.name!=="AbortError")say("Teilen ging nicht – noch einmal versuchen.")});return}
+ const u=URL.createObjectURL(f),w=window.open(u,"_blank");if(!w){const a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove()}
+ say("PDF geöffnet – dort drucken oder sichern.");setTimeout(()=>URL.revokeObjectURL(u),120000)}
+// </wpdf>
+function vocabSheet(t,k){const rows=vocabRows(t);if(!rows.length)return;const old=document.getElementById("vocabSheet");if(old)old.remove();const el=document.createElement("div");el.id="vocabSheet";el.className="gsheet";let hide=0,view="list";const lang=rows[0].lang,LN=lang==="de"?"Deutsch":LANGN[lang];
+ // worksheet to print: which word is shown, the other one is written on the line
+ const copy=lang==="de"&&rows.some(r=>!r.b);
+ const MODES=copy?[["a","Abschreiben","Das Wort steht da – es wird sauber abgeschrieben."],["dict","Diktat","Nur nummerierte Linien – du liest die Wörter vor (Lösungsblatt zum Vorlesen)."]]
+  :lang==="de"?[["a","Wort zeigen","Das Wort steht da – die Antwort wird geschrieben."],["b","Antwort zeigen","Die Antwort steht da – das Wort wird geschrieben."],["mix","Gemischt","Mal das eine, mal das andere – kunterbunt gemischt."],["dict","Diktat","Nur nummerierte Linien – du liest die Wörter vor (Lösungsblatt zum Vorlesen)."]]
+  :[["b","Deutsch zeigen",`Deutsch steht da – ${LN} wird geschrieben${lang==="fr"?" (mit Artikel)":""}.`],["a",`${LN} zeigen`,`${LN} steht da – Deutsch wird geschrieben.`],["mix","Gemischt",`Mal Deutsch, mal ${LN} – die andere Sprache wird geschrieben (klein angeschrieben).`],["dict","Diktat",`Nur nummerierte Linien – du liest die ${LN.replace(/isch$/,"ischen")} Wörter vor (Lösungsblatt zum Vorlesen).`]];
+ const ws=Object.assign({mode:MODES[0][0],shuffle:false,key:true},(S.ws||{})[copy?"copy":lang]);if(!MODES.some(m=>m[0]===ws.mode))ws.mode=MODES[0][0];
+ const drawPrint=()=>{const M=MODES.find(m=>m[0]===ws.mode);el.innerHTML=`<div class="card gsheetin" role="dialog" aria-label="Arbeitsblatt drucken" style="max-height:92vh;overflow:auto;display:grid;gap:14px"><div class="row" style="justify-content:space-between;align-items:center;flex-wrap:nowrap"><div style="flex:1;min-width:0"><p class="eyebrow" style="margin:0">Arbeitsblatt drucken · ${rows.length} Wörter</p><h2 style="font-size:20px;margin:0">${esc(t.name)}</h2></div><button class="btn small ghost" data-vs="close" aria-label="Schliessen" style="flex:none">✕</button></div>
+  <div class="f"><span>Was steht auf dem Blatt?</span><div class="wsmodes" role="radiogroup">${MODES.map(m=>`<button class="btn small ${m[0]===ws.mode?"teal":""}" role="radio" aria-checked="${m[0]===ws.mode}" data-pm="${m[0]}">${esc(m[1])}</button>`).join("")}</div></div>
+  <p class="muted" style="margin:-6px 0 0;font-size:14px">${esc(M[2])}</p>
+  <label style="display:flex;gap:10px;align-items:center"><input type="checkbox" data-po="shuffle" style="width:auto;flex:none" ${ws.shuffle?"checked":""}><span>Reihenfolge mischen</span></label>
+  ${ws.mode==="dict"||copy?"":`<label style="display:flex;gap:10px;align-items:center"><input type="checkbox" data-po="key" style="width:auto;flex:none" ${ws.key?"checked":""}><span>Lösungsblatt anhängen (eigene Seite)</span></label>`}
+  <button class="btn primary" data-vs="mk">🖨️ PDF erstellen und drucken</button><p class="muted" id="wsSt" style="margin:-6px 0 0;font-size:13px;min-height:1em"></p>
+  <button class="btn small ghost" data-vs="list" style="justify-self:start">← Zurück zur Liste</button></div>`};
+ const draw=()=>{if(view==="print")return drawPrint();el.innerHTML=`<div class="card gsheetin" role="dialog" aria-label="Wörterliste" style="max-height:92vh;display:grid;grid-template-rows:auto auto 1fr;gap:10px"><div class="row" style="justify-content:space-between;align-items:center;flex-wrap:nowrap"><div style="flex:1;min-width:0"><p class="eyebrow" style="margin:0">Wörterliste · ${rows.length} Einträge</p><h2 style="font-size:20px;margin:0">${esc(t.name)}</h2></div><button class="btn small ghost" data-vs="close" aria-label="Schliessen">✕</button></div>
+  <div class="row" style="gap:6px"><button class="btn small" data-vs="pr" title="Als Arbeitsblatt drucken (PDF)">🖨️ Drucken</button><button class="btn small ${hide===0?"teal":""}" data-vs="h0">Beides zeigen</button>${lang!=="de"?`<button class="btn small ${hide===2?"teal":""}" data-vs="h2">Deutsch verdecken</button><button class="btn small ${hide===1?"teal":""}" data-vs="h1">${esc(LN)} verdecken</button>`:`<button class="btn small ${hide===2?"teal":""}" data-vs="h2">Antwort verdecken</button>`}</div>
   <div style="overflow:auto;min-height:0"><table class="vtab"><thead><tr><th>${lang==="de"?"Frage / Wort":esc(LN)}</th><th>${lang==="de"?"Antwort":"Deutsch"}</th><th></th></tr></thead><tbody>${rows.map((r,i)=>`<tr data-row="${i}"><td class="${hide===1?"cov":""}">${esc(r.a)}</td><td class="${hide===2?"cov":""}">${esc(r.b)}</td><td>${lang!=="de"||r.type!=="rule"?`<button class="qsay" data-vs="say" data-row="${i}" aria-label="Vorlesen">🔊</button>`:""}</td></tr>`).join("")}</tbody></table></div>
   <p class="muted" style="margin:0;font-size:13px">Tipp: Erst verdecken und selbst sagen, dann antippen und prüfen – so bleibt es besser hängen als nur lesen.</p></div>`};
  draw();document.body.appendChild(el);
- el.addEventListener("click",e=>{const b=e.target.closest("[data-vs]");if(b){const a=b.dataset.vs;if(a==="close"){el.remove();return}if(a==="h0"){hide=0;draw();return}if(a==="h1"){hide=1;draw();return}if(a==="h2"){hide=2;draw();return}if(a==="say"){const r=rows[+b.dataset.row];acUnlock();try{speechSynthesis.cancel()}catch(x){}speak(r.a,r.lang,.85);return}}
-  const td=e.target.closest("td.cov");if(td){td.classList.remove("cov");return}if(e.target===el)el.remove()})}
+ el.addEventListener("click",e=>{const b=e.target.closest("[data-vs]");if(b){const a=b.dataset.vs;if(a==="close"){el.remove();return}if(a==="h0"){hide=0;draw();return}if(a==="h1"){hide=1;draw();return}if(a==="h2"){hide=2;draw();return}
+   if(a==="pr"){view="print";draw();return}if(a==="list"){view="list";draw();return}
+   if(a==="mk"){const key=ws.mode==="dict"||(ws.key&&!copy);try{const r=wordSheetPdf(t,rows,{mode:ws.mode,shuffle:ws.shuffle,key});const nm=`Woerterliste-${t.name.replace(/^Aus dem Heft · /,"").replace(/[^A-Za-z0-9ÄÖÜäöüéèàç]+/g,"-").replace(/^-|-$/g,"").slice(0,40)||"Liste"}-${ws.mode}.pdf`;
+     const st=el.querySelector("#wsSt");if(st)st.textContent=`PDF mit ${r.pages} ${r.pages===1?"Seite":"Seiten"} erstellt.`;wordSheetOut(r.blob,nm,st)}catch(x){const st=el.querySelector("#wsSt");if(st)st.textContent="Das PDF konnte nicht erstellt werden."}return}
+   if(a==="say"){const r=rows[+b.dataset.row];acUnlock();try{speechSynthesis.cancel()}catch(x){}speak(r.a,r.lang,.85);return}}
+  const pm=e.target.closest("[data-pm]");if(pm){ws.mode=pm.dataset.pm;keep();draw();return}
+  const td=e.target.closest("td.cov");if(td){td.classList.remove("cov");return}if(e.target===el)el.remove()});
+ const keep=()=>{S.ws=Object.assign({},S.ws,{[copy?"copy":lang]:{...ws}});save()};
+ el.addEventListener("change",e=>{const o=e.target.dataset&&e.target.dataset.po;if(o){ws[o]=e.target.checked;keep()}})}
 function dueCount(ids){const n=Date.now();return ids.filter(id=>{const p=S.progress[id];return p&&p.due<=n&&p.box<5}).length}
 function newCount(ids){return ids.filter(id=>!S.progress[id]).length}
 function masteryPct(ids){if(!ids.length)return 0;return Math.round(ids.reduce((s,id)=>s+(S.progress[id]?.box||0),0)/(ids.length*5)*100)}
