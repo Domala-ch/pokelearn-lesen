@@ -2580,7 +2580,7 @@ const WW={q:[],t:0,done:new Set()};
 function wordsWarm(words,lang){try{if(!STANDALONE)return;const add=[];for(const w of words){const t=vSpoken(w);if(!t||t.length>140)continue;const k=lang+"|"+t;if(WW.done.has(k)||vWordRecAny(t,lang))continue;WW.done.add(k);add.push([t,lang])}
  if(!add.length)return;vjSchedule();if(!LIVE.ok())return;WW.q=add.concat(WW.q);LIVE.preload();
  if(!WW.t)WW.t=setInterval(()=>{if(!WW.q.length||!LIVE.ok()){clearInterval(WW.t);WW.t=0;return}if(!LIVE.engine())return;
-  if(LS&&LS.phase==="reading"&&LS.ohr&&!LS.ohr.mute)return;const[t,l]=WW.q.shift();try{LIVE.warm([t],l,.9,2)}catch(e){}},700)}catch(e){}}
+  if(LS&&LS.phase==="reading")return;const[t,l]=WW.q.shift();try{LIVE.warm([t],l,.9,2)}catch(e){}},700)}catch(e){}}
 // the word of a learning item that can be listened to (foreign word of a vocabulary item)
 function qWordOf(id){const m=String(id).match(/^(fr|en):([^:]+):(\d+)$/);if(m){const L=(m[1]==="fr"?FR:EN)[m[2]],it=L&&L[+m[3]];return it?[String(it).split("|")[0],m[1]]:null}
  if(String(id).startsWith("heft:")){const d=(S.deck||[]).find(x=>"heft:"+x.id===id);if(d&&d.type==="vocab"&&(d.subj==="fr"||d.subj==="en")&&d.front)return[d.front,d.subj]}return null}
@@ -3275,8 +3275,7 @@ function lsAdvance(heard){const L=LS,N=L.expN.length,ear=L.eng==="ohr";
    // the words heard after the gap prove it: one longer word (or two words) for a single missing word, more when several are missing —
    // and the last of them must stand (a first guess of the recognizer sometimes jumps ahead for a moment)
    const run=m2-b,need=run>=3?3:run===2||L.expN[L.e0+m2]&&L.expN[L.e0+m2].length<4?2:1;
-   const atEnd=nOk>0&&L.e0+m2+nOk>=N,nd=atEnd?Math.min(need,nOk):need;     // at the very end of the text no further words can follow: what is there decides
-   if(nOk<nd||wait(L.h0+r.mh[m2+nd-1],OHRHOLD)){r.st=r.st.slice(0,b);b=-1}else{stopAt(L.e0+b,L.h0+r.m0[m2],r.st,r.mh,true,m2-b-1);continue}}
+   if(nOk<need||wait(L.h0+r.mh[m2+need-1],OHRHOLD)){r.st=r.st.slice(0,b);b=-1}else{stopAt(L.e0+b,L.h0+r.m0[m2],r.st,r.mh,true,m2-b-1);continue}}
   // a stray word at the end, where the next word should be: a misread too, even if it sounds nothing like it. The ear waits for what
   // follows (the next word proves it; a noise is then simply passed over) and only stops on its own when nothing else comes.
   else if(r.tail!=null){const k=L.h0+r.tail,w=L.e0+r.i,tok=heard[k];let stray=0;for(let q=k;q>k-r.tailN&&q>=0;q--)if(!LSFILL.test(heard[q][0]||""))stray++;
@@ -3534,7 +3533,7 @@ async function ohrStart(L){const AC=window.AudioContext||window.webkitAudioConte
  try{O.stream.getAudioTracks().forEach(t=>{t.onended=()=>{if(LS===L&&L.ohr===O&&L.phase==="reading"){ohrStop(L);L.srLive=false;L.srNeedTap=true;lsMicUI()}}})}catch(e){}
  try{const g=O.g=ohrGrammar(OHR.lex,L.expN);LSOOV=new Set(g.oov.map(i=>L.expN[i]));LSALIAS=g.alias;L._subKey=null;
   ohrNewRec(L,O);
-  const src=O.src=ctx.createMediaStreamSource(O.stream);O.rs=ohrResampler(O.fs);O.rs.setAlpha(ohrAlpha(ohrF0Get()));
+  const src=O.src=ctx.createMediaStreamSource(O.stream);O.rs=ohrResampler(O.fs);O.rs.setAlpha(ohrAlpha(S.ohrF0||0));
   const sink=ctx.createGain();sink.gain.value=0;sink.connect(ctx.destination);
   let ok=false;
   if(ctx.audioWorklet&&window.AudioWorkletNode){try{
@@ -3576,13 +3575,12 @@ function ohrFeed(L,O,x){if(LS!==L||L.ohr!==O||!O.rec||O.dead)return;
  const f0=ohrPitch(O,x);if(f0){const a=ohrAlpha(f0);if(Math.abs(a-O.rs.alpha)>.03&&now-(O.tWarp||-1e9)>5000){O.tWarp=now;O.rs.setAlpha(a)}}   // adjust in clear steps only, not with every sentence melody
  O.spk=Math.max((O.spk||0)*.995,O.lvl);if(O.lvl<.22*O.spk){if(!O.quiet0)O.quiet0=now}else O.quiet0=0;
  if(O.part.length&&O.utt0&&!O.flush&&now-O.utt0>10000&&now-(O.tChg||0)>300&&O.quiet0&&now-O.quiet0>200){O.flush=now;try{O.rec.retrieveFinalResult()}catch(e){}}
- if(L.recd)lrecFeed(L,O,x);
- if(O.mute)return;const y=O.rs.push(x);if(!y.length)return;O.out.push(y);O.outN+=y.length;
+ if(O.mute)return;const y=O.rs.push(x);if(L.recd)lrecFeed(L,y);if(!y.length)return;O.out.push(y);O.outN+=y.length;
  if(O.outN>=1600){const c=new Float32Array(O.outN);let o=0;for(const p of O.out){c.set(p,o);o+=p.length}O.out=[];O.outN=0;
   if(O.sent.length>40)return;                                   // far behind: drop sound instead of queueing more
   O.sent.push(performance.now());try{O.rec.acceptWaveformFloat(c,16000)}catch(e){}}}
 function ohrStop(L,O){O=O||(L&&L.ohr);if(!O)return;if(L&&L.ohr===O)L.ohr=null;if(!O.safe)ohrGuard.ease();
- try{if(O.f0&&O.pit&&O.pit.nv>=120&&Math.abs(ohrF0Get()-O.f0)>6){ohrF0Put(Math.round(O.f0));save()}}catch(e){}   // remember the voice pitch of this reader for the next time
+ try{if(O.f0&&O.pit&&O.pit.nv>=120&&Math.abs((S.ohrF0||0)-O.f0)>6){S.ohrF0=Math.round(O.f0);save()}}catch(e){}   // remember the reader's voice pitch for the next time
  if(L&&L.recd)lrecEv(L,{e:"aus",f0:O.f0?Math.round(O.f0):0});
  try{O.node&&(O.node.port?(O.node.port.onmessage=null):(O.node.onaudioprocess=null))}catch(e){}
  try{O.src&&O.src.disconnect()}catch(e){}try{O.node&&O.node.disconnect()}catch(e){}
@@ -3612,13 +3610,13 @@ const LREC={MAX:30,LIM:16000*60*10,MINS:5,
  async del(id){await this.req("data","readwrite",s=>s.delete(id));await this.req("meta","readwrite",s=>s.delete(id))},
  setWho(id,who){return this.req("meta","readonly",s=>s.get(id)).then(m=>m&&this.req("meta","readwrite",s=>s.put(Object.assign(m,{who}),id)))}};
 const lrecWho=w=>w==="erw"?"Eltern":(S.name||"Kind");
-// who is reading: the ear remembers the voice pitch per reader, recordings carry the name
-const ohrF0Get=()=>{const w=S.lsWho||"kind";return(S.ohrF0s&&S.ohrF0s[w])||S.ohrF0||0};
-function ohrF0Put(f0){const w=S.lsWho||"kind";S.ohrF0s=Object.assign({},S.ohrF0s,{[w]:f0});if(w==="kind")S.ohrF0=f0}
+// who is reading: only the name on the recordings
+
 function lrecBegin(L){if(!LREC.on()||L.recd||L.mode!=="mic")return;L.recd={id:"r"+Date.now().toString(36),at:Date.now(),n:0,ch:[],ev:[],k1:"",k2:"",who:S.lsWho||"kind",full:false}}
 function lrecEv(L,o){const R=L&&L.recd;if(!R||R.saved)return;o.t=Math.round(R.n/160)/100;R.ev.push(o)}
-// sound: the microphone signal at 16 kHz, not shifted (the ear may hear it lowered for a child's voice — that setting is stored separately)
-function lrecFeed(L,O,x){const R=L.recd;if(!R||R.full||R.saved)return;if(!O.rs0)O.rs0=ohrResampler(O.fs);const y=O.rs0.push(x);if(!y.length)return;
+// sound: exactly the 16 kHz signal the ear gets (no extra work on the real-time path; a child's voice may be lowered a little — the
+// factor is in the «ohr» event); while the app itself speaks nothing is recorded, as the ear does not listen then
+function lrecFeed(L,y){const R=L.recd;if(!R||R.full||R.saved||!y.length)return;
  const a=new Int16Array(y.length);for(let i=0;i<y.length;i++){const v=y[i];a[i]=v>=1?32767:v<=-1?-32768:Math.round(v*32767)}R.ch.push(a);R.n+=a.length;
  if(R.n>=LREC.LIM){R.full=true;lrecEv(L,{e:"voll"})}}
 // what the ear wrote and how it was judged — only when something changed
@@ -3633,7 +3631,7 @@ function lrecEnd(L,why){const R=L&&L.recd;if(!R||R.saved)return;R.saved=true;L.r
  try{const N=L.expN.length,wst=(L.wst||[]).slice(0,N),cnt=s=>wst.filter(x=>x===s).length,stops=new Set(R.ev.filter(e=>e.e==="j"&&e.r).map(e=>e.r[0])).size;
   const info={v:1,app:"PokeLearn",id:R.id,at:new Date(R.at).toISOString(),who:R.who,end:why,sec:Math.round(R.n/160)/100,
    text:{title:L.text.title||"",level:L.text.level||"",lang:L.text.lang||"de",text:L.text.text},expN:L.expN,oov:[...LSOOV],alias:Object.fromEntries([...LSALIAS].map(([k,v])=>[k,[...v]])),
-   set:{strict:S.lsStrictEar??1,mn:S.lsMN===true,f0:ohrF0Get()},wst,stats:{words:N,pos:L.pos||0,ok:cnt("ok"),fixed:cnt("fixed"),bad:cnt("bad"),miss:cnt("miss"),skip:cnt("skip"),stops,given:L.given||0},
+   set:{strict:S.lsStrictEar??1,mn:S.lsMN===true,f0:S.ohrF0||0},wst,stats:{words:N,pos:L.pos||0,ok:cnt("ok"),fixed:cnt("fixed"),bad:cnt("bad"),miss:cnt("miss"),skip:cnt("skip"),stops,given:L.given||0},
    ev:R.ev,ua:navigator.userAgent};
   const meta={id:R.id,at:R.at,who:R.who,title:info.text.title,level:info.text.level,sec:info.sec,words:N,pos:info.stats.pos,bad:info.stats.bad+info.stats.miss,stops,end:why};
   LREC.put(meta,{wav:lrecWav(ch,R.n),info}).then(()=>{const el=document.getElementById("recList");if(el)lrecListUI()}).catch(e=>console.error("lrec",e))}catch(e){console.error("lrec",e)}}

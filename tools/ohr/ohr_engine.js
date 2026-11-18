@@ -58,7 +58,7 @@ async function ohrStart(L){const AC=window.AudioContext||window.webkitAudioConte
  try{O.stream.getAudioTracks().forEach(t=>{t.onended=()=>{if(LS===L&&L.ohr===O&&L.phase==="reading"){ohrStop(L);L.srLive=false;L.srNeedTap=true;lsMicUI()}}})}catch(e){}
  try{const g=O.g=ohrGrammar(OHR.lex,L.expN);LSOOV=new Set(g.oov.map(i=>L.expN[i]));LSALIAS=g.alias;L._subKey=null;
   ohrNewRec(L,O);
-  const src=O.src=ctx.createMediaStreamSource(O.stream);O.rs=ohrResampler(O.fs);O.rs.setAlpha(ohrAlpha(ohrF0Get()));
+  const src=O.src=ctx.createMediaStreamSource(O.stream);O.rs=ohrResampler(O.fs);O.rs.setAlpha(ohrAlpha(S.ohrF0||0));
   const sink=ctx.createGain();sink.gain.value=0;sink.connect(ctx.destination);
   let ok=false;
   if(ctx.audioWorklet&&window.AudioWorkletNode){try{
@@ -100,13 +100,12 @@ function ohrFeed(L,O,x){if(LS!==L||L.ohr!==O||!O.rec||O.dead)return;
  const f0=ohrPitch(O,x);if(f0){const a=ohrAlpha(f0);if(Math.abs(a-O.rs.alpha)>.03&&now-(O.tWarp||-1e9)>5000){O.tWarp=now;O.rs.setAlpha(a)}}   // adjust in clear steps only, not with every sentence melody
  O.spk=Math.max((O.spk||0)*.995,O.lvl);if(O.lvl<.22*O.spk){if(!O.quiet0)O.quiet0=now}else O.quiet0=0;
  if(O.part.length&&O.utt0&&!O.flush&&now-O.utt0>10000&&now-(O.tChg||0)>300&&O.quiet0&&now-O.quiet0>200){O.flush=now;try{O.rec.retrieveFinalResult()}catch(e){}}
- if(L.recd)lrecFeed(L,O,x);
- if(O.mute)return;const y=O.rs.push(x);if(!y.length)return;O.out.push(y);O.outN+=y.length;
+ if(O.mute)return;const y=O.rs.push(x);if(L.recd)lrecFeed(L,y);if(!y.length)return;O.out.push(y);O.outN+=y.length;
  if(O.outN>=1600){const c=new Float32Array(O.outN);let o=0;for(const p of O.out){c.set(p,o);o+=p.length}O.out=[];O.outN=0;
   if(O.sent.length>40)return;                                   // far behind: drop sound instead of queueing more
   O.sent.push(performance.now());try{O.rec.acceptWaveformFloat(c,16000)}catch(e){}}}
 function ohrStop(L,O){O=O||(L&&L.ohr);if(!O)return;if(L&&L.ohr===O)L.ohr=null;if(!O.safe)ohrGuard.ease();
- try{if(O.f0&&O.pit&&O.pit.nv>=120&&Math.abs(ohrF0Get()-O.f0)>6){ohrF0Put(Math.round(O.f0));save()}}catch(e){}   // remember the voice pitch of this reader for the next time
+ try{if(O.f0&&O.pit&&O.pit.nv>=120&&Math.abs((S.ohrF0||0)-O.f0)>6){S.ohrF0=Math.round(O.f0);save()}}catch(e){}   // remember the reader's voice pitch for the next time
  if(L&&L.recd)lrecEv(L,{e:"aus",f0:O.f0?Math.round(O.f0):0});
  try{O.node&&(O.node.port?(O.node.port.onmessage=null):(O.node.onaudioprocess=null))}catch(e){}
  try{O.src&&O.src.disconnect()}catch(e){}try{O.node&&O.node.disconnect()}catch(e){}

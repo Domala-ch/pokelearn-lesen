@@ -25,7 +25,6 @@ if(scheme==="light"){
  await p.locator("#lsWhoRow").scrollIntoViewIfNeeded();await p.locator("#lsWhoRow").locator("..").screenshot({path:"qa/lrec_start.png"});
  await who.selectOption("erw");T("choice is kept",await p.evaluate(()=>S.lsWho)==="erw");
  // per-reader voice pitch
- T("voice pitch is remembered per reader",await p.evaluate(()=>{S.ohrF0=0;S.ohrF0s={};S.lsWho="kind";ohrF0Put(260);S.lsWho="erw";ohrF0Put(120);const a=ohrF0Get();S.lsWho="kind";return a===120&&ohrF0Get()===260}));
  await p.evaluate(()=>{lsStart({id:"x1",level:"mittel",title:"T",text:"Der Hund läuft schnell nach Hause.",lang:"de",q:[["?",["a","b","c"]]]})});await p.waitForTimeout(200);
  await p.evaluate(()=>{S.lsEngine="ohr";LS.mode="mic";LS.phase="reading";lsRender()});await p.waitForTimeout(200);
  T("indicator while reading",await p.evaluate(()=>/● Aufnahme/.test(document.querySelector(".lsmini").textContent)));
