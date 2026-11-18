@@ -28,3 +28,18 @@ sie entstanden sind, und müssen beim Wiederverwenden angepasst werden.
   Rückfälle, Schutz bei abgebrochenem Laden · `rs_test.js` – Umrechnung auf 16 kHz
 
 Ergebnisse (Einstellung «Normal», je rund 2 900 Wörter): siehe `ohr/README.md`.
+
+## Lese-Aufnahmen (aus der App)
+
+Im Elternbereich lässt sich «Lese-Aufnahmen» einschalten. Dann speichert die App bei jedem Lesen mit dem PokeLearn-Ohr auf dem Gerät
+(IndexedDB `pokelearn-rec`, höchstens 30 Aufnahmen): `audio.wav` (16 kHz, mono, unverändert – die Tonhöhen-Anpassung fürs Ohr ist
+nicht eingerechnet) und `info.json` (Text, Wer liest, Einstellungen, Endstand jedes Wortes und der Verlauf: was das Ohr wann
+geschrieben hat `e:"h"`, Stand des Vergleichs `e:"j"` mit Stopp `[Wort, Versuch, nicht gehört, weitergelesen]`, Vorsagen `e:"sag"`,
+Ohr an/aus). «Senden» packt eine oder alle Aufnahmen als zip.
+
+* `rec_report.py <zip|ordner>` – ein unabhängiger Erkenner (Whisper small, kennt den Text nicht) hört mit: jeder Stopp wird als
+  «wohl falscher Stopp» oder «wohl echter Verleser» eingeordnet, grün gelassene Wörter, die Whisper anders hörte, als «vielleicht
+  übersehen»; dazu falsche Stopps pro 100 Wörter je Leser. Hinweise zum Nachhören, keine Gewissheit.
+* `rec_replay.js <zip> [app.html]` – spielt den aufgezeichneten Verlauf durch die aktuelle Vergleichslogik und zeigt, wo sie anders
+  entscheidet als auf dem Gerät: so wird eine Änderung an echten Lesungen geprüft, bevor sie ausgeliefert wird.
+* `lrec_ui.js` – Test der Eltern-Karte, der Startkarte («Wer liest?») und der Anzeige beim Lesen.

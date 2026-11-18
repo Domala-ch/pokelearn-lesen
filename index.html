@@ -1883,7 +1883,7 @@ function pinGate(cb){const v=document.getElementById("elternView");let e="";
   document.querySelectorAll(".view").forEach(x=>x.classList.toggle("on",x.id==="v-eltern"));document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.view==="eltern"));document.querySelector("main").scrollTop=0;const dots=v.querySelectorAll("#dots i");
   v.querySelector("#pad").onclick=ev=>{const k=ev.target.closest("[data-k]")?.dataset.k;if(!k)return;if(k==="⌫")e=e.slice(0,-1);else if(k!=="OK"&&e.length<4)e+=k;dots.forEach((d,i)=>d.classList.toggle("on",i<e.length));if(e.length===4||k==="OK"){if(e===String(S.pin)){unlocked=true;cb()}else{setTimeout(()=>{e="";dots.forEach(d=>d.classList.remove("on"));toast("Falsche PIN")},200)}}}}
 // parent area: the overview stays open, everything else is a tidy, foldable section (remembers what was open)
-const ESEC={"Wunschkarten":"Wunschkarten und Belohnung","Vorlese-Stimmen":"Vorlese-Stimmen","Aktuelle Schulthemen":"Aktuelle Schulthemen","Einstellungen":"Name, Tagesziel und PIN","Abgleich zwischen Geräten":"Abgleich zwischen Geräten","Claude (KI-Funktionen)":"Claude (KI-Funktionen)","Sichern und übertragen":"Sichern und übertragen","Rechtliches und Datenschutz":"Rechtliches und Datenschutz","Warum die App so gebaut ist":"Warum die App so gebaut ist"};
+const ESEC={"Wunschkarten":"Wunschkarten und Belohnung","Vorlese-Stimmen":"Vorlese-Stimmen","Aktuelle Schulthemen":"Aktuelle Schulthemen","Einstellungen":"Name, Tagesziel und PIN","Abgleich zwischen Geräten":"Abgleich zwischen Geräten","Lese-Aufnahmen":"Lese-Aufnahmen (Ohr abstimmen)","Claude (KI-Funktionen)":"Claude (KI-Funktionen)","Sichern und übertragen":"Sichern und übertragen","Rechtliches und Datenschutz":"Rechtliches und Datenschutz","Warum die App so gebaut ist":"Warum die App so gebaut ist"};
 function elternFold(v){let open={};try{open=JSON.parse(sessionStorage.getItem("pl-esec")||"{}")}catch(e){}
  v.querySelectorAll(":scope > .card").forEach(c=>{const eb=c.querySelector(":scope > .eyebrow");if(!eb)return;const k=eb.textContent.trim();if(!ESEC[k])return;
   const d=document.createElement("details");d.className="card esec";if(open[k])d.open=true;const sm=document.createElement("summary");sm.textContent=ESEC[k];d.appendChild(sm);
@@ -1909,6 +1909,7 @@ function renderEltern(){if(!unlocked)return pinGate(renderEltern);const v=docume
   ${STANDALONE?`<div class="card" style="display:grid;gap:10px"><p class="eyebrow">Abgleich zwischen Geräten</p><p class="muted" style="font-size:13px;margin:0">Damit Fortschritt, Heft-Einträge, Diktate, Lesetexte und Wunschliste auf iPhone, iPad und Computer gleich sind, speichert die App alles zusätzlich in einem privaten «Gist» eures GitHub-Kontos. Dafür braucht es ein Zugriffs-Token eures GitHub-Kontos: unten auf <b>Token bei GitHub erstellen</b> tippen (Name und das Häkchen «gist» sind schon gesetzt), bei <b>Expiration</b> «No expiration» wählen, <b>Generate token</b>, das Token kopieren und hier einfügen. Dasselbe Token auf jedem Gerät eintragen. Das Gerät mit dem aktuelleren Stand gewinnt – darum am besten ein Gerät nach dem anderen benutzen.</p>
   ${SYNC.on()?`<p class="muted" id="syncSt" style="margin:0;font-size:13px">${esc(SYNC.text())}</p><div class="row"><button class="btn teal" id="syncNow">Jetzt abgleichen</button><button class="btn" id="syncLink">Einrichtungs-Link für ein weiteres Gerät</button><button class="btn ghost" id="syncOff" style="color:var(--bad)">Abgleich ausschalten</button></div><p class="muted" style="margin:0;font-size:13px">Der Einrichtungs-Link schaltet auf einem anderen Gerät (iPad, Computer) den Abgleich mit einem Tipp ein – samt Fortschritt und Claude-Schlüssel. Nur an eigene Geräte schicken (AirDrop, Nachricht an dich selbst): wer den Link hat, hat Zugriff.</p>`
   :`<div class="row"><a class="btn small" href="https://github.com/settings/tokens/new?scopes=gist&description=PokeLearn" target="_blank" rel="noopener">Token bei GitHub erstellen ↗</a></div><label class="f">GitHub-Token <input id="syncTok" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ghp_…"></label><div class="row"><button class="btn teal" id="syncOn">Abgleich einschalten</button></div><p class="muted" id="syncSt" style="margin:0;font-size:13px">Noch nicht eingerichtet – der Fortschritt bleibt auf diesem Gerät.</p>`}</div>
+  ${lrecCard()}
   <div class="card" style="display:grid;gap:10px"><p class="eyebrow">Claude (KI-Funktionen)</p><p class="muted" style="font-size:13px;margin:0">Diese Web-Version spricht direkt mit Claude: Hefte und Diktatvorlagen fotografieren, neue Diktate und Lesetexte, Erklärungen bei Fehlern, Zeichnungen beurteilen und die Preissuche für Wunschkarten. Dafür braucht es einen eigenen API-Schlüssel von <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> (die Nutzung wird dort nach Verbrauch abgerechnet – bei normalem Üben wenige Rappen pro Tag). Der Schlüssel bleibt nur auf diesem Gerät gespeichert und wird ausschliesslich an api.anthropic.com gesendet.<br><b>Damit er nie mehr verloren geht:</b> «Persönlichen App-Link erstellen» und die App immer über diesen Link öffnen (als Lesezeichen oder auf dem Home-Bildschirm). Der Link enthält Schlüssel und Abgleich verschlüsselt – die App ist damit auf jedem Gerät sofort verbunden. Nicht weitergeben und nirgends öffentlich posten.</p>
   <label class="f">API-Schlüssel <input id="sKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-ant-…" value="${esc(plKey())}"></label><div class="row"><button class="btn teal" id="sKeySave">Speichern und testen</button>${plKey()?'<button class="btn" id="sKeyLink">Persönlichen App-Link erstellen</button>':""}<button class="btn ghost" id="sKeyShow">Anzeigen</button>${plKey()?'<button class="btn ghost" id="sKeyDel" style="color:var(--bad)">Entfernen</button>':""}</div><p class="muted" id="sKeySt" style="margin:0;font-size:13px">${plKey()?(window.__plKeyOk?"Verbunden – Claude antwortet (automatisch geprüft beim Öffnen).":"Ein Schlüssel ist gespeichert und wird automatisch verwendet."):"Noch kein Schlüssel – die Claude-Funktionen sind bis dahin ausgeschaltet, alles andere funktioniert."}</p></div>`:""}
   <div class="card" style="display:grid;gap:10px"><p class="eyebrow">Aktuelle Schulthemen</p><p class="muted" style="font-size:13px;margin:0">Was gerade in der Schule dran ist, ankreuzen: Diese Themen stehen in der App zuoberst, sind markiert und kommen in gemischten Runden häufiger. Jederzeit änderbar – z. B. bei jeder neuen Unité oder jedem neuen Kapitel.</p>
@@ -1937,7 +1938,7 @@ function renderEltern(){if(!unlocked)return pinGate(renderEltern);const v=docume
   if(STANDALONE){const sst=v.querySelector("#syncSt");
    const on=v.querySelector("#syncOn");if(on)on.onclick=async()=>{on.disabled=true;sst.innerHTML='<span class="spin"></span> Verbindung zu GitHub wird geprüft …';try{await SYNC.connect(v.querySelector("#syncTok").value);toast("Abgleich eingeschaltet");renderEltern()}catch(e){sst.textContent=e.message||"Das hat nicht geklappt.";on.disabled=false}};
    const now=v.querySelector("#syncNow");if(now)now.onclick=async()=>{now.disabled=true;sst.textContent="Abgleich läuft …";await SYNC.push();await SYNC.pull(true);SYNC.idle();sst.textContent=SYNC.text();now.disabled=false};
-   const lk=v.querySelector("#syncLink");if(lk)lk.onclick=async()=>{const u=SYNC.setupLink();try{if(navigator.share){await navigator.share({title:"PokeLearn einrichten",url:u})}else{await navigator.clipboard.writeText(u);toast("Link kopiert – auf dem anderen Gerät öffnen.")}}catch(e){try{await navigator.clipboard.writeText(u);toast("Link kopiert – auf dem anderen Gerät öffnen.")}catch(x){prompt("Einrichtungs-Link:",u)}}};
+   lrecWire(v);const lk=v.querySelector("#syncLink");if(lk)lk.onclick=async()=>{const u=SYNC.setupLink();try{if(navigator.share){await navigator.share({title:"PokeLearn einrichten",url:u})}else{await navigator.clipboard.writeText(u);toast("Link kopiert – auf dem anderen Gerät öffnen.")}}catch(e){try{await navigator.clipboard.writeText(u);toast("Link kopiert – auf dem anderen Gerät öffnen.")}catch(x){prompt("Einrichtungs-Link:",u)}}};
    const off=v.querySelector("#syncOff");if(off)off.onclick=()=>{SYNC.disconnect();toast("Abgleich ausgeschaltet – die Daten bleiben auf diesem Gerät.");renderEltern()}}
   if(STANDALONE){const st=v.querySelector("#sKeySt"),inp=v.querySelector("#sKey");
    v.querySelector("#sKeyShow").onclick=()=>{inp.type=inp.type==="password"?"text":"password"};
@@ -2903,7 +2904,7 @@ function lsRecommend(){const H=S.lsHist||[];if(!H.length)return{level:"mittel",w
  if(qp>=.75&&(fast||!l.wpm)&&i<2)return{level:LEVELS[i+1],why:f+". Du bist bereit für die nächste Stufe!"};
  if(qp<.5&&i>0)return{level:LEVELS[i-1],why:f+". Übe zuerst eine Stufe leichter."};
  return{level:l.level,why:f+". Bleib noch bei dieser Stufe."}}
-function lsStop(){if(!LS)return;clearInterval(LS._poll);lsStopSR(LS);LS.gen=(LS.gen||0)+1;try{speechSynthesis.cancel()}catch(e){}clearInterval(LS.timer);LS.timer=null}
+function lsStop(){if(!LS)return;clearInterval(LS._poll);lsStopSR(LS);if(LS.recd)lrecEnd(LS,"abgebrochen");LS.gen=(LS.gen||0)+1;try{speechSynthesis.cancel()}catch(e){}clearInterval(LS.timer);LS.timer=null}
 function lsRender(){const v=document.getElementById("lsView");if(!v)return;if(!LS||LS.phase==="list")return lsList(v);if(LS.phase==="board")return lsBoard(v);if(LS.phase==="quiz")return lsQuiz(v);if(LS.phase==="result")return lsResult(v);lsReader(v)}
 function lsList(v){const rec=lsRecommend(),sel=S.lsLevel||rec.level,left=lsBankLeft(sel).length,H=(S.lsHist||[]).slice(0,4);
  v.innerHTML=`<div class="row"><button class="btn small ghost" data-la="home">← Zurück</button><button class="btn small" data-la="board" style="margin-left:auto">Bestenliste</button></div>
@@ -2916,6 +2917,8 @@ function lsList(v){const rec=lsRecommend(),sel=S.lsLevel||rec.level,left=lsBankL
   <label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="lsParent" style="width:auto;flex:none;margin-top:4px" ${S.lsParent?"checked":""}><span>Ein Erwachsener hört zu und tippt falsch gelesene Wörter an</span></label>
   ${OHRBASE?`<label class="row" style="gap:8px;flex-wrap:wrap"><span>Zuhören mit</span><select id="lsEng" style="flex:1 1 170px;min-width:0;max-width:100%"><option value="ohr" ${S.lsEngine!=="dev"?"selected":""}>PokeLearn-Ohr</option><option value="dev" ${S.lsEngine==="dev"?"selected":""}>Gerät (Apple/Google)</option></select></label>
   <p class="muted" id="lsEngSt" style="margin:-4px 0 0;font-size:12px"></p>
+  <label class="row" id="lsWhoRow" style="gap:8px;flex-wrap:wrap" ${S.lsEngine==="dev"?"hidden":""}><span>Wer liest?</span><select id="lsWho" style="flex:1 1 170px;min-width:0;max-width:100%">${["kind","erw"].map(w=>`<option value="${w}" ${(S.lsWho||"kind")===w?"selected":""}>${esc(lrecWho(w))}</option>`).join("")}</select></label>
+  ${S.recOn?`<p class="muted" style="margin:-4px 0 0;font-size:12px"><span style="color:var(--bad)">●</span> Lese-Aufnahme ist eingeschaltet (Elternbereich).</p>`:""}
   <label class="row" id="lsEarRow" style="gap:8px;flex-wrap:wrap" ${S.lsEngine==="dev"?"hidden":""}><span>Wie streng hört das Ohr?</span><select id="lsEar" style="flex:1 1 170px;min-width:0;max-width:100%">${[[0,"Grosszügig"],[1,"Normal"],[2,"Streng"]].map(([k,t])=>`<option value="${k}" ${(S.lsStrictEar??1)===k?"selected":""}>${t}</option>`).join("")}</select></label>`:""}
   <label class="row" id="lsDevRow" style="gap:8px;flex-wrap:wrap" ${OHRBASE&&S.lsEngine!=="dev"?"hidden":""}><span>Mikrofon hört Deutsch als</span><select id="lsSRde" style="flex:1 1 170px;min-width:0;max-width:100%">${[["de-DE","Hochdeutsch (de-DE, empfohlen)"],["de-CH","Schweizer Hochdeutsch (de-CH)"]].map(([v,t])=>`<option value="${v}" ${(S.srLang2&&S.srLang2.de||"de-DE")===v?"selected":""}>${t}</option>`).join("")}</select></label>
   <label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="lsMN" style="width:auto;flex:none;margin-top:4px" ${S.lsMN===true?"checked":""}><span>m und n am Wortende nicht unterscheiden (in/im, an/am, den/dem gelten als richtig). Nur einschalten, wenn diese Endungen oft falsch gehört werden.</span></label>
@@ -2924,10 +2927,10 @@ function lsList(v){const rec=lsRecommend(),sel=S.lsLevel||rec.level,left=lsBankL
   <div id="lsStatus" class="muted" hidden></div></div>
  ${H.length?`<div class="card"><p class="eyebrow" style="margin:0 0 8px">Zuletzt gelesen</p><div class="list">${H.map(x=>`<div class="item"><div class="t">${esc(x.title)}<small>${x.date} · ${x.level}${x.wpm?` · ${x.wpm} Wörter/Min.`:""} · ${x.q}/${x.qn} Fragen</small></div><span class="pill good">${x.points} P.</span></div>`).join("")}</div></div>`:""}`;
  v.querySelector("#lsParent").onchange=e=>{S.lsParent=e.target.checked;save()};v.querySelector("#lsMN").onchange=e=>{S.lsMN=e.target.checked;save()};v.querySelector("#lsSRde").onchange=e=>{S.srLang2=Object.assign({},S.srLang2,{de:e.target.value});save()};
- const eng=v.querySelector("#lsEng");if(eng){eng.onchange=e=>{S.lsEngine=e.target.value==="dev"?"dev":"ohr";save();v.querySelector("#lsEarRow").hidden=S.lsEngine==="dev";v.querySelector("#lsDevRow").hidden=S.lsEngine!=="dev";
+ const eng=v.querySelector("#lsEng");if(eng){eng.onchange=e=>{S.lsEngine=e.target.value==="dev"?"dev":"ohr";save();v.querySelector("#lsEarRow").hidden=S.lsEngine==="dev";v.querySelector("#lsWhoRow").hidden=S.lsEngine==="dev";v.querySelector("#lsDevRow").hidden=S.lsEngine!=="dev";
    if(S.lsEngine==="ohr"&&(OHR.st==="failed"||OHR.slow)){ohrGuard.ok();OHR.blocked=false;OHR.slow=false;OHR.p=null;OHR.st="idle"}   // chosen again on purpose: try once more
    if(OHR.on("de")&&OHR.st==="idle")OHR.load();lsEngineUI()};
-  v.querySelector("#lsEar").onchange=e=>{S.lsStrictEar=+e.target.value;save()};if(OHR.on("de")&&OHR.st==="idle")OHR.load();lsEngineUI()}}
+  v.querySelector("#lsEar").onchange=e=>{S.lsStrictEar=+e.target.value;save()};v.querySelector("#lsWho").onchange=e=>{S.lsWho=e.target.value==="erw"?"erw":"kind";save()};if(OHR.on("de")&&OHR.st==="idle")OHR.load();lsEngineUI()}}
 function lsBoard(v){const tab=LS.tab||"alle";const all=(S.lsHist||[]).filter(x=>tab==="alle"||x.level===tab).slice().sort((a,b)=>b.points-a.points).slice(0,20);
  const best=lv=>{const r=(S.lsHist||[]).filter(x=>x.level===lv&&x.wpm);return r.length?Math.max(...r.map(x=>x.wpm)):null};
  v.innerHTML=`<div class="row"><button class="btn small ghost" data-la="list">← Zurück</button></div><div><p class="eyebrow">Lesen</p><h1 style="font-size:28px">Bestenliste</h1></div>
@@ -3227,7 +3230,7 @@ function lsPreloadWords(L){try{if(!lsFullVoice()||!STANDALONE)return;if(!VIDX.wo
   // words without a recording yet: the on-device PokeLearn voice loads in the background, so it is ready as the backup
   if(miss&&LIVE.ok())LIVE.preload()}catch(e){}}
 // The microphone is paused while the app speaks (phones cannot record and play at the same time) and started again right after.
-function lsSayWord(idx){const L=LS,w=L.T[L.W[idx]].t;toast(`Das Wort heisst: «${w}»`);try{speechSynthesis.cancel()}catch(e){}
+function lsSayWord(idx){const L=LS,w=L.T[L.W[idx]].t;if(L.recd)lrecEv(L,{e:"sag",i:idx});toast(`Das Wort heisst: «${w}»`);try{speechSynthesis.cancel()}catch(e){}
  L.said={w:L.expN[idx],until:Date.now()+5000};L.muteUntil=Infinity;const live=!!L.sr;if(L.ohr)L.ohr.mute=true;else if(live){L.srPaused=true;lsStopSR(L)}
  let back=false;const resume=()=>{if(back)return;back=true;if(LS!==L)return;if(L.ohr)L.ohr.mute=false;L.muteUntil=Date.now()+150;L.said.until=Date.now()+3500;
   if(live&&L.phase==="reading"){L.srPaused=false;lsStartSR()}};
@@ -3262,7 +3265,7 @@ function lsUpdateFromHeard(){const L=LS;if(!L||L.mode!=="mic"||L.phase!=="readin
   L.srLangOv=alt;lsStopSR(L);L.srFin=null;L.srFinAlt=null;L.srAlt=null;L.srText="";ta.value="";L.fin=null;L.retry=null;lsStartSR();toast(`Mikrofon hört jetzt ${alt==="de-CH"?"Schweizer Hochdeutsch":"Hochdeutsch"}. Bitte nochmals von vorne lesen.`);lsPaint();return}
  if(bad&&!L.retry){lsPaint();lsShowWarn(true);return}   // not the text (other language or chatter): no judging, no stops
  try{lsAdvance(heard)}catch(err){console.error("lsAdvance",err);L.retry=null;try{const r=lsAlign(L.expN.slice(L.e0||0),heard.slice(L.h0||0),{});L.cur=r.st;L.wst=[...(L.fin||[]).slice(0,L.e0||0),...r.st];L.pos=(L.e0||0)+r.st.length}catch(e2){}}
- L.lastHeard=Date.now();lsPaint();lsRetryUI();lsHeardLine(L);
+ L.lastHeard=Date.now();lsPaint();lsRetryUI();lsHeardLine(L);if(L.recd)lrecState(L);
  if(document.getElementById("lsFocus"))lsKeepWord();else{const now=document.querySelector("#lsText .lw.now");if(now&&!L._scrollLock){L._scrollLock=true;now.scrollIntoView({block:"center"});setTimeout(()=>L._scrollLock=false,400)}}
  // wrong dictation language: many words heard, almost none match the text
  lsShowWarn(bad);
@@ -3299,7 +3302,7 @@ function lsFocusView(v){const L=LS,t=L.text,lang=t.lang||"de";
    <div class="lsbtns"><button class="btn small primary" data-la="micDone">${IC.check} Fertig gelesen</button><button class="btn small ghost" data-la="micClear">Neu beginnen</button><button class="btn small ghost" data-la="micExit" aria-label="Beenden">✕</button></div>
    <div class="lsretry" id="lsRetry" hidden aria-live="assertive"></div>
    <div class="lswarn" id="lsWarn" hidden></div></div>
-  <div class="lsmini"><span id="lsMicLab" hidden></span><span>Zeit <b id="lsTime">0:00</b></span><span>Wörter <b id="lsWords">0</b></span><span>Richtig <b id="lsSent">0%</b></span><span>Fehler <b id="lsErr">0</b></span><span id="lsSentL" hidden></span></div>
+  <div class="lsmini"><span id="lsMicLab" hidden></span>${typeof LREC!=="undefined"&&LREC.on()&&OHRBASE&&LS&&LS.text&&LS.text.lang==="de"&&S.lsEngine!=="dev"?`<span style="color:var(--bad)" title="Lese-Aufnahme (Elternbereich)">● Aufnahme</span>`:""}<span>Zeit <b id="lsTime">0:00</b></span><span>Wörter <b id="lsWords">0</b></span><span>Richtig <b id="lsSent">0%</b></span><span>Fehler <b id="lsErr">0</b></span><span id="lsSentL" hidden></span></div>
   <div class="lsscroll" id="lsScroll"><h2 style="font-size:20px;margin:0 0 6px;color:var(--accent)">${esc(t.title)}</h2><div class="lstext" id="lsText">${lsTextHtml()}</div></div></div>`;
  lsPaint();const scv=document.getElementById("lsScroll");scv.scrollTop=0;LS._lineTop=null;lsFit();lsClock();const hold=()=>{if(LS)LS._userScrollUntil=Date.now()+2500};scv.addEventListener("touchstart",hold,{passive:true});scv.addEventListener("wheel",hold,{passive:true});const ta=document.getElementById("lsDict");ta.addEventListener("input",lsOnDict);ta.addEventListener("compositionupdate",lsOnDict);ta.addEventListener("compositionend",lsOnDict);
  clearInterval(LS._poll);LS._poll=setInterval(()=>{const L=LS,t=document.getElementById("lsDict");if(!L||!t||L.phase!=="reading"){if(!t)clearInterval(L&&L._poll);return}if(t.value!==L._lastVal)lsOnDict()},70);ta.addEventListener("focus",()=>setTimeout(lsFit,350));ta.addEventListener("blur",()=>setTimeout(lsFit,350));lsMicUI()}
@@ -3442,7 +3445,7 @@ async function ohrStart(L){const AC=window.AudioContext||window.webkitAudioConte
  try{O.stream.getAudioTracks().forEach(t=>{t.onended=()=>{if(LS===L&&L.ohr===O&&L.phase==="reading"){ohrStop(L);L.srLive=false;L.srNeedTap=true;lsMicUI()}}})}catch(e){}
  try{const g=O.g=ohrGrammar(OHR.lex,L.expN);LSOOV=new Set(g.oov.map(i=>L.expN[i]));LSALIAS=g.alias;L._subKey=null;
   ohrNewRec(L,O);
-  const src=O.src=ctx.createMediaStreamSource(O.stream);O.rs=ohrResampler(O.fs);O.rs.setAlpha(ohrAlpha(S.ohrF0||0));
+  const src=O.src=ctx.createMediaStreamSource(O.stream);O.rs=ohrResampler(O.fs);O.rs.setAlpha(ohrAlpha(ohrF0Get()));
   const sink=ctx.createGain();sink.gain.value=0;sink.connect(ctx.destination);
   let ok=false;
   if(ctx.audioWorklet&&window.AudioWorkletNode){try{
@@ -3452,7 +3455,7 @@ async function ohrStart(L){const AC=window.AudioContext||window.webkitAudioConte
   if(!ok){const node=O.node=ctx.createScriptProcessor(2048,1,1);node.onaudioprocess=e=>ohrFeed(L,O,new Float32Array(e.inputBuffer.getChannelData(0)));src.connect(node);node.connect(sink)}
  }catch(e){console.error("ohr",e);ohrStop(L);return false}
  if(LS!==L||L.phase!=="reading"||L.ohr!==O){ohrStop(L,O);return true}
- L.eng="ohr";L.srLive=true;L.srNeedTap=false;lsMicUI();
+ L.eng="ohr";L.srLive=true;L.srNeedTap=false;lsMicUI();lrecBegin(L);if(L.recd)lrecEv(L,{e:"ohr",a:+O.rs.alpha.toFixed(3),who:S.lsWho||"kind"});
  O.wd=setInterval(()=>{if(LS!==L||L.ohr!==O||L.phase!=="reading"){clearInterval(O.wd);return}const t=performance.now()-O.t0;
   if(O.sent.length>30&&t>8000&&ohrRevive(L,O))return;                                                                    // it has stopped answering: start it afresh
   if((t>6000&&!O.chunks)||(O.sent.length>30&&t>8000)){clearInterval(O.wd);ohrGiveWay(L,O);return}                        // no sound reaches the ear, or it cannot be woken
@@ -3465,7 +3468,7 @@ async function ohrStart(L){const AC=window.AudioContext||window.webkitAudioConte
 // keeps listening; the words read so far stay. Only when that happens again and again in one reading is the device too slow for it.
 function ohrRevive(L,O){const now=performance.now();if(O.dead||(O.revN||0)>=3)return false;O.revN=(O.revN||0)+1;O.revT=now;O.late=0;
  const keep=O.fin.concat(O.part);try{ohrNewRec(L,O)}catch(e){return false}O.fin=keep;L.srFin=O.fin;L.srFinN=keep.length;return true}
-function ohrGiveWay(L,O){O.dead=true;OHR.slow=true;ohrStop(L);if(LS===L&&L.phase==="reading"){L.srLive=false;L.eng="";toast("Das PokeLearn-Ohr kommt auf diesem Gerät nicht nach – jetzt hört die Erkennung des Geräts zu.");lsStartSR();lsMicUI()}}
+function ohrGiveWay(L,O){if(L.recd)lrecEv(L,{e:"geraet"});O.dead=true;OHR.slow=true;ohrStop(L);if(LS===L&&L.phase==="reading"){L.srLive=false;L.eng="";toast("Das PokeLearn-Ohr kommt auf diesem Gerät nicht nach – jetzt hört die Erkennung des Geräts zu.");lsStartSR();lsMicUI()}}
 function ohrNewRec(L,O){if(O.rec){try{O.rec.remove()}catch(e){}}O.fin=[];O.part=[];O.sent=[];O.out=[];O.outN=0;
  const rec=O.rec=new OHR.model.KaldiRecognizer(16000,JSON.stringify(ohrPhrases(OHR.lex,O.g,ohrOpts())));
  const got=()=>{const t=O.sent.shift();if(t){O.lag=performance.now()-t;
@@ -3484,12 +3487,14 @@ function ohrFeed(L,O,x){if(LS!==L||L.ohr!==O||!O.rec||O.dead)return;
  const f0=ohrPitch(O,x);if(f0){const a=ohrAlpha(f0);if(Math.abs(a-O.rs.alpha)>.03&&now-(O.tWarp||-1e9)>5000){O.tWarp=now;O.rs.setAlpha(a)}}   // adjust in clear steps only, not with every sentence melody
  O.spk=Math.max((O.spk||0)*.995,O.lvl);if(O.lvl<.22*O.spk){if(!O.quiet0)O.quiet0=now}else O.quiet0=0;
  if(O.part.length&&O.utt0&&!O.flush&&now-O.utt0>10000&&now-(O.tChg||0)>300&&O.quiet0&&now-O.quiet0>200){O.flush=now;try{O.rec.retrieveFinalResult()}catch(e){}}
+ if(L.recd)lrecFeed(L,O,x);
  if(O.mute)return;const y=O.rs.push(x);if(!y.length)return;O.out.push(y);O.outN+=y.length;
  if(O.outN>=1600){const c=new Float32Array(O.outN);let o=0;for(const p of O.out){c.set(p,o);o+=p.length}O.out=[];O.outN=0;
   if(O.sent.length>40)return;                                   // far behind: drop sound instead of queueing more
   O.sent.push(performance.now());try{O.rec.acceptWaveformFloat(c,16000)}catch(e){}}}
 function ohrStop(L,O){O=O||(L&&L.ohr);if(!O)return;if(L&&L.ohr===O)L.ohr=null;if(!O.safe)ohrGuard.ease();
- try{if(O.f0&&O.pit&&O.pit.nv>=120&&Math.abs((S.ohrF0||0)-O.f0)>6){S.ohrF0=Math.round(O.f0);save()}}catch(e){}   // remember the reader's voice pitch for the next time
+ try{if(O.f0&&O.pit&&O.pit.nv>=120&&Math.abs(ohrF0Get()-O.f0)>6){ohrF0Put(Math.round(O.f0));save()}}catch(e){}   // remember the voice pitch of this reader for the next time
+ if(L&&L.recd)lrecEv(L,{e:"aus",f0:O.f0?Math.round(O.f0):0});
  try{O.node&&(O.node.port?(O.node.port.onmessage=null):(O.node.onaudioprocess=null))}catch(e){}
  try{O.src&&O.src.disconnect()}catch(e){}try{O.node&&O.node.disconnect()}catch(e){}
  try{O.stream&&O.stream.getTracks().forEach(t=>t.stop())}catch(e){}try{O.rec&&O.rec.remove()}catch(e){}O.rec=null;clearInterval(O.wd);try{O.ctx&&O.ctx.close()}catch(e){}document.documentElement.style.removeProperty("--miclvl")}
@@ -3502,6 +3507,84 @@ document.addEventListener("visibilitychange",()=>{const O=LS&&LS.ohr;if(O&&!docu
  if(document.hidden)ohrGuard.ease();else if(OHR.st==="loading"||(O&&!O.safe))ohrGuard.arm()});
 addEventListener("pagehide",()=>ohrGuard.ease());
 // </ohr>
+// <lrec>
+// ---- Lese-Aufnahmen (website, PokeLearn-Ohr): when the parents switch it on, the sound of a reading is kept ON THIS DEVICE together with
+// everything the ear wrote and how the app judged it, moment by moment. With that a reading can be played back, checked word by word and
+// the ear tuned to this reader. Nothing leaves the device unless the parents send a recording themselves (share sheet / download).
+const LREC={MAX:30,LIM:16000*60*10,MINS:5,
+ on:()=>STANDALONE&&!!S.recOn,
+ db:null,open(){return this.db||(this.db=new Promise((res,rej)=>{let r;try{r=indexedDB.open("pokelearn-rec",1)}catch(e){return rej(e)}
+  r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore("meta");d.createObjectStore("data")};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}))},
+ req(st,mode,f){return this.open().then(d=>new Promise((res,rej)=>{const t=d.transaction(st,mode),q=f(t.objectStore(st));t.oncomplete=()=>res(q&&q.result);t.onerror=t.onabort=()=>rej(t.error)}))},
+ list(){return this.req("meta","readonly",s=>s.getAll()).then(a=>(a||[]).sort((x,y)=>y.at-x.at)).catch(()=>[])},
+ data(id){return this.req("data","readonly",s=>s.get(id))},
+ async put(meta,data){await this.req("data","readwrite",s=>s.put(data,meta.id));await this.req("meta","readwrite",s=>s.put(meta,meta.id));
+  const a=await this.list();for(const m of a.slice(this.MAX))await this.del(m.id)},     // the oldest go when there are too many
+ async del(id){await this.req("data","readwrite",s=>s.delete(id));await this.req("meta","readwrite",s=>s.delete(id))},
+ setWho(id,who){return this.req("meta","readonly",s=>s.get(id)).then(m=>m&&this.req("meta","readwrite",s=>s.put(Object.assign(m,{who}),id)))}};
+const lrecWho=w=>w==="erw"?"Eltern":(S.name||"Kind");
+// who is reading: the ear remembers the voice pitch per reader, recordings carry the name
+const ohrF0Get=()=>{const w=S.lsWho||"kind";return(S.ohrF0s&&S.ohrF0s[w])||S.ohrF0||0};
+function ohrF0Put(f0){const w=S.lsWho||"kind";S.ohrF0s=Object.assign({},S.ohrF0s,{[w]:f0});if(w==="kind")S.ohrF0=f0}
+function lrecBegin(L){if(!LREC.on()||L.recd||L.mode!=="mic")return;L.recd={id:"r"+Date.now().toString(36),at:Date.now(),n:0,ch:[],ev:[],k1:"",k2:"",who:S.lsWho||"kind",full:false}}
+function lrecEv(L,o){const R=L&&L.recd;if(!R||R.saved)return;o.t=Math.round(R.n/160)/100;R.ev.push(o)}
+// sound: the microphone signal at 16 kHz, not shifted (the ear may hear it lowered for a child's voice — that setting is stored separately)
+function lrecFeed(L,O,x){const R=L.recd;if(!R||R.full||R.saved)return;if(!O.rs0)O.rs0=ohrResampler(O.fs);const y=O.rs0.push(x);if(!y.length)return;
+ const a=new Int16Array(y.length);for(let i=0;i<y.length;i++){const v=y[i];a[i]=v>=1?32767:v<=-1?-32768:Math.round(v*32767)}R.ch.push(a);R.n+=a.length;
+ if(R.n>=LREC.LIM){R.full=true;lrecEv(L,{e:"voll"})}}
+// what the ear wrote and how it was judged — only when something changed
+function lrecState(L){const R=L.recd;if(!R||R.saved)return;const w=L.srText||"",k1=w+"|"+(L.srFinN||0);if(k1!==R.k1){R.k1=k1;lrecEv(L,{e:"h",w,f:L.srFinN||0})}
+ const r=L.retry,k2=(L.pos||0)+"|"+(r?r.idx+","+r.tries+","+(r.gap?1:0)+","+(r.am||0):"")+"|"+(L.fixed||0)+"|"+(L.given||0);
+ if(k2!==R.k2){R.k2=k2;lrecEv(L,{e:"j",p:L.pos||0,r:r?[r.idx,r.tries||1,r.gap?1:0,r.am||0]:0,fx:L.fixed||0,gv:L.given||0})}}
+function lrecWav(ch,n){const b=new ArrayBuffer(44+n*2),d=new DataView(b),W=(o,s)=>{for(let i=0;i<s.length;i++)d.setUint8(o+i,s.charCodeAt(i))};
+ W(0,"RIFF");d.setUint32(4,36+n*2,true);W(8,"WAVE");W(12,"fmt ");d.setUint32(16,16,true);d.setUint16(20,1,true);d.setUint16(22,1,true);d.setUint32(24,16000,true);d.setUint32(28,32000,true);d.setUint16(32,2,true);d.setUint16(34,16,true);W(36,"data");d.setUint32(40,n*2,true);
+ let o=44;for(const a of ch){new Int16Array(b,o,a.length).set(a);o+=a.length*2}return new Blob([b],{type:"audio/wav"})}
+// keep it: at the end of the reading, when it is started over or left
+function lrecEnd(L,why){const R=L&&L.recd;if(!R||R.saved)return;R.saved=true;L.recd=null;const ch=R.ch;R.ch=null;if(R.n<16000*LREC.MINS)return;
+ try{const N=L.expN.length,wst=(L.wst||[]).slice(0,N),cnt=s=>wst.filter(x=>x===s).length,stops=new Set(R.ev.filter(e=>e.e==="j"&&e.r).map(e=>e.r[0])).size;
+  const info={v:1,app:"PokeLearn",id:R.id,at:new Date(R.at).toISOString(),who:R.who,end:why,sec:Math.round(R.n/160)/100,
+   text:{title:L.text.title||"",level:L.text.level||"",lang:L.text.lang||"de",text:L.text.text},expN:L.expN,oov:[...LSOOV],alias:Object.fromEntries([...LSALIAS].map(([k,v])=>[k,[...v]])),
+   set:{strict:S.lsStrictEar??1,mn:S.lsMN===true,f0:ohrF0Get()},wst,stats:{words:N,pos:L.pos||0,ok:cnt("ok"),fixed:cnt("fixed"),bad:cnt("bad"),miss:cnt("miss"),skip:cnt("skip"),stops,given:L.given||0},
+   ev:R.ev,ua:navigator.userAgent};
+  const meta={id:R.id,at:R.at,who:R.who,title:info.text.title,level:info.text.level,sec:info.sec,words:N,pos:info.stats.pos,bad:info.stats.bad+info.stats.miss,stops,end:why};
+  LREC.put(meta,{wav:lrecWav(ch,R.n),info}).then(()=>{const el=document.getElementById("recList");if(el)lrecListUI()}).catch(e=>console.error("lrec",e))}catch(e){console.error("lrec",e)}}
+// a small zip (stored, not compressed: the sound does not shrink anyway) — one folder per recording: audio.wav and info.json
+const _crcT=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+const crc32=u=>{let c=0xFFFFFFFF;for(let i=0;i<u.length;i++)c=_crcT[(c^u[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0};
+async function lrecZip(files){const enc=new TextEncoder(),parts=[],cen=[];let off=0;const now=new Date(),dt=((now.getHours()<<11)|(now.getMinutes()<<5)|(now.getSeconds()>>1)),dd=(((now.getFullYear()-1980)<<9)|((now.getMonth()+1)<<5)|now.getDate());
+ for(const f of files){const name=enc.encode(f.name),data=f.data instanceof Blob?new Uint8Array(await f.data.arrayBuffer()):enc.encode(f.data),crc=crc32(data);
+  const h=new DataView(new ArrayBuffer(30));h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(8,0,true);h.setUint16(10,dt,true);h.setUint16(12,dd,true);h.setUint32(14,crc,true);h.setUint32(18,data.length,true);h.setUint32(22,data.length,true);h.setUint16(26,name.length,true);h.setUint16(28,0,true);
+  parts.push(h.buffer,name,data);const c=new DataView(new ArrayBuffer(46));c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x0800,true);c.setUint16(10,0,true);c.setUint16(12,dt,true);c.setUint16(14,dd,true);c.setUint32(16,crc,true);c.setUint32(20,data.length,true);c.setUint32(24,data.length,true);c.setUint16(28,name.length,true);c.setUint32(42,off,true);
+  cen.push(c.buffer,name);off+=30+name.length+data.length}
+ const cl=cen.reduce((a,x)=>a+(x.byteLength??x.length),0),e=new DataView(new ArrayBuffer(22));e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cl,true);e.setUint32(16,off,true);
+ return new Blob([...parts,...cen,e.buffer],{type:"application/zip"})}
+async function lrecPack(ids){const files=[];for(const id of ids){const d=await LREC.data(id);if(!d)continue;const m=(await LREC.list()).find(x=>x.id===id);if(m&&d.info)d.info.who=m.who;
+  const dir=(d.info&&d.info.at||"").slice(0,16).replace(/[:T]/g,"-")+"_"+(m&&m.who||"kind")+"_"+id;files.push({name:dir+"/audio.wav",data:d.wav},{name:dir+"/info.json",data:JSON.stringify(d.info)})}
+ return files.length?lrecZip(files):null}
+async function lrecSend(ids){const st=document.getElementById("recSt");const say=t=>{if(st)st.textContent=t};say("Wird vorbereitet …");
+ try{const z=await lrecPack(ids);if(!z){say("Keine Aufnahme gefunden.");return}const name=`pokelearn-lesen-${new Date().toISOString().slice(0,10)}-${ids.length}.zip`,f=new File([z],name,{type:"application/zip"});
+  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:"PokeLearn – Lese-Aufnahmen"});say("");return}catch(e){if(e&&e.name==="AbortError"){say("");return}}}
+  const a=document.createElement("a");a.href=URL.createObjectURL(f);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000);say(`Gespeichert als «${name}» (${(z.size/1e6).toFixed(1)} MB).`)}
+ catch(e){say("Das hat nicht geklappt: "+(e&&e.message||e))}}
+const lrecDur=s=>`${Math.floor(s/60)}:${String(Math.round(s%60)).padStart(2,"0")}`;
+async function lrecListUI(){const el=document.getElementById("recList");if(!el)return;const a=await LREC.list();const sz=a.reduce((x,m)=>x+m.sec*32000,0);
+ el.innerHTML=a.length?`<div class="list">${a.map(m=>`<div class="item" data-rid="${m.id}" style="flex-wrap:wrap;gap:8px"><div class="t" style="flex:1 1 200px">${esc(m.title||"Lesetext")}<small>${new Date(m.at).toLocaleString("de-CH",{day:"numeric",month:"numeric",hour:"2-digit",minute:"2-digit"})} · ${lrecDur(m.sec)} · ${m.pos}/${m.words} Wörter · ${m.stops} ${m.stops===1?"Stopp":"Stopps"}${m.end!=="fertig"?" · "+esc(m.end):""}</small></div>
+  <div style="display:flex;gap:6px;width:100%;align-items:center"><select data-rwho style="flex:1 1 auto;min-width:0" aria-label="Wer hat gelesen?">${["kind","erw"].map(w=>`<option value="${w}" ${m.who===w?"selected":""}>${esc(lrecWho(w))}</option>`).join("")}</select><button class="btn small" data-rplay aria-label="Anhören">▶︎</button><button class="btn small" data-rsend>Senden</button><button class="btn small ghost" data-rdel style="color:var(--bad)" aria-label="Löschen">✕</button></div><audio data-raud controls hidden style="width:100%"></audio></div>`).join("")}</div>
+  <div class="row"><button class="btn teal" id="recAll">Alle senden (${a.length}, ${(sz/1e6).toFixed(0)} MB)</button><button class="btn ghost" id="recDelAll" style="color:var(--bad)">Alle löschen</button></div>`:`<p class="muted" style="margin:0;font-size:13px">Noch keine Aufnahmen.</p>`;
+ el.onclick=async e=>{const it=e.target.closest("[data-rid]"),id=it&&it.dataset.rid;
+  if(e.target.closest("#recAll"))return lrecSend(a.map(m=>m.id));
+  if(e.target.closest("#recDelAll")){if(e.target.dataset.sure){for(const m of a)await LREC.del(m.id);return lrecListUI()}e.target.dataset.sure=1;e.target.textContent="Wirklich alle löschen?";return}
+  if(!id)return;
+  if(e.target.closest("[data-rsend]"))return lrecSend([id]);
+  if(e.target.closest("[data-rdel]")){await LREC.del(id);return lrecListUI()}
+  if(e.target.closest("[data-rplay]")){const au=it.querySelector("[data-raud]");if(!au.src){const d=await LREC.data(id);if(!d)return;au.src=URL.createObjectURL(d.wav)}au.hidden=false;try{au.play()}catch(x){}}};
+ el.onchange=e=>{const it=e.target.closest("[data-rid]");if(it&&e.target.matches("[data-rwho]"))LREC.setWho(it.dataset.rid,e.target.value)}}
+function lrecCard(){return STANDALONE&&OHRBASE?`<div class="card" style="display:grid;gap:10px"><p class="eyebrow">Lese-Aufnahmen</p>
+ <label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="recOn" style="width:auto;flex:none;margin-top:4px" ${S.recOn?"checked":""}><span>Lesen mit dem PokeLearn-Ohr aufnehmen</span></label>
+ <p class="muted" style="font-size:13px;margin:0">Gespeichert werden der Ton und Wort für Wort, was das Ohr verstanden und wie die App beurteilt hat – nur auf diesem Gerät. Damit lässt sich das Ohr auf die Stimmen eurer Familie abstimmen: <b>Senden</b> → «In Dateien sichern» oder AirDrop auf den Computer, dann im Chat mit Claude anhängen. Ohne Senden verlässt nichts das Gerät. Wer liest, wird auf der Lese-Startkarte gewählt; beim Lesen steht «●&nbsp;Aufnahme». Höchstens ${LREC.MAX} Aufnahmen (je bis 10 Min., etwa 2 MB pro Minute), die ältesten werden ersetzt.</p>
+ <div id="recList"><p class="muted" style="margin:0;font-size:13px">…</p></div><p class="muted" id="recSt" style="margin:0;font-size:13px"></p></div>`:""}
+function lrecWire(v){const c=v.querySelector("#recOn");if(!c)return;c.onchange=e=>{S.recOn=e.target.checked;save()};lrecListUI()}
+// </lrec>
 let lsSRBlocked=false;
 // first choice: listen directly in the page (like the original LeseStar); falls back to device dictation if the app does not allow it
 const SRFALL={"de-CH":"de-DE","fr-CH":"fr-FR","en-GB":"en-US"};
@@ -3602,7 +3685,7 @@ async function lsSayText(){const L=LS,gen=++L.gen;L.phase="tts";lsReader(documen
    const mark=ci=>{let cur=null;parts.forEach(p=>{if(p.at<=ci)cur=p});document.querySelectorAll("#lsText .lw.say").forEach(e=>e.classList.remove("say"));if(cur){const e=document.querySelector(`#lsText .lw[data-wi="${cur.i}"]`);if(e)e.classList.add("say")}};
    u.onboundary=e=>{if(e.name==="word"||e.charIndex!=null)mark(e.charIndex)};let to=setTimeout(res,txt.length*120+4000);u.onend=u.onerror=()=>{clearTimeout(to);res()};try{speechSynthesis.speak(u)}catch(e){res()}})}
  document.querySelectorAll("#lsText .lw.say").forEach(e=>e.classList.remove("say"));if(LS===L&&L.gen===gen){L.phase="ready";lsRender()}}
-function lsFinishReading(){const L=LS;lsStopSR(L);if(L.mode==="mic"&&L.retry&&L.wst){L.wst[L.retry.idx]="bad";L.retry=null}   // a word still waiting in red stays a mistake
+function lsFinishReading(){const L=LS;if(L.recd)lrecState(L);lsStopSR(L);if(L.mode==="mic"&&L.retry&&L.wst){L.wst[L.retry.idx]="bad";L.retry=null}if(L.recd)lrecEnd(L,"fertig");   // a word still waiting in red stays a mistake
  const ta=document.getElementById("lsDict");if(ta)ta.blur();if(L.t0){L.ms+=Date.now()-L.t0;L.t0=0}clearInterval(L.timer);L.timer=null;L.phase="quiz";L.qi=0;lsRender()}
 function lsQuiz(v){const L=LS,t=L.text,i=L.qi,q=t.q[i],opts=L.order[i],ans=L.qa[i];
  v.innerHTML=`<div class="row"><button class="btn small ghost" data-la="list">← Zurück</button><span class="pill">Frage ${i+1} von ${t.q.length}</span></div>
@@ -3678,7 +3761,7 @@ document.getElementById("lsView").addEventListener("click",e=>{const L=LS;
  if(a==="mic"){acUnlock();try{speechSynthesis.cancel()}catch(x){}L.gen++;L.mode="mic";L.phase="reading";L.read=true;L.pos=0;L.wst=[];L._done=false;L.srLive=false;L.srFin=null;L.srFinAlt=null;L.srAlt=null;L.srText="";L.fin=null;lsPreloadWords(L);vjSchedule();lsReader(document.getElementById("lsView"));const ta=document.getElementById("lsDict");if(ta&&!lsLive())ta.focus();lsListen(L);return}
  if(a==="micExit"){const ta=document.getElementById("lsDict");if(ta)ta.blur();lsStop();L.mode=null;L.phase="ready";L.ms=0;L.t0=0;L.wst=[];L.pos=0;lsRender();return}
  if(a==="micResume"){L.srNeedTap=false;lsNetFails=0;lsListen(L);lsMicUI();return}
- if(a==="micClear"){L._done=false;clearTimeout(L._endT);clearTimeout(L._finT);L.fin=null;L.srFin=null;L.srFinAlt=null;L.srAlt=null;L.srText="";L.retry=null;L.cur=[];const ta=document.getElementById("lsDict");if(ta){ta.value="";if(!L.srLive)ta.focus()}if(L.ohr)ohrNewRec(L,L.ohr);else if(L.sr){lsStopSR(L);lsStartSR()}L.wst=[];L.pos=0;L._done=false;L.ms=0;L.t0=0;clearInterval(L.timer);L.timer=null;lsClock();lsPaint();return}
+ if(a==="micClear"){if(L.recd)lrecEnd(L,"neu begonnen");L._done=false;clearTimeout(L._endT);clearTimeout(L._finT);L.fin=null;L.srFin=null;L.srFinAlt=null;L.srAlt=null;L.srText="";L.retry=null;L.cur=[];const ta=document.getElementById("lsDict");if(ta){ta.value="";if(!L.srLive)ta.focus()}if(L.ohr){ohrNewRec(L,L.ohr);lrecBegin(L)}else if(L.sr){lsStopSR(L);lsStartSR()}L.wst=[];L.pos=0;L._done=false;L.ms=0;L.t0=0;clearInterval(L.timer);L.timer=null;lsClock();lsPaint();return}
  if(a==="micDone"){if(!L.pos){toast(lsLive()?"Noch nichts gehört. Lies den Text laut und deutlich vor.":"Noch nichts gehört. Tippe ins Feld und dann auf das Mikrofon der Tastatur.");return}lsFinishReading();return}
  if(a==="read"){L.mode="tap";acUnlock();try{speechSynthesis.cancel()}catch(x){}L.gen++;L.phase="reading";L.read=true;L.si=0;L.t0=Date.now();L.timer=setInterval(lsClock,500);lsReader(document.getElementById("lsView"));return}
  if(a==="tts"){lsSayText();return}

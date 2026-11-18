@@ -41,6 +41,13 @@ Die Zeile «Ich höre» zeigt, was das Ohr geschrieben hat; jedes Wort darin tr�
 Mit der Erkennung des Geräts (Apple/Google) bleibt der Vergleich nachsichtiger (Endungen langer Wörter, ein einzelnes fehlendes Wort),
 weil sie den Text nicht kennt und öfter danebenliegt.
 
+## Auf die Stimmen der Familie abstimmen
+
+«Wer liest?» auf der Lese-Startkarte (Kind / Eltern): das Ohr merkt sich die Tonhöhe der Stimme je Leser und beginnt beim nächsten
+Mal gleich mit der passenden Einstellung. Mit eingeschalteten **Lese-Aufnahmen** (Elternbereich) werden Lesungen auf dem Gerät
+gespeichert; gesendet und ausgewertet (`tools/ohr/rec_report.py`, `rec_replay.js`) zeigen sie, wo das Ohr bei welcher Stimme zu
+streng oder zu nachsichtig ist.
+
 ## Gemessen
 
 Echte Stimmen (Hörbuch-Aufnahmen aus «Multilingual LibriSpeech», 12 Sprecherinnen und Sprecher, rund 2 900 Wörter pro Durchgang,
