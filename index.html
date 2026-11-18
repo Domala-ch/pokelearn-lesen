@@ -563,8 +563,8 @@ input[type=file]::file-selector-button{font:inherit;font-weight:700;border:0;bor
       <div id="scanResult" style="display:none;gap:10px;flex-direction:column"></div>
     </div>
     <div class="card ptentry" style="display:grid;gap:8px">
-      <div class="row" style="gap:12px;align-items:center"><span class="ptico" aria-hidden="true">✍️</span><div style="flex:1;min-width:0"><h2 style="font-size:20px">Vokabeln auf Papier</h2><p class="muted" style="margin:2px 0 0;font-size:14px">Du siehst das deutsche Wort und schreibst das französische (oder englische) auf ein Blatt. Dann fotografierst du es – Claude zeigt dir jeden Fehler und übt ihn mit dir.</p></div></div>
-      <button class="btn primary" data-ptopen>Test starten</button>
+      <div class="row" style="gap:12px;align-items:center"><span class="ptico" aria-hidden="true">✍️</span><div style="flex:1;min-width:0"><h2 style="font-size:20px">Vokabeln auf Papier</h2><p class="muted" style="margin:2px 0 0;font-size:14px">Arbeitsblatt drucken (Deutsch, Französisch, Englisch, gemischt oder Diktat) – oder die Wörter am Bildschirm anschauen. Dann das Blatt fotografieren: Claude zeigt dir jeden Fehler und übt ihn mit dir.</p></div></div>
+      <button class="btn primary" data-ptopen>Arbeitsblatt oder Test starten</button>
     </div>
     <div class="card" style="display:grid;gap:10px">
       <div class="row"><h2 style="font-size:20px">Mein Deck</h2><span class="pill" id="deckCount">0 Einträge</span><button class="btn small" id="addManual" style="margin-left:auto">+ von Hand</button></div>
@@ -1196,11 +1196,11 @@ function pdfBuild(pages,title){const objs=[];const add=s=>{objs.push(s);return o
  const u=new Uint8Array(out.length);for(let i=0;i<out.length;i++)u[i]=out.charCodeAt(i)&255;return new Blob([u],{type:"application/pdf"})}
 // mode: "a" show the first word (foreign / question), "b" show the second (German / answer), "mix" either, "dict" only lines (words are read aloud)
 function wordSheetPdf(t,rows,opt){const lang=rows[0].lang,LN=lang==="de"?"":LANGN[lang],de=lang==="de";
- const copy=de&&rows.some(r=>!r.b),nameA=de?"Wort":LN,nameB=copy?"Abschreiben":de?"Antwort":"Deutsch";
- let R=rows.map((r,i)=>({...r,n:i+1}));if(opt.shuffle)R=shuffle(R).map((r,i)=>({...r,n:i+1}));
- const sides=R.map((_,i)=>opt.mode==="mix"?(i%2?"a":"b"):opt.mode);if(opt.mode==="mix"){const s=shuffle(sides.slice());s.forEach((x,i)=>sides[i]=x)}
+ const copy=opt.copy??(de&&rows.some(r=>!r.b)),nameA=de?"Wort":LN,nameB=copy?"Abschreiben":de?"Antwort":"Deutsch";
+ let R=rows.map((r,i)=>({...r,n:i+1}));if(opt.shuffle&&!opt.sides)R=shuffle(R).map((r,i)=>({...r,n:i+1}));
+ const sides=opt.sides||R.map((_,i)=>opt.mode==="mix"?(i%2?"a":"b"):opt.mode);if(opt.mode==="mix"&&!opt.sides){const s=shuffle(sides.slice());s.forEach((x,i)=>sides[i]=x)}
  const ML=48,MR=48,W=595-ML-MR,TOP=842-48,BOT=56,colN=26,colP=Math.round((W-colN)*.46),colW=W-colN-colP;
- const instr=opt.mode==="dict"?"Hör gut zu und schreibe jedes Wort auf die Linie."
+ const instr=opt.mode==="dict"?`Hör gut zu und schreibe jedes Wort${de?"":" auf "+LN}${lang==="fr"?" (mit Artikel)":""} auf die Linie.`
   :opt.mode==="mix"?(de?"Schreibe zu jedem Wort das passende andere Wort.":`Schreibe die Übersetzung: zu deutschen Wörtern das ${LN.toLowerCase()}e, zu ${LN.toLowerCase()}en das deutsche Wort.`)
   :opt.mode==="a"?(copy?"Schreibe jedes Wort sorgfältig ab – Buchstabe für Buchstabe.":de?"Schreibe die Antwort auf die Linie.":`Schreibe zu jedem ${LN.toLowerCase()}en Wort das deutsche Wort.`)
   :(de?"Schreibe das passende Wort auf die Linie.":`Schreibe zu jedem deutschen Wort das ${LN.toLowerCase()}e Wort${lang==="fr"?" – mit Artikel":""}.`);
@@ -1228,12 +1228,12 @@ function wordSheetPdf(t,rows,opt){const lang=rows[0].lang,LN=lang==="de"?"":LANG
   if(opt.mode==="dict"){line(ML+colN+6,y-h+8,ML+W-6,y-h+8,.5,.7)}
   else{ls.forEach((l,q)=>txt(ML+colN+6,y-h+10+(ls.length-1-q)*(z+2.5),l,z));line(ML+colN+colP+6,y-h+8,ML+W-6,y-h+8,.5,.7);if(tag)txt(ML+W-6-pdfW(tag,7),y-h+12,tag,7,false,.6)}
   y-=h});
- if(opt.key){ops=[];pages.push(ops);y=TOP;const z=fit("Lösungen – "+t.name,16,true,W,11);txt(ML,y-z,"Lösungen – "+t.name.replace(/^Aus dem Heft · /,""),z,true);y-=z+16;
+ const before=pages.length;if(opt.key){ops=[];pages.push(ops);y=TOP;const z=fit("Lösungen – "+t.name,16,true,W,11);txt(ML,y-z,"Lösungen – "+t.name.replace(/^Aus dem Heft · /,""),z,true);y-=z+16;
   const cA=Math.round((W-colN)/2);box(ML,y-18,W,18,.93);txt(ML+6,y-13,"Nr.",9,true,.3);txt(ML+colN+6,y-13,opt.mode==="dict"?"Wort":nameA,9,true,.3);if(opt.mode!=="dict"&&!copy)txt(ML+colN+cA+6,y-13,nameB,9,true,.3);y-=22;
   R.forEach((r,i)=>{const la=pdfWrap(r.a,10.5,false,(opt.mode==="dict"||copy?W-colN:cA)-12),lb=opt.mode==="dict"||copy?[]:pdfWrap(r.b,10.5,false,cA-12),h=Math.max(la.length,lb.length,1)*13+6;
    if(y-h<BOT){ops=[];pages.push(ops);y=TOP}
    if(i%2===1)box(ML,y-h,W,h,.975);txt(ML+6,y-13,String(r.n),9.5,false,.45);la.forEach((l,q)=>txt(ML+colN+6,y-13-q*13,l,10.5,sides[i]==="a"&&opt.mode!=="dict"));lb.forEach((l,q)=>txt(ML+colN+cA+6,y-13-q*13,l,10.5,sides[i]==="b"));y-=h})}
- pages.forEach((p,i)=>{ops=p;const f=`PokeLearn · ${t.name.replace(/^Aus dem Heft · /,"")} · Seite ${i+1} von ${pages.length}`;txt(ML,30,f,8,false,.55)});
+ opt.keyPages=pages.length-before;pages.forEach((p,i)=>{ops=p;const f=`PokeLearn · ${t.name.replace(/^Aus dem Heft · /,"")} · Seite ${i+1} von ${pages.length}`;txt(ML,30,f,8,false,.55);if(opt.foot&&i<pages.length-(opt.keyPages||0)){const z=8;txt(ML+W-pdfW(opt.foot,z),30,opt.foot,z,false,.55)}});
  return{blob:pdfBuild(pages,title),pages:pages.length}}
 // hand the PDF over: phone → share sheet (print, save to Files, AirDrop …); computer → open it (the browser's viewer prints)
 function wordSheetOut(blob,name,stEl){const f=new File([blob],name,{type:"application/pdf"});const say=s=>{if(stEl)stEl.textContent=s};
@@ -1241,34 +1241,14 @@ function wordSheetOut(blob,name,stEl){const f=new File([blob],name,{type:"applic
  const u=URL.createObjectURL(f),w=window.open(u,"_blank");if(!w){const a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove()}
  say("PDF geöffnet – dort drucken oder sichern.");setTimeout(()=>URL.revokeObjectURL(u),120000)}
 // </wpdf>
-function vocabSheet(t,k){const rows=vocabRows(t);if(!rows.length)return;const old=document.getElementById("vocabSheet");if(old)old.remove();const el=document.createElement("div");el.id="vocabSheet";el.className="gsheet";let hide=0,view="list";const lang=rows[0].lang,LN=lang==="de"?"Deutsch":LANGN[lang];
- // worksheet to print: which word is shown, the other one is written on the line
- const copy=lang==="de"&&rows.some(r=>!r.b);
- const MODES=copy?[["a","Abschreiben","Das Wort steht da – es wird sauber abgeschrieben."],["dict","Diktat","Nur nummerierte Linien – du liest die Wörter vor (Lösungsblatt zum Vorlesen)."]]
-  :lang==="de"?[["a","Wort zeigen","Das Wort steht da – die Antwort wird geschrieben."],["b","Antwort zeigen","Die Antwort steht da – das Wort wird geschrieben."],["mix","Gemischt","Mal das eine, mal das andere – kunterbunt gemischt."],["dict","Diktat","Nur nummerierte Linien – du liest die Wörter vor (Lösungsblatt zum Vorlesen)."]]
-  :[["b","Deutsch zeigen",`Deutsch steht da – ${LN} wird geschrieben${lang==="fr"?" (mit Artikel)":""}.`],["a",`${LN} zeigen`,`${LN} steht da – Deutsch wird geschrieben.`],["mix","Gemischt",`Mal Deutsch, mal ${LN} – die andere Sprache wird geschrieben (klein angeschrieben).`],["dict","Diktat",`Nur nummerierte Linien – du liest die ${LN.replace(/isch$/,"ischen")} Wörter vor (Lösungsblatt zum Vorlesen).`]];
- const ws=Object.assign({mode:MODES[0][0],shuffle:false,key:true},(S.ws||{})[copy?"copy":lang]);if(!MODES.some(m=>m[0]===ws.mode))ws.mode=MODES[0][0];
- const drawPrint=()=>{const M=MODES.find(m=>m[0]===ws.mode);el.innerHTML=`<div class="card gsheetin" role="dialog" aria-label="Arbeitsblatt drucken" style="max-height:92vh;overflow:auto;display:grid;gap:14px"><div class="row" style="justify-content:space-between;align-items:center;flex-wrap:nowrap"><div style="flex:1;min-width:0"><p class="eyebrow" style="margin:0">Arbeitsblatt drucken · ${rows.length} Wörter</p><h2 style="font-size:20px;margin:0">${esc(t.name)}</h2></div><button class="btn small ghost" data-vs="close" aria-label="Schliessen" style="flex:none">✕</button></div>
-  <div class="f"><span>Was steht auf dem Blatt?</span><div class="wsmodes" role="radiogroup">${MODES.map(m=>`<button class="btn small ${m[0]===ws.mode?"teal":""}" role="radio" aria-checked="${m[0]===ws.mode}" data-pm="${m[0]}">${esc(m[1])}</button>`).join("")}</div></div>
-  <p class="muted" style="margin:-6px 0 0;font-size:14px">${esc(M[2])}</p>
-  <label style="display:flex;gap:10px;align-items:center"><input type="checkbox" data-po="shuffle" style="width:auto;flex:none" ${ws.shuffle?"checked":""}><span>Reihenfolge mischen</span></label>
-  ${ws.mode==="dict"||copy?"":`<label style="display:flex;gap:10px;align-items:center"><input type="checkbox" data-po="key" style="width:auto;flex:none" ${ws.key?"checked":""}><span>Lösungsblatt anhängen (eigene Seite)</span></label>`}
-  <button class="btn primary" data-vs="mk">🖨️ PDF erstellen und drucken</button><p class="muted" id="wsSt" style="margin:-6px 0 0;font-size:13px;min-height:1em"></p>
-  <button class="btn small ghost" data-vs="list" style="justify-self:start">← Zurück zur Liste</button></div>`};
- const draw=()=>{if(view==="print")return drawPrint();el.innerHTML=`<div class="card gsheetin" role="dialog" aria-label="Wörterliste" style="max-height:92vh;display:grid;grid-template-rows:auto auto 1fr;gap:10px"><div class="row" style="justify-content:space-between;align-items:center;flex-wrap:nowrap"><div style="flex:1;min-width:0"><p class="eyebrow" style="margin:0">Wörterliste · ${rows.length} Einträge</p><h2 style="font-size:20px;margin:0">${esc(t.name)}</h2></div><button class="btn small ghost" data-vs="close" aria-label="Schliessen">✕</button></div>
-  <div class="row" style="gap:6px"><button class="btn small" data-vs="pr" title="Als Arbeitsblatt drucken (PDF)">🖨️ Drucken</button><button class="btn small ${hide===0?"teal":""}" data-vs="h0">Beides zeigen</button>${lang!=="de"?`<button class="btn small ${hide===2?"teal":""}" data-vs="h2">Deutsch verdecken</button><button class="btn small ${hide===1?"teal":""}" data-vs="h1">${esc(LN)} verdecken</button>`:`<button class="btn small ${hide===2?"teal":""}" data-vs="h2">Antwort verdecken</button>`}</div>
+function vocabSheet(t,k){const rows=vocabRows(t);if(!rows.length)return;const old=document.getElementById("vocabSheet");if(old)old.remove();const el=document.createElement("div");el.id="vocabSheet";el.className="gsheet";let hide=0;const lang=rows[0].lang,LN=lang==="de"?"Deutsch":LANGN[lang];
+ const draw=()=>{el.innerHTML=`<div class="card gsheetin" role="dialog" aria-label="Wörterliste" style="max-height:92vh;display:grid;grid-template-rows:auto auto 1fr;gap:10px"><div class="row" style="justify-content:space-between;align-items:center;flex-wrap:nowrap"><div style="flex:1;min-width:0"><p class="eyebrow" style="margin:0">Wörterliste · ${rows.length} Einträge</p><h2 style="font-size:20px;margin:0">${esc(t.name)}</h2></div><button class="btn small ghost" data-vs="close" aria-label="Schliessen">✕</button></div>
+  <div class="row" style="gap:6px"><button class="btn small ${hide===0?"teal":""}" data-vs="h0">Beides zeigen</button>${lang!=="de"?`<button class="btn small ${hide===2?"teal":""}" data-vs="h2">Deutsch verdecken</button><button class="btn small ${hide===1?"teal":""}" data-vs="h1">${esc(LN)} verdecken</button>`:`<button class="btn small ${hide===2?"teal":""}" data-vs="h2">Antwort verdecken</button>`}</div>
   <div style="overflow:auto;min-height:0"><table class="vtab"><thead><tr><th>${lang==="de"?"Frage / Wort":esc(LN)}</th><th>${lang==="de"?"Antwort":"Deutsch"}</th><th></th></tr></thead><tbody>${rows.map((r,i)=>`<tr data-row="${i}"><td class="${hide===1?"cov":""}">${esc(r.a)}</td><td class="${hide===2?"cov":""}">${esc(r.b)}</td><td>${lang!=="de"||r.type!=="rule"?`<button class="qsay" data-vs="say" data-row="${i}" aria-label="Vorlesen">🔊</button>`:""}</td></tr>`).join("")}</tbody></table></div>
   <p class="muted" style="margin:0;font-size:13px">Tipp: Erst verdecken und selbst sagen, dann antippen und prüfen – so bleibt es besser hängen als nur lesen.</p></div>`};
  draw();document.body.appendChild(el);
- el.addEventListener("click",e=>{const b=e.target.closest("[data-vs]");if(b){const a=b.dataset.vs;if(a==="close"){el.remove();return}if(a==="h0"){hide=0;draw();return}if(a==="h1"){hide=1;draw();return}if(a==="h2"){hide=2;draw();return}
-   if(a==="pr"){view="print";draw();return}if(a==="list"){view="list";draw();return}
-   if(a==="mk"){const key=ws.mode==="dict"||(ws.key&&!copy);try{const r=wordSheetPdf(t,rows,{mode:ws.mode,shuffle:ws.shuffle,key});const nm=`Woerterliste-${t.name.replace(/^Aus dem Heft · /,"").replace(/[^A-Za-z0-9ÄÖÜäöüéèàç]+/g,"-").replace(/^-|-$/g,"").slice(0,40)||"Liste"}-${ws.mode}.pdf`;
-     const st=el.querySelector("#wsSt");if(st)st.textContent=`PDF mit ${r.pages} ${r.pages===1?"Seite":"Seiten"} erstellt.`;wordSheetOut(r.blob,nm,st)}catch(x){const st=el.querySelector("#wsSt");if(st)st.textContent="Das PDF konnte nicht erstellt werden."}return}
-   if(a==="say"){const r=rows[+b.dataset.row];acUnlock();try{speechSynthesis.cancel()}catch(x){}speak(r.a,r.lang,.85);return}}
-  const pm=e.target.closest("[data-pm]");if(pm){ws.mode=pm.dataset.pm;keep();draw();return}
-  const td=e.target.closest("td.cov");if(td){td.classList.remove("cov");return}if(e.target===el)el.remove()});
- const keep=()=>{S.ws=Object.assign({},S.ws,{[copy?"copy":lang]:{...ws}});save()};
- el.addEventListener("change",e=>{const o=e.target.dataset&&e.target.dataset.po;if(o){ws[o]=e.target.checked;keep()}})}
+ el.addEventListener("click",e=>{const b=e.target.closest("[data-vs]");if(b){const a=b.dataset.vs;if(a==="close"){el.remove();return}if(a==="h0"){hide=0;draw();return}if(a==="h1"){hide=1;draw();return}if(a==="h2"){hide=2;draw();return}if(a==="say"){const r=rows[+b.dataset.row];acUnlock();try{speechSynthesis.cancel()}catch(x){}speak(r.a,r.lang,.85);return}}
+  const td=e.target.closest("td.cov");if(td){td.classList.remove("cov");return}if(e.target===el)el.remove()})}
 function dueCount(ids){const n=Date.now();return ids.filter(id=>{const p=S.progress[id];return p&&p.due<=n&&p.box<5}).length}
 function newCount(ids){return ids.filter(id=>!S.progress[id]).length}
 function masteryPct(ids){if(!ids.length)return 0;return Math.round(ids.reduce((s,id)=>s+(S.progress[id]?.box||0),0)/(ids.length*5)*100)}
@@ -3867,70 +3847,108 @@ function show(id){["home","topics","play","summary"].forEach(x=>document.getElem
    genau ab (ohne zu korrigieren), die App vergleicht Buchstabe für Buchstabe · 5 Fehler mit eigenen Übungen trainieren */
 let PT=null,PTX=[],ptFiles=[];
 const PTL={fr:"Französisch",en:"Englisch",de:"Deutsch"};
-function ptUnits(){const g={};S.deck.filter(d=>d.type==="vocab"&&d.front&&d.back&&(d.subj==="fr"||d.subj==="en")).forEach(d=>{const k=d.subj+"|"+unitOf(d);(g[k]=g[k]||[]).push(d)});return g}
+// word lists for paper: photographed lists (Heft) and PokeLearn's own French/English lists. Every word: pid (learning progress), front, back
+function ptUnits(){const g={};const put=(k,o)=>{if(!g[k])g[k]={...o,items:[]};return g[k]};
+ (S.deck||[]).forEach(d=>{if(!d.front)return;const sj=d.subj,u=unitOf(d);
+  if((sj==="fr"||sj==="en")&&d.type==="vocab"&&d.back)put(sj+"|"+u,{subj:sj,name:SUBJ[sj].name+" · "+(u||"ohne Titel"),heft:true}).items.push({pid:"heft:"+d.id,did:d.id,front:d.front,back:d.back});
+  else if(sj==="de"&&(d.type==="spell"||d.type==="vocab"))put("de|"+u,{subj:"de",name:"Deutsch · "+(u||"ohne Titel"),heft:true}).items.push({pid:"heft:"+d.id,did:d.id,front:d.front,back:""})});
+ const subs=gradeSubjects(gradeOf());
+ for(const [sj,LL,TT] of [["fr",FR,FRT],["en",EN,ENT]]){if(!subs.includes(sj))continue;
+  Object.entries(LL).forEach(([k,v])=>{g[sj+"|@"+k]={subj:sj,name:SUBJ[sj].name+" · "+(TT[k]||k),heft:false,items:v.map((it,i)=>{const[a,b]=String(it).split("|");return{pid:`${sj}:${k}:${i}`,front:a,back:b||""}}).filter(x=>x.front&&x.back)}})}
+ return g}
+// what is shown and what is written: German → foreign, foreign → German, mixed, dictation (the word is read aloud), copying (German lists)
+const PTMODES=sj=>sj==="de"?["dict","copy"]:["de2f","f2de","mix","dict"];
+const ptModeName=(m,sj)=>({de2f:"Deutsch → "+PTL[sj],f2de:PTL[sj]+" → Deutsch",mix:"Gemischt",dict:"Diktat",copy:"Abschreiben"})[m];
+const ptModeHint=(m,sj,print)=>({de2f:`Das deutsche Wort steht da – du schreibst es auf ${PTL[sj]}${sj==="fr"?" (mit Artikel)":""}.`,f2de:`Das Wort auf ${PTL[sj]} steht da – du schreibst es auf Deutsch.`,
+ mix:`Mal Deutsch, mal ${PTL[sj]} – du schreibst immer die andere Sprache.`,dict:print?"Auf dem Blatt stehen nur Nummern und Linien. Ein Erwachsener liest die Wörter vor (Lösungsblatt) – oder PokeLearn liest sie vor.":"PokeLearn liest jedes Wort vor – du schreibst es auf.",copy:"Das Wort steht da – du schreibst es sauber ab, Buchstabe für Buchstabe."})[m];
+function ptItem(d,subj,m){const L={pid:d.pid,did:d.did,front:d.front,back:d.back,mode:m};
+ if(m==="de2f")return{...L,prompt:d.back,target:d.front,lang:subj,show:"de"};
+ if(m==="f2de")return{...L,prompt:d.front,target:d.back,lang:"de",show:subj};
+ return{...L,prompt:d.front,target:d.front,lang:subj,show:m==="dict"?null:subj}}
+function ptMake(items,subj,dir,mixOrder){const list=mixOrder===false?items.slice():shuffle(items.slice());
+ const sides=dir==="mix"?shuffle(list.map((_,i)=>i%2?"f2de":"de2f")):null;return list.map((d,i)=>ptItem(d,subj,sides?sides[i]:dir))}
+function ptStart(items,subj,dir,title,o){o=o||{};PT={phase:o.print?"photo":"show",printed:!!o.print,key:!!o.key,list:ptMake(items,subj,dir,o.shuffle),subj,dir,title,i:0,at:Date.now()};ptSave();
+ if(o.print)ptPdf(true);ptRender()}
+// the worksheet: exactly the words, order and directions of this test — so the photo of it can be checked number by number
+function ptPdf(open){const st=document.getElementById("ptSt")||document.getElementById("ptPdfSt");
+ try{const rows=PT.list.map(x=>({a:x.front,b:x.back,lang:PT.subj})),mode=PT.dir==="de2f"?"b":PT.dir==="f2de"?"a":PT.dir==="copy"?"a":PT.dir;
+  const r=wordSheetPdf({name:PT.title},rows,{mode,sides:PT.dir==="mix"?PT.list.map(x=>x.mode==="f2de"?"a":"b"):null,key:PT.dir==="dict"||PT.key,copy:PT.dir==="copy",foot:"Ausgefüllt? In PokeLearn fotografieren: Heft › Vokabeln auf Papier"});
+  const nm=`Arbeitsblatt-${PT.title.replace(/[^A-Za-z0-9ÄÖÜäöüéèàç]+/g,"-").replace(/^-|-$/g,"").slice(0,40)||"Woerter"}.pdf`;if(open)wordSheetOut(r.blob,nm,st);return r}
+ catch(e){if(st){st.hidden=false;st.textContent="Das PDF konnte nicht erstellt werden."}}}
 function ptOpen(){PT=S.ptCur&&S.ptCur.list&&S.ptCur.list.length&&S.ptCur.phase!=="result"?JSON.parse(JSON.stringify(S.ptCur)):{phase:"setup"};ptFiles=[];showView("ptest")}
 function ptSave(){S.ptCur=PT&&PT.phase!=="setup"?JSON.parse(JSON.stringify({...PT,res:PT.phase==="result"?PT.res:null})):null;save()}
-function ptTargetLang(t){return t.dir==="de2f"?t.subj:"de"}
-function ptStart(list,subj,dir,title){PT={phase:"show",list:shuffle(list.map(d=>({did:d.id,prompt:dir==="de2f"?d.back:d.front,target:dir==="de2f"?d.front:d.back}))),subj,dir,title,i:0,at:Date.now()};ptSave();ptRender()}
+function ptTargetLang(t){return t.dir==="de2f"?t.subj:t.dir==="dict"||t.dir==="copy"?t.subj:"de"}
+const ptLang=(t,PT)=>t.lang||ptTargetLang(PT);
+function ptSay(t){try{acUnlock();try{speechSynthesis.cancel()}catch(x){}speak(t.front,PT.subj,.8)}catch(e){}}
 function ptRender(){const v=document.getElementById("ptView");if(!v)return;if(!PT)PT={phase:"setup"};
  const back=`<button class="btn small ghost" data-ptback style="justify-self:start">← ${PT.phase==="setup"?"Zurück zum Heft":"Test abbrechen"}</button>`;
- if(PT.phase==="setup"){const U=ptUnits(),keys=Object.keys(U).sort((a,b)=>a.localeCompare(b,"de",{numeric:true}));
-  if(!keys.length){v.innerHTML=`${back}<div class="card" style="display:grid;gap:10px"><p class="eyebrow">Vokabeln auf Papier</p><h1 style="font-size:26px">Zuerst Wörter sammeln</h1><p class="muted">Fotografiere unter «Heft» eine Wörterliste in Französisch oder Englisch (oder füge Wörter von Hand hinzu). Dann kannst du sie hier auf Papier testen.</p><button class="btn primary" data-ptback>Zum Heft</button></div>`;return}
-  const bySubj={};keys.forEach(k=>{const sj=k.split("|")[0];bySubj[sj]=(bySubj[sj]||0)+U[k].length});
-  const opt=keys.map(k=>{const[sj,u]=k.split("|");return`<option value="${esc(k)}">${SUBJ[sj].name} · ${u?esc(u):"ohne Titel"} (${U[k].length} Wörter)</option>`}).join("")+Object.keys(bySubj).filter(sj=>keys.filter(k=>k.startsWith(sj+"|")).length>1).map(sj=>`<option value="${sj}|*">Alle ${SUBJ[sj].name}-Wörter (${bySubj[sj]})</option>`).join("");
-  const last=S.ptKey&&(U[S.ptKey]||/\|\*$/.test(S.ptKey))?S.ptKey:keys[keys.length-1];
+ if(PT.phase==="setup"){const U=ptUnits(),keys=Object.keys(U).filter(k=>U[k].items.length).sort((a,b)=>(U[b].heft-U[a].heft)||U[a].name.localeCompare(U[b].name,"de",{numeric:true}));
+  if(!keys.length){v.innerHTML=`${back}<div class="card" style="display:grid;gap:10px"><p class="eyebrow">Vokabeln auf Papier</p><h1 style="font-size:26px">Zuerst Wörter sammeln</h1><p class="muted">Fotografiere unter «Heft» eine Wörterliste (Französisch, Englisch oder deutsche Merkwörter) oder füge Wörter von Hand hinzu. Dann kannst du sie hier auf Papier üben und prüfen lassen.</p><button class="btn primary" data-ptback>Zum Heft</button></div>`;return}
+  const bySubj={};keys.forEach(k=>{if(U[k].heft&&U[k].subj!=="de"){const sj=U[k].subj;(bySubj[sj]=bySubj[sj]||[]).push(...U[k].items)}});
+  Object.entries(bySubj).forEach(([sj,it])=>{if(keys.filter(k=>U[k].heft&&U[k].subj===sj).length>1)U[sj+"|*"]={subj:sj,name:"Alle "+SUBJ[sj].name+"-Wörter aus dem Heft",heft:true,items:it}});
+  const og=(lab,ks)=>ks.length?`<optgroup label="${lab}">${ks.map(k=>`<option value="${esc(k)}">${esc(U[k].name)} (${U[k].items.length})</option>`).join("")}</optgroup>`:"";
+  const opt=og("Aus dem Heft",keys.filter(k=>U[k].heft).concat(Object.keys(U).filter(k=>k.endsWith("|*"))))+og("PokeLearn-Wörterlisten",keys.filter(k=>!U[k].heft));
+  const last=S.ptKey&&U[S.ptKey]?S.ptKey:keys.filter(k=>U[k].heft).pop()||keys[0];
   v.innerHTML=`${back}<div class="card" style="display:grid;gap:14px"><div><p class="eyebrow">Vokabeln auf Papier</p><h1 style="font-size:26px">Welche Wörter?</h1></div>
    <label class="f">Wörterliste <select id="ptKey">${opt}</select></label>
-   <div class="f"><span>Richtung</span><div class="seg" role="radiogroup"><button data-ptdir="de2f" class="${(S.ptDir||"de2f")==="de2f"?"on":""}" role="radio">Deutsch → <span id="ptLangA">Fremdsprache</span></button><button data-ptdir="f2de" class="${S.ptDir==="f2de"?"on":""}" role="radio"><span id="ptLangB">Fremdsprache</span> → Deutsch</button></div></div>
+   <div class="f"><span>Was steht da – was schreibst du?</span><div class="wsmodes" id="ptModes" role="radiogroup"></div></div><p class="muted" id="ptHint" style="margin:-8px 0 0;font-size:14px"></p>
    <label class="f">Wie viele Wörter? <select id="ptN"></select></label>
-   <div class="pricebox" style="gap:6px"><b>So geht's</b><span>1. Nimm ein Blatt Papier und einen Stift.</span><span>2. Du siehst ein Wort nach dem anderen. Schreib die <b>Nummer</b> und daneben das Wort${"" } auf.</span><span>3. Am Schluss fotografierst du dein Blatt. Claude vergleicht jedes Wort genau – auch Akzente und Artikel.</span></div>
-   <button class="btn primary" id="ptGo">Los geht's</button></div>
+   <label style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="ptShuf" style="width:auto;flex:none" ${S.ptShuf!==false?"checked":""}><span>Reihenfolge mischen</span></label>
+   <div class="pricebox" style="gap:6px"><b>So geht's</b><span>1. <b>Arbeitsblatt drucken</b> – oder ein leeres Blatt nehmen und die Wörter am Bildschirm anschauen (Nummer und Wort aufschreiben).</span><span>2. Zu jeder Nummer das Wort schreiben.</span><span>3. Das Blatt fotografieren: Claude liest die Handschrift, die App zeigt jeden Fehler – auch Akzente, Artikel, Gross/klein – und übt die Fehler danach mit dir.</span></div>
+   <button class="btn primary" id="ptPrint">🖨️ Arbeitsblatt drucken</button>
+   <label style="display:flex;gap:10px;align-items:center;margin-top:-6px" id="ptKeyRow"><input type="checkbox" id="ptKeyP" style="width:auto;flex:none" ${S.ptKeyP!==false?"checked":""}><span style="font-size:14px">Lösungsblatt für die Eltern anhängen (eigene Seite)</span></label>
+   <button class="btn" id="ptGo">Wörter am Bildschirm zeigen</button><p class="muted" id="ptPdfSt" style="margin:-6px 0 0;font-size:13px" hidden></p></div>
    ${(S.ptests||[]).length?`<div class="card" style="display:grid;gap:8px"><h3 style="font-size:17px">Letzte Tests</h3><div class="list">${S.ptests.slice(0,6).map(t=>`<div class="item"><div class="t">${esc(t.title)}<small>${t.date} · ${t.ok} von ${t.n} richtig${t.wrong&&t.wrong.length?" · "+t.wrong.length+" Fehler":""}</small></div><span class="pill ${t.ok===t.n?"good":""}">${Math.round(t.ok/t.n*100)} %</span></div>`).join("")}</div></div>`:""}`;
   const ks=v.querySelector("#ptKey");ks.value=last;
-  const fill=()=>{const k=ks.value,[sj]=k.split("|"),n=(k.endsWith("|*")?S.deck.filter(d=>d.type==="vocab"&&d.back&&d.subj===sj).length:(U[k]||[]).length);
-   v.querySelector("#ptLangA").textContent=PTL[sj];v.querySelector("#ptLangB").textContent=PTL[sj];
-   const sug=Math.min(n,n<=20?n:15),ch=[...new Set([5,10,15,20,30].filter(x=>x<n).concat([n]))];
+  const dirOf=sj=>{const m=(S.ptDirs||{})[sj]||(sj!=="de"&&S.ptDir)||PTMODES(sj)[0];return PTMODES(sj).includes(m)?m:PTMODES(sj)[0]};
+  const fill=()=>{const u=U[ks.value],sj=u.subj,n=u.items.length,m=dirOf(sj);
+   v.querySelector("#ptModes").innerHTML=PTMODES(sj).map(x=>`<button class="btn small ${x===m?"teal":""}" role="radio" aria-checked="${x===m}" data-ptdir="${x}">${esc(ptModeName(x,sj))}</button>`).join("");
+   v.querySelector("#ptHint").textContent=ptModeHint(m,sj,false);v.querySelector("#ptKeyRow").hidden=m==="dict"||m==="copy";
+   const sug=Math.min(n,n<=20?n:15),ch=[...new Set([5,10,15,20,30].filter(x=>x<n).concat([n]))];const keep=+v.querySelector("#ptN").value;
    v.querySelector("#ptN").innerHTML=ch.map(x=>`<option value="${x}" ${x===sug?"selected":""}>${x===n?"Alle "+n:x} Wörter${x===sug?" · Vorschlag":""}</option>`).join("")};
   ks.onchange=fill;fill();
-  v.querySelectorAll("[data-ptdir]").forEach(b=>b.onclick=()=>{S.ptDir=b.dataset.ptdir;v.querySelectorAll("[data-ptdir]").forEach(x=>x.classList.toggle("on",x===b))});
-  v.querySelector("#ptGo").onclick=()=>{const k=ks.value,[sj,u]=k.split("|");S.ptKey=k;const list=u==="*"?S.deck.filter(d=>d.type==="vocab"&&d.back&&d.subj===sj):U[k];
-   const n=+v.querySelector("#ptN").value||list.length;const pickN=shuffle([...list]).slice(0,n);
-   ptStart(pickN,sj,S.ptDir||"de2f",u==="*"?"Alle "+SUBJ[sj].name+"-Wörter":SUBJ[sj].name+" · "+(u||"ohne Titel"))};return}
- if(PT.phase==="show"){const t=PT.list[PT.i],L=PTL[ptTargetLang(PT)],n=PT.list.length,art=/^(le |la |les |l'|un |une |the |to )/i.test(t.target);
+  v.querySelector("#ptModes").onclick=e=>{const b=e.target.closest("[data-ptdir]");if(!b)return;const sj=U[ks.value].subj;S.ptDirs=Object.assign({},S.ptDirs,{[sj]:b.dataset.ptdir});if(sj!=="de")S.ptDir=b.dataset.ptdir;save();fill()};
+  v.querySelector("#ptShuf").onchange=e=>{S.ptShuf=e.target.checked;save()};v.querySelector("#ptKeyP").onchange=e=>{S.ptKeyP=e.target.checked;save()};
+  const go=print=>{const k=ks.value,u=U[k];S.ptKey=k;const n=+v.querySelector("#ptN").value||u.items.length,shuf=S.ptShuf!==false;
+   const pick=n<u.items.length?shuffle(u.items.slice()).slice(0,n):u.items.slice();if(n<u.items.length&&!shuf)pick.sort((a,b)=>u.items.indexOf(a)-u.items.indexOf(b));
+   ptStart(pick,u.subj,dirOf(u.subj),u.name.replace(/ \(Heft\)$/,""),{print,shuffle:shuf,key:S.ptKeyP!==false})};
+  v.querySelector("#ptGo").onclick=()=>go(false);v.querySelector("#ptPrint").onclick=()=>go(true);return}
+ if(PT.phase==="show"){const t=PT.list[PT.i],L=PTL[ptLang(t,PT)],n=PT.list.length,art=/^(le |la |les |l'|un |une |the |to )/i.test(t.target),dict=t.mode==="dict";if(dict)setTimeout(()=>{if(PT&&PT.phase==="show"&&PT.list[PT.i]===t)ptSay(t)},250);
   v.innerHTML=`${back}<div class="card" style="display:grid;gap:12px;text-align:center"><p class="eyebrow">${esc(PT.title)} · Wort ${PT.i+1} von ${n}</p>
    <div class="ptdots" aria-hidden="true">${PT.list.map((_,i)=>`<i class="${i===PT.i?"on":i<PT.i?"done":""}"></i>`).join("")}</div>
-   <div><span class="ptnum">${PT.i+1}</span></div><div class="ptword">${esc(t.prompt)}</div>
-   <p class="muted" style="margin:0">Schreib auf dein Blatt: <b>Nr. ${PT.i+1}</b> und das Wort auf <b>${L}</b>${art?" – mit Artikel":""}.</p>
+   <div><span class="ptnum">${PT.i+1}</span></div>${dict?`<button class="btn" data-ptsay="${PT.i}" style="justify-self:center;font-size:20px;padding:14px 22px">🔊 Wort hören</button>`:`<div class="ptword">${esc(t.prompt)}</div>`}
+   <p class="muted" style="margin:0">Schreib auf dein Blatt: <b>Nr. ${PT.i+1}</b> und ${dict?"das Wort, das du hörst":t.mode==="copy"?"das Wort – sauber abgeschrieben":`das Wort auf <b>${L}</b>`}${art&&t.mode!=="copy"?" – mit Artikel":""}.</p>
    <div class="row" style="justify-content:center;gap:10px"><button class="btn" data-ptprev ${PT.i?"":"disabled"}>← Zurück</button>${PT.i<n-1?`<button class="btn primary" data-ptnext style="min-width:150px">Weiter →</button>`:`<button class="btn primary" data-ptdone style="min-width:150px">Fertig – Blatt fotografieren</button>`}</div>
-   <button class="btn small ghost" data-ptall style="justify-self:center">Alle Wörter auf einmal zeigen</button></div>`;return}
- if(PT.phase==="all"){v.innerHTML=`${back}<div class="card" style="display:grid;gap:12px"><p class="eyebrow">${esc(PT.title)} · ${PT.list.length} Wörter</p><p class="muted" style="margin:0">Schreib zu jeder Nummer das Wort auf ${PTL[ptTargetLang(PT)]}.</p>
-   <div class="ptlist">${PT.list.map((t,i)=>`<div><b>${i+1}.</b><span>${esc(t.prompt)}</span></div>`).join("")}</div>
+   ${PT.list.some(x=>x.mode==="dict")?"":`<button class="btn small ghost" data-ptall style="justify-self:center">Alle Wörter auf einmal zeigen</button>`}</div>`;return}
+ if(PT.phase==="all"){v.innerHTML=`${back}<div class="card" style="display:grid;gap:12px"><p class="eyebrow">${esc(PT.title)} · ${PT.list.length} Wörter</p><p class="muted" style="margin:0">${PT.dir==="mix"?"Schreib zu jeder Nummer das Wort in der anderen Sprache.":PT.dir==="copy"?"Schreib jedes Wort mit seiner Nummer sauber ab.":"Schreib zu jeder Nummer das Wort auf "+PTL[ptTargetLang(PT)]+"."}</p>
+   <div class="ptlist">${PT.list.map((t,i)=>`<div><b>${i+1}.</b><span>${esc(t.prompt)}${PT.dir==="mix"?` <small class="muted">→ ${PTL[t.lang]}</small>`:""}</span></div>`).join("")}</div>
    <div class="row" style="gap:10px"><button class="btn" data-ptone>Einzeln zeigen</button><button class="btn primary" data-ptdone style="flex:1">Fertig – Blatt fotografieren</button></div></div>`;return}
- if(PT.phase==="photo"){v.innerHTML=`${back}<div class="card" style="display:grid;gap:12px"><p class="eyebrow">${esc(PT.title)}</p><h1 style="font-size:24px">Blatt fotografieren</h1>
-   <p class="muted" style="margin:0">Leg das Blatt flach hin, gutes Licht, alle Nummern sichtbar. ${imgMax>1?`Passt es nicht auf ein Foto, kannst du bis zu ${imgMax} Fotos machen.`:""}</p>
+ if(PT.phase==="photo"){const D=PT.dir==="dict";v.innerHTML=`${back}<div class="card" style="display:grid;gap:12px"><p class="eyebrow">${esc(PT.title)}${PT.printed?" · Arbeitsblatt":""}</p><h1 style="font-size:24px">${PT.printed?"Ausgefüllt? Dann fotografieren":"Blatt fotografieren"}</h1>
+   ${PT.printed?`<p class="muted" style="margin:0">Das Arbeitsblatt (PDF) ist bereit zum Drucken. Diese Seite merkt sich den Test – du kannst später hierher zurückkommen (Heft › Vokabeln auf Papier).</p><div class="row" style="gap:8px"><button class="btn small" data-ptpdf>🖨️ Arbeitsblatt nochmals öffnen</button></div>`:""}
+   ${D?`<div class="pricebox" style="gap:6px"><b>Diktat: PokeLearn liest vor</b><div class="row" style="gap:6px;flex-wrap:wrap">${PT.list.map((t,i)=>`<button class="btn small" data-ptsay="${i}">${i+1} 🔊</button>`).join("")}</div></div>`:""}
+   <p class="muted" style="margin:0">Leg das Blatt flach hin, gutes Licht, alle Nummern sichtbar${PT.printed&&PT.key?" – das Lösungsblatt nicht mitfotografieren":""}. ${imgMax>1?`Passt es nicht auf ein Foto, kannst du bis zu ${imgMax} Fotos machen.`:""}</p>
    <div class="dropzone"><div><b>Foto aufnehmen oder wählen</b></div><input type="file" id="ptPhoto" accept="image/*" capture="environment" ${imgMax>1?"multiple":""}></div>
    <div class="ptprev" id="ptPrev">${ptFiles.map(f=>`<img src="${URL.createObjectURL(f)}" alt="Foto deines Blatts">`).join("")}</div>
    <button class="btn primary" id="ptCheck" ${ptFiles.length?"":"disabled"}>Von Claude prüfen lassen</button><div id="ptSt" class="muted" hidden></div>
-   <details><summary class="muted" style="font-size:14px">Wörter nochmals ansehen</summary><div class="ptlist" style="margin-top:8px">${PT.list.map((t,i)=>`<div><b>${i+1}.</b><span>${esc(t.prompt)}</span></div>`).join("")}</div></details></div>`;
+   ${D?"":`<details><summary class="muted" style="font-size:14px">Wörter nochmals ansehen</summary><div class="ptlist" style="margin-top:8px">${PT.list.map((t,i)=>`<div><b>${i+1}.</b><span>${esc(t.prompt)}</span></div>`).join("")}</div></details>`}</div>`;
   const inp=v.querySelector("#ptPhoto");inp.onchange=()=>{const fs=[...inp.files];if(!fs.length)return;ptFiles=ptFiles.concat(fs).slice(-imgMax);ptRender()};
-  v.querySelector("#ptCheck").onclick=ptCheck;if(!sample){const st=v.querySelector("#ptSt");st.hidden=false;st.textContent="Das Prüfen braucht Claude. Öffne PokeLearn in der Claude-App.";v.querySelector("#ptCheck").disabled=true}return}
+  v.querySelector("#ptCheck").onclick=ptCheck;if(!sample){const st=v.querySelector("#ptSt");st.hidden=false;st.textContent=STANDALONE?"Das Prüfen braucht Claude: die Eltern tragen einmal den Claude-Schlüssel ein (Eltern › Claude).":"Das Prüfen braucht Claude. Öffne PokeLearn in der Claude-App.";v.querySelector("#ptCheck").disabled=true}return}
  if(PT.phase==="result")return ptResult(v,back)}
 async function ptCheck(){const v=document.getElementById("ptView"),st=v.querySelector("#ptSt"),btn=v.querySelector("#ptCheck");if(!ptFiles.length||!sample)return;
  btn.disabled=true;st.hidden=false;st.innerHTML='<span class="spin"></span> Claude liest dein Blatt …';
- const L=PTL[ptTargetLang(PT)],PL=PTL[PT.dir==="de2f"?"de":PT.subj];
- const prompt=`Das Foto zeigt ein Blatt Papier, auf dem ein Kind (${gradeOf()}. Klasse, Schweiz) einen Vokabeltest von Hand geschrieben hat. Zu jeder Nummer hat es ein Wort auf ${L} geschrieben. Das sind die Nummern mit dem Wort, das dem Kind gezeigt wurde (auf ${PL}):
-${PT.list.map((t,i)=>`${i+1}. ${t.prompt}`).join("\n")}
+ const lines=PT.list.map((t,i)=>`${i+1}. `+(t.mode==="dict"?`(vorgelesen) – geschrieben auf ${PTL[t.lang]}`:t.mode==="copy"?`abgeschrieben (Wort auf ${PTL[t.lang]})`:`gezeigt: «${t.prompt}» (${PTL[t.show]}) – geschrieben auf ${PTL[t.lang]}`)).join("\n");
+ const prompt=`Die Fotos zeigen ein Blatt Papier, auf dem ein Kind (${gradeOf()}. Klasse, Schweiz) einen Wörtertest von Hand geschrieben hat.${PT.printed?` Es ist ein ausgedrucktes PokeLearn-Arbeitsblatt: links stehen GEDRUCKT die Nummer${PT.dir==="dict"?"":" und ein Wort"}, rechts auf der Linie steht die HANDSCHRIFT des Kindes. Lies NUR die Handschrift auf den Linien – nie den gedruckten Text. Ist eine Linie leer, gib "" zurück, auch wenn links ein Wort gedruckt ist. Ein mitfotografiertes Lösungsblatt («Lösungen») nicht beachten.`:" Zu jeder Nummer hat es ein Wort geschrieben."} Das sind die Nummern:
+${lines}
 Deine Aufgabe: Lies für jede Nummer GENAU ab, was das Kind geschrieben hat – Buchstabe für Buchstabe, mit allen Fehlern, fehlenden oder falschen Akzenten (é è ê à â ç ô û î ï ë ù), Gross- und Kleinschreibung, Artikeln, Apostrophen und Bindestrichen, genau so wie es auf dem Papier steht. Korrigiere NICHTS, ergänze nichts und rate nicht, was gemeint war. Durchgestrichenes zählt nicht; gilt die letzte Fassung. Steht bei einer Nummer nichts, gib "" zurück. Wenn du ein Wort oder einen Akzent nicht sicher lesen kannst, gib deine beste Lesung und setze "unsure": true. Wenn die Nummern fehlen, ordne die Wörter in der Reihenfolge von oben nach unten zu.
 Antworte NUR mit JSON: {"items":[{"n":1,"written":"…","unsure":false}]}`;
  let r;try{r=await sample.json(prompt,{images:ptFiles.slice(0,imgMax),cache:false})}
  catch(e){btn.disabled=false;st.textContent={not_granted:"Claude wurde für PokeLearn nicht erlaubt.",rate_limited:"Gerade zu viele Anfragen. Bitte gleich nochmals.",image_rejected:"Das Foto ging nicht. Nimm ein JPG oder PNG.",invalid_json:"Das Blatt war nicht gut lesbar. Mach ein schärferes Foto mit mehr Licht."}[e&&e.code]||"Das hat gerade nicht geklappt. Bitte nochmals versuchen.";return}
  const got={};((r&&r.items)||[]).forEach(x=>{if(x&&x.n)got[+x.n]=x});
- const tl=ptTargetLang(PT);
- PT.res=PT.list.map((t,i)=>{const x=got[i+1]||{written:"",unsure:false},j=ptJudge(t.target,String(x.written||""),tl);return{...t,written:String(x.written||"").trim(),unsure:!!x.unsure,ok:j.ok,why:j.why,alt:j.alt}});
+ PT.res=PT.list.map((t,i)=>{const x=got[i+1]||{written:"",unsure:false},j=ptJudge(t.target,String(x.written||""),ptLang(t,PT));return{...t,written:String(x.written||"").trim(),unsure:!!x.unsure,ok:j.ok,why:j.why,alt:j.alt}});
  const ok=PT.res.filter(x=>x.ok).length,n=PT.res.length;
- PT.res.forEach(x=>{const pr=prog("heft:"+x.did);if(x.ok){pr.box=Math.min(5,pr.box+1);pr.c++;pr.due=Date.now()+INT[pr.box]*864e5}else{pr.box=0;pr.w++;pr.due=Date.now()}});
+ PT.res.forEach(x=>{const pr=prog(x.pid||"heft:"+x.did);if(x.ok){pr.box=Math.min(5,pr.box+1);pr.c++;pr.due=Date.now()+INT[pr.box]*864e5}else{pr.box=0;pr.w++;pr.due=Date.now()}});
  const gain=ok*3+10;S.coins+=gain;PT.gain=gain;
- S.ptests=[{title:PT.title,date:new Date().toLocaleDateString("de-CH"),n,ok,wrong:PT.res.filter(x=>!x.ok).map(x=>x.did)},...(S.ptests||[])].slice(0,20);
+ S.ptests=[{title:PT.title,date:new Date().toLocaleDateString("de-CH"),n,ok,wrong:PT.res.filter(x=>!x.ok).map(x=>x.pid||x.did)},...(S.ptests||[])].slice(0,20);
  PT.phase="result";ptFiles=[];ptSave();renderHud();ptRender();if(ok===n)celebrate("Alles richtig!",`${n} von ${n} Wörtern. ${gainTxt(gain)}`);else toast(`${ok} von ${n} richtig · ${gainTxt(gain)}`)}
 // compare what was written with the correct word: exact, letter by letter (accents count; case only matters in German)
 function ptNorm(x){return String(x||"").replace(/\([^)]*\)/g," ").replace(/[’`´]/g,"'").replace(/\s*'\s*/g,"'").replace(/\s+/g," ").replace(/[.!;,]+$/,"").trim()}
@@ -3977,12 +3995,12 @@ function ptMask(t,w){const al=ptAlign(t.toLowerCase(),(w||"").toLowerCase());let
  if(!mask.includes("_")){const i=Math.max(0,t.search(/[a-zà-ÿ]/i));mask[i]="_"}return mask.join("")}
 function ptQ(id){const[,i,mode]=id.split(":"),x=PTX[+i];if(!x)return null;const L=PTL[x.lang],cs=x.lang==="de";
  const base={id,topic:"Fehler aus dem Papier-Test",strict:cs,rule:`Richtig: «${esc(x.target)}»${x.written?` – auf deinem Blatt stand «${esc(x.written)}»`:""}. ${esc(x.why||"")}`};
- if(mode==="mc")return{...base,kind:"mc",q:`Welche Schreibweise ist richtig?<br><b>${esc(x.prompt)}</b> auf ${L}`,a:[x.target],opts:ptVariants(x.target,x.written)};
- if(mode==="gap")return{...base,kind:"type",q:`Ergänze und schreib das ganze Wort: <b>${esc(x.prompt)}</b><br><span class="gapword">${esc(ptMask(x.target,x.written))}</span>`,a:x.alts,hint:"Die Lücken sind genau dort, wo dein Fehler war."};
+ if(mode==="mc")return{...base,kind:"mc",q:`Welche Schreibweise ist richtig?${x.prompt?`<br><b>${esc(x.prompt)}</b> auf ${L}`:""}`,a:[x.target],opts:ptVariants(x.target,x.written)};
+ if(mode==="gap")return{...base,kind:"type",q:`Ergänze und schreib das ganze Wort${x.prompt?`: <b>${esc(x.prompt)}</b>`:":"}<br><span class="gapword">${esc(ptMask(x.target,x.written))}</span>`,a:x.alts,hint:"Die Lücken sind genau dort, wo dein Fehler war."};
  return{...base,kind:"type",q:`Schreib auf ${L}: <b>${esc(x.prompt)}</b>`,a:x.alts,hint:x.lang==="fr"?"Mit Artikel und Akzenten.":""}}
-function ptPractice(items){PTX=items.map(x=>({did:x.did,prompt:x.prompt,target:x.alt||x.target,alts:String(x.target).split(/\s*[\/;]\s*/).map(ptNorm).filter(Boolean),written:x.written,why:x.why,lang:x.lang||ptTargetLang(PT)}));
+function ptPractice(items){PTX=items.map(x=>({did:x.did,prompt:x.mode==="dict"||x.mode==="copy"?(x.back||""):x.prompt,target:x.alt||x.target,alts:String(x.target).split(/\s*[\/;]\s*/).map(ptNorm).filter(Boolean),written:x.written,why:x.why,lang:x.lang||ptTargetLang(PT)}));
  Object.keys(S.progress).forEach(k=>{if(k.startsWith("pt:"))delete S.progress[k]});
- const idx=PTX.map((_,i)=>i),seq=[...shuffle(idx).map(i=>`pt:${i}:mc`),...shuffle(idx).map(i=>`pt:${i}:gap`),...shuffle(idx).map(i=>`pt:${i}:w`),...(PTX.length<=12?shuffle(idx).map(i=>`pt:${i}:w2`):[])].slice(0,40);
+ const idx=PTX.map((_,i)=>i),wi=idx.filter(i=>PTX[i].prompt),seq=[...shuffle(idx).map(i=>`pt:${i}:mc`),...shuffle(idx).map(i=>`pt:${i}:gap`),...shuffle(wi).map(i=>`pt:${i}:w`),...(PTX.length<=12?shuffle(wi).map(i=>`pt:${i}:w2`):[])].slice(0,40);
  R={subj:"mix",topic:{name:"Fehler aus dem Papier-Test",again:()=>ptPractice(items)},level:null,seq,i:0,correct:0,first:0,combo:0,best:0,coins:0,log:[]};
  showView("spielen");show("play");nextQ()}
 document.addEventListener("click",e=>{const t=e.target;if(!t.closest)return;
@@ -3994,10 +4012,13 @@ document.addEventListener("click",e=>{const t=e.target;if(!t.closest)return;
  if(t.closest("[data-ptall]")){PT.phase="all";ptSave();ptRender();return}
  if(t.closest("[data-ptone]")){PT.phase="show";ptSave();ptRender();return}
  if(t.closest("[data-ptdone]")){PT.phase="photo";ptSave();ptRender();return}
- const fx=t.closest("[data-ptfix]");if(fx){const x=PT.res[+fx.dataset.ptfix];if(x&&!x.ok){x.ok=true;x.override=true;S.coins+=3;PT.gain=(PT.gain||0)+3;const pr=prog("heft:"+x.did);pr.box=Math.min(5,pr.box+1);pr.due=Date.now()+INT[pr.box]*864e5;
-   const last=(S.ptests||[])[0];if(last){last.ok++;last.wrong=(last.wrong||[]).filter(d=>d!==x.did)}ptSave();renderHud();ptRender()}return}
- if(t.closest("[data-ptpractice]")){ptPractice(PT.res.filter(x=>!x.ok).map(x=>({...x,lang:ptTargetLang(PT)})));return}
- if(t.closest("[data-ptredo]")){const wrong=PT.res.filter(x=>!x.ok).map(x=>S.deck.find(d=>d.id===x.did)).filter(Boolean);if(wrong.length)ptStart(wrong,PT.subj,PT.dir,PT.title+" · Fehler");return}
+ const fx=t.closest("[data-ptfix]");if(fx){const x=PT.res[+fx.dataset.ptfix];if(x&&!x.ok){x.ok=true;x.override=true;S.coins+=3;PT.gain=(PT.gain||0)+3;const pr=prog(x.pid||"heft:"+x.did);pr.box=Math.min(5,pr.box+1);pr.due=Date.now()+INT[pr.box]*864e5;
+   const last=(S.ptests||[])[0];if(last){last.ok++;last.wrong=(last.wrong||[]).filter(d=>d!==(x.pid||x.did))}ptSave();renderHud();ptRender()}return}
+ if(t.closest("[data-ptpractice]")){ptPractice(PT.res.filter(x=>!x.ok).map(x=>({...x,lang:ptLang(x,PT)})));return}
+ if(t.closest("[data-ptredo]")){const wrong=PT.res.filter(x=>!x.ok).map(x=>{if(x.front!=null)return{pid:x.pid,did:x.did,front:x.front,back:x.back};const d=S.deck.find(d=>d.id===x.did);return d&&{pid:"heft:"+d.id,did:d.id,front:d.front,back:d.back}}).filter(Boolean);
+   if(wrong.length)ptStart(wrong,PT.subj,PT.dir,PT.title.replace(/ · Fehler$/,"")+" · Fehler",{print:!!PT.printed,shuffle:true,key:PT.key});return}
+ const sy=t.closest("[data-ptsay]");if(sy){const x=PT.list[+sy.dataset.ptsay];if(x)ptSay(x);return}
+ if(t.closest("[data-ptpdf]")){ptPdf(true);return}
  if(t.closest("[data-ptnew]")){PT={phase:"setup"};ptSave();ptRender();return}});
 // ---- Klasse und Kanton wählen ----
 function gradeChooser(first){let el=document.getElementById("gradeSheet");if(el)el.remove();el=document.createElement("div");el.id="gradeSheet";el.className="gsheet";if(first)el.dataset.first="1";
