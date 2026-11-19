@@ -3538,7 +3538,7 @@ async function ohrStart(L){const AC=window.AudioContext||window.webkitAudioConte
   const sink=ctx.createGain();sink.gain.value=0;sink.connect(ctx.destination);
   let ok=false;
   if(ctx.audioWorklet&&window.AudioWorkletNode){try{
-    const code='class P extends AudioWorkletProcessor{constructor(){super();this.b=new Float32Array(2048);this.n=0}process(i){const c=i[0]&&i[0][0];if(c){this.b.set(c,this.n);this.n+=c.length;if(this.n>=2048-128){this.port.postMessage(this.b.slice(0,this.n));this.n=0}}return true}}registerProcessor("ohr-tap",P)';
+    const code='class P extends AudioWorkletProcessor{constructor(){super();this.b=new Float32Array(1024);this.n=0}process(i){const c=i[0]&&i[0][0];if(c){this.b.set(c,this.n);this.n+=c.length;if(this.n>=1024-128){this.port.postMessage(this.b.slice(0,this.n));this.n=0}}return true}}registerProcessor("ohr-tap",P)';
     const url=URL.createObjectURL(new Blob([code],{type:"application/javascript"}));await ctx.audioWorklet.addModule(url);URL.revokeObjectURL(url);
     const node=O.node=new AudioWorkletNode(ctx,"ohr-tap",{numberOfInputs:1,numberOfOutputs:1,channelCount:1});node.port.onmessage=e=>ohrFeed(L,O,e.data);src.connect(node);node.connect(sink);ok=true}catch(e){}}
   if(!ok){const node=O.node=ctx.createScriptProcessor(2048,1,1);node.onaudioprocess=e=>ohrFeed(L,O,new Float32Array(e.inputBuffer.getChannelData(0)));src.connect(node);node.connect(sink)}
@@ -3577,7 +3577,8 @@ function ohrFeed(L,O,x){if(LS!==L||L.ohr!==O||!O.rec||O.dead)return;
  O.spk=Math.max((O.spk||0)*.995,O.lvl);if(O.lvl<.22*O.spk){if(!O.quiet0)O.quiet0=now}else O.quiet0=0;
  if(O.part.length&&O.utt0&&!O.flush&&now-O.utt0>10000&&now-(O.tChg||0)>300&&O.quiet0&&now-O.quiet0>200){O.flush=now;try{O.rec.retrieveFinalResult()}catch(e){}}
  if(O.mute)return;const y=O.rs.push(x);if(L.recd)lrecFeed(L,y);if(!y.length)return;O.out.push(y);O.outN+=y.length;
- if(O.outN>=1600){const c=new Float32Array(O.outN);let o=0;for(const p of O.out){c.set(p,o);o+=p.length}O.out=[];O.outN=0;
+ // sound goes to the recognizer in 50 ms steps (words appear about 60 ms sooner); a device that falls behind gets 100 ms steps (less work)
+ if(O.outN>=(O.lag<250&&O.sent.length<3?800:1600)){const c=new Float32Array(O.outN);let o=0;for(const p of O.out){c.set(p,o);o+=p.length}O.out=[];O.outN=0;
   if(O.sent.length>40)return;                                   // far behind: drop sound instead of queueing more
   O.sent.push(performance.now());try{O.rec.acceptWaveformFloat(c,16000)}catch(e){}}}
 function ohrStop(L,O){O=O||(L&&L.ohr);if(!O)return;if(L&&L.ohr===O)L.ohr=null;if(!O.safe)ohrGuard.ease();
