@@ -1631,14 +1631,15 @@ const SHOPS={
 const shopOf=w=>SHOPS[w&&w.shop]||SHOPS.cardmarket;
 const shopUrl=w=>w.url||(w.card?cardLinks(w.card)[w.shop==="tcgplayer"?"tcgplayer":"cardmarket"]:w.prod?prodLinks(w.prod)[w.shop==="tcgplayer"?"tcgplayer":"cardmarket"]:shopOf(w).search(w.title));
 const shopLinks=(q,id)=>`<div class="row" style="gap:8px">${Object.entries(SHOPS).map(([k,s])=>`<a class="btn small ${k==="cardmarket"?"":"teal"}" href="${q?s.search(q):s.home}" target="_blank" rel="noopener" data-shoplink="${k}" ${id?`data-for="${id}"`:""}>${s.name} ↗</a>`).join("")}</div>`;
-function openTopics(k){setTimeout(()=>{if(k!=="heft")return;const l=document.getElementById("topicList");if(!l||l.querySelector("[data-ptopen]"))return;const b=document.createElement("button");b.className="btn teal";b.dataset.ptopen="1";b.textContent="✍️ Vokabeln auf Papier";l.prepend(b)},0);document.getElementById("topicsTitle").textContent=SUBJ[k].name;const l=document.getElementById("topicList");l.innerHTML="";
+function openTopics(k){setTimeout(()=>{if(!["heft","de","fr","en"].includes(k))return;const l=document.getElementById("topicList");if(!l||l.querySelector("[data-ptopen]"))return;const b=document.createElement("button");b.className="btn teal";b.dataset.ptopen="1";b.dataset.ptsubj=k;b.style.cssText="display:grid;gap:2px;justify-items:start;text-align:left";
+  b.innerHTML=`<span>✍️ Vokabeln auf Papier${k==="heft"?"":" – "+SUBJ[k].name}</span><small style="font-weight:600;opacity:.85;font-size:13px">Test drucken oder am Bildschirm · Foto prüfen lassen · Wörter lernen</small>`;l.prepend(b)},0);document.getElementById("topicsTitle").textContent=SUBJ[k].name;const l=document.getElementById("topicList");l.innerHTML="";
   const ts=topicsFor(k);if(!ts.length){l.innerHTML='<p class="muted">Dein Heft-Deck ist noch leer. Geh zu «Heft» und fotografiere eine Seite.</p>'}
   if(ts.length){const tot=ts.length*3,dn=ts.reduce((s,t)=>s+tdDoneCount(k,t),0);const hd=document.createElement("p");hd.className="muted";hd.style.cssText="margin:0 0 4px;font-size:14px";
    hd.innerHTML=`<b style="color:var(--ink)">${dn} von ${tot} Stufen geschafft.</b> Grün = geschafft (ab ${DONEPCT} % richtig), gelb = geübt, aber noch nicht geschafft.`;l.appendChild(hd)}
   focusSort(ts).forEach(t=>{const b=document.createElement("div");b.className="tile lvtile"+(isFocus(t.key)?" focus":"");const fr=t.gen||t.ai;const m=fr?null:masteryPct(t.ids);const due=fr?0:dueCount(t.ids);const dc=tdDoneCount(k,t);
-    b.innerHTML=`<div class="bar"><div class="row" style="justify-content:space-between;gap:8px"><h3>${isFocus(t.key)?'<span class="focusbadge" title="Aktuelles Schulthema">Jetzt in der Schule</span> ':""}${t.name}${k!=="heft"&&k!=="mix"&&ixList(k,t.key)?` <span class="ixbadge" title="Mit Aufgaben zum Antippen, Ziehen, Zeichnen oder Programmieren">${IXHEAVY.has(ixBase(t.key))||IXONLY.has(ixBase(t.key))?"🤖":"🖐️"}</span>`:""}</h3><span class="lvdone">${dc===3?"★ alle 3 geschafft":dc?`✓ ${dc}/3`:""}</span></div>${(!fr&&vocabRows(t).length)?`<button class="btn small ghost" data-vlist style="justify-self:start;margin-top:4px">📖 Wörterliste ansehen</button>`:""}<small class="muted">${fr?(t.desc?esc(t.desc.length>110?t.desc.slice(0,108)+" …":t.desc):"Immer neue Aufgaben"):`${t.ids.length} Einträge · ${due} fällig · ${m} % gelernt`}</small>${fr?"":`<div class="meter"><i style="width:${m}%"></i></div>`}</div>
+    b.innerHTML=`<div class="bar"><div class="row" style="justify-content:space-between;gap:8px"><h3>${isFocus(t.key)?'<span class="focusbadge" title="Aktuelles Schulthema">Jetzt in der Schule</span> ':""}${t.name}${k!=="heft"&&k!=="mix"&&ixList(k,t.key)?` <span class="ixbadge" title="Mit Aufgaben zum Antippen, Ziehen, Zeichnen oder Programmieren">${IXHEAVY.has(ixBase(t.key))||IXONLY.has(ixBase(t.key))?"🤖":"🖐️"}</span>`:""}</h3><span class="lvdone">${dc===3?"★ alle 3 geschafft":dc?`✓ ${dc}/3`:""}</span></div>${(!fr&&vocabRows(t).length)?`<div class="row" style="gap:6px;margin-top:4px"><button class="btn small ghost" data-vlist>📖 Wörterliste ansehen</button><button class="btn small ghost" data-ptlist>✍️ Auf Papier</button></div>`:""}<small class="muted">${fr?(t.desc?esc(t.desc.length>110?t.desc.slice(0,108)+" …":t.desc):"Immer neue Aufgaben"):`${t.ids.length} Einträge · ${due} fällig · ${m} % gelernt`}</small>${fr?"":`<div class="meter"><i style="width:${m}%"></i></div>`}</div>
      <div class="lvrow">${LEVELS.map(lv=>{const r=tdGet(k,t,lv),ok=r&&r.best>=DONEPCT;return`<button class="lvbtn ${ok?"done":r?"tried":""}" data-tlv="${lv}" aria-label="${t.name} ${RLV[lv].label}${ok?", geschafft":r?", geübt":""}"><b>${ok?"✓ ":""}${RLV[lv].label}</b><small>${r?`${r.best} %${r.n>1?` · ${r.n}×`:""}`:"offen"}</small></button>`}).join("")}</div>`;
-    b.querySelectorAll("[data-tlv]").forEach(x=>x.onclick=()=>startRound(k,t,x.dataset.tlv));const vl=b.querySelector("[data-vlist]");if(vl)vl.onclick=()=>vocabSheet(t,k);l.appendChild(b)});
+    b.querySelectorAll("[data-tlv]").forEach(x=>x.onclick=()=>startRound(k,t,x.dataset.tlv));const vl=b.querySelector("[data-vlist]");if(vl)vl.onclick=()=>vocabSheet(t,k);const pl=b.querySelector("[data-ptlist]");if(pl)pl.onclick=()=>ptOpen({ids:t.ids,subj:k==="heft"?null:k,from:k});l.appendChild(b)});
   const all=document.createElement("button");all.className="btn teal";all.textContent=k==="de"?"Deutsch-Mix: alle Themen durcheinander":"Alles Fällige in "+SUBJ[k].name;all.onclick=()=>startRound(k,{name:"Alles",ids:k==="de"?Object.keys(DEGEN).map(x=>"de:"+x):ts.flatMap(t=>t.gen?[]:t.ids)});if(ts.length&&k!=="ma"&&(k==="heft"||(gradeOf()===6&&["de","fr","en"].includes(k))))l.appendChild(all);
   show("topics")}
 function renderAlbum(){const a=document.getElementById("album");a.innerHTML="";const own=Object.keys(S.cards).length;
@@ -3894,22 +3895,29 @@ function ptPdf(open){const st=document.getElementById("ptSt")||document.getEleme
   const r=wordSheetPdf({name:PT.title},rows,{mode,sides:PT.dir==="mix"?PT.list.map(x=>x.mode==="f2de"?"a":"b"):null,key:PT.dir==="dict"||PT.key,copy:PT.dir==="copy",foot:"Ausgefüllt? In PokeLearn fotografieren: Heft › Vokabeln auf Papier"});
   const nm=`Arbeitsblatt-${PT.title.replace(/[^A-Za-z0-9ÄÖÜäöüéèàç]+/g,"-").replace(/^-|-$/g,"").slice(0,40)||"Woerter"}.pdf`;if(open)wordSheetOut(r.blob,nm,st);return r}
  catch(e){if(st){st.hidden=false;st.textContent="Das PDF konnte nicht erstellt werden."}}}
-function ptOpen(){PT=S.ptCur&&S.ptCur.list&&S.ptCur.list.length&&S.ptCur.phase!=="result"?JSON.parse(JSON.stringify(S.ptCur)):{phase:"setup"};ptFiles=[];showView("ptest")}
+// opened from «Heft» (all subjects) or from a subject page (only its lists) or from one word list (that list chosen); back goes there again
+let PTPRE={};
+function ptOpen(o){PTPRE=o||{};PT=S.ptCur&&S.ptCur.list&&S.ptCur.list.length&&S.ptCur.phase!=="result"?JSON.parse(JSON.stringify(S.ptCur)):{phase:"setup"};ptFiles=[];showView("ptest")}
+function ptLeave(){const f=PTPRE.from;if(f){showView("spielen");openTopics(f)}else showView("heft")}
 function ptSave(){S.ptCur=PT&&PT.phase!=="setup"?JSON.parse(JSON.stringify({...PT,res:PT.phase==="result"?PT.res:null})):null;save()}
 function ptTargetLang(t){return t.dir==="de2f"?t.subj:t.dir==="dict"||t.dir==="copy"?t.subj:"de"}
 const ptLang=(t,PT)=>t.lang||ptTargetLang(PT);
 function ptSay(t){try{sayWord(t.front,PT.subj)}catch(e){}}
 function ptRender(){const v=document.getElementById("ptView");if(!v)return;if(!PT)PT={phase:"setup"};
- const back=`<button class="btn small ghost" data-ptback style="justify-self:start">← ${PT.phase==="setup"?"Zurück zum Heft":"Test abbrechen"}</button>`;
- if(PT.phase==="setup"){const U=ptUnits(),keys=Object.keys(U).filter(k=>U[k].items.length).sort((a,b)=>(U[b].heft-U[a].heft)||U[a].name.localeCompare(U[b].name,"de",{numeric:true}));
-  if(!keys.length){v.innerHTML=`${back}<div class="card" style="display:grid;gap:10px"><p class="eyebrow">Vokabeln auf Papier</p><h1 style="font-size:26px">Zuerst Wörter sammeln</h1><p class="muted">Fotografiere unter «Heft» eine Wörterliste (Französisch, Englisch oder deutsche Merkwörter) oder füge Wörter von Hand hinzu. Dann kannst du sie hier auf Papier üben und prüfen lassen.</p><button class="btn primary" data-ptback>Zum Heft</button></div>`;return}
+ const back=`<button class="btn small ghost" data-ptback style="justify-self:start">← ${PT.phase==="setup"?(PTPRE.from&&PTPRE.from!=="heft"?"Zurück zu "+SUBJ[PTPRE.from].name:"Zurück zum Heft"):"Test abbrechen"}</button>`;
+ if(PT.phase==="setup"){const U=ptUnits(),only=PTPRE.subj&&SUBJ[PTPRE.subj]?PTPRE.subj:null,keys=Object.keys(U).filter(k=>U[k].items.length&&(!only||U[k].subj===only)).sort((a,b)=>(U[b].heft-U[a].heft)||U[a].name.localeCompare(U[b].name,"de",{numeric:true}));
+  const allBtn=only&&Object.keys(U).some(k=>U[k].subj!==only)?`<button class="btn small ghost" id="ptAllSubj" style="justify-self:start">Listen aus allen Fächern zeigen</button>`:"";
+  if(!keys.length){v.innerHTML=`${back}<div class="card" style="display:grid;gap:10px"><p class="eyebrow">Vokabeln auf Papier${only?" · "+SUBJ[only].name:""}</p><h1 style="font-size:26px">Zuerst Wörter sammeln</h1><p class="muted">${only==="de"?"Für Deutsch gibt es noch keine Wörterliste. Fotografiere unter «Heft» eine Seite mit Merkwörtern (oder füge sie von Hand hinzu) – dann kannst du sie hier als Diktat oder zum Abschreiben drucken, am Bildschirm üben und prüfen lassen.":"Fotografiere unter «Heft» eine Wörterliste (Französisch, Englisch oder deutsche Merkwörter) oder füge Wörter von Hand hinzu. Dann kannst du sie hier auf Papier üben und prüfen lassen."}</p><button class="btn primary" data-goheft>Zum Heft</button>${allBtn}</div>`;
+   const gh=v.querySelector("[data-goheft]");if(gh)gh.onclick=()=>showView("heft");const ab=v.querySelector("#ptAllSubj");if(ab)ab.onclick=()=>{PTPRE={...PTPRE,subj:null};ptRender()};return}
   const bySubj={};keys.forEach(k=>{if(U[k].heft&&U[k].subj!=="de"){const sj=U[k].subj;(bySubj[sj]=bySubj[sj]||[]).push(...U[k].items)}});
   Object.entries(bySubj).forEach(([sj,it])=>{if(keys.filter(k=>U[k].heft&&U[k].subj===sj).length>1)U[sj+"|*"]={subj:sj,name:"Alle "+SUBJ[sj].name+"-Wörter aus dem Heft",heft:true,items:it}});
   const og=(lab,ks)=>ks.length?`<optgroup label="${lab}">${ks.map(k=>`<option value="${esc(k)}">${esc(U[k].name)} (${U[k].items.length})</option>`).join("")}</optgroup>`:"";
   const opt=og("Aus dem Heft",keys.filter(k=>U[k].heft).concat(Object.keys(U).filter(k=>k.endsWith("|*"))))+og("PokeLearn-Wörterlisten",keys.filter(k=>!U[k].heft));
-  const last=S.ptKey&&U[S.ptKey]?S.ptKey:keys.filter(k=>U[k].heft).pop()||keys[0];
-  v.innerHTML=`${back}<div class="card" style="display:grid;gap:14px"><div><p class="eyebrow">Vokabeln auf Papier</p><h1 style="font-size:26px">Welche Wörter?</h1></div>
-   <label class="f">Wörterliste <select id="ptKey">${opt}</select></label>
+  const pick0=PTPRE.ids&&PTPRE.ids.length?keys.find(k=>!k.endsWith("|*")&&U[k].items.some(x=>x.pid===PTPRE.ids[0])):null;
+  const last=pick0||(S.ptKey&&keys.includes(S.ptKey)?S.ptKey:keys.filter(k=>U[k].heft).pop()||keys[0]);
+  v.innerHTML=`${back}<div class="card" style="display:grid;gap:14px"><div><p class="eyebrow">Vokabeln auf Papier${only?" · "+SUBJ[only].name:""}</p><h1 style="font-size:26px">Welche Wörter?</h1></div>
+   <label class="f">Wörterliste <select id="ptKey">${opt}</select></label>${allBtn}
+   <div class="row" style="gap:8px;margin-top:-4px"><button class="btn small" id="ptVl">📖 Wörterliste</button><button class="btn small" id="ptLearn">🎮 Wörter lernen</button></div>
    <div class="f"><span>Was steht da – was schreibst du?</span><div class="wsmodes" id="ptModes" role="radiogroup"></div></div><p class="muted" id="ptHint" style="margin:-8px 0 0;font-size:14px"></p>
    <label class="f">Wie viele Wörter? <select id="ptN"></select></label>
    <label style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="ptShuf" style="width:auto;flex:none" ${S.ptShuf!==false?"checked":""}><span>Reihenfolge mischen</span></label>
@@ -3919,6 +3927,11 @@ function ptRender(){const v=document.getElementById("ptView");if(!v)return;if(!P
    <button class="btn" id="ptGo">Wörter am Bildschirm zeigen</button><p class="muted" id="ptPdfSt" style="margin:-6px 0 0;font-size:13px" hidden></p></div>
    ${(S.ptests||[]).length?`<div class="card" style="display:grid;gap:8px"><h3 style="font-size:17px">Letzte Tests</h3><div class="list">${S.ptests.slice(0,6).map(t=>`<div class="item"><div class="t">${esc(t.title)}<small>${t.date} · ${t.ok} von ${t.n} richtig${t.wrong&&t.wrong.length?" · "+t.wrong.length+" Fehler":""}</small></div><span class="pill ${t.ok===t.n?"good":""}">${Math.round(t.ok/t.n*100)} %</span></div>`).join("")}</div></div>`:""}`;
   const ks=v.querySelector("#ptKey");ks.value=last;
+  const ab=v.querySelector("#ptAllSubj");if(ab)ab.onclick=()=>{PTPRE={...PTPRE,subj:null};ptRender()};
+  // learn the chosen list: the word list (look, cover, listen) and a game round with exactly these words
+  const lt=()=>{const u=U[ks.value];return{name:u.name,ids:u.items.map(x=>x.pid)}};
+  v.querySelector("#ptVl").onclick=()=>vocabSheet(lt(),U[ks.value].subj);
+  v.querySelector("#ptLearn").onclick=()=>{const u=U[ks.value];S.ptKey=ks.value;showView("spielen");startRound(u.heft?"heft":u.subj,lt(),"mittel")};
   const dirOf=sj=>{const m=(S.ptDirs||{})[sj]||(sj!=="de"&&S.ptDir)||PTMODES(sj)[0];return PTMODES(sj).includes(m)?m:PTMODES(sj)[0]};
   const fill=()=>{const u=U[ks.value],sj=u.subj,n=u.items.length,m=dirOf(sj);
    v.querySelector("#ptModes").innerHTML=PTMODES(sj).map(x=>`<button class="btn small ${x===m?"teal":""}" role="radio" aria-checked="${x===m}" data-ptdir="${x}">${esc(ptModeName(x,sj))}</button>`).join("");
@@ -4023,9 +4036,9 @@ function ptPractice(items){PTX=items.map(x=>({did:x.did,prompt:x.mode==="dict"||
  R={subj:"mix",topic:{name:"Fehler aus dem Papier-Test",again:()=>ptPractice(items)},level:null,seq,i:0,correct:0,first:0,combo:0,best:0,coins:0,log:[]};
  showView("spielen");show("play");nextQ()}
 document.addEventListener("click",e=>{const t=e.target;if(!t.closest)return;
- if(t.closest("[data-ptopen]")){ptOpen();return}
+ {const po=t.closest("[data-ptopen]");if(po){const k=po.dataset.ptsubj;ptOpen(k?{subj:k==="heft"?null:k,from:k}:{});return}}
  if(!document.getElementById("v-ptest")?.classList.contains("on"))return;
- const bk=t.closest("[data-ptback]");if(bk){if(PT&&["show","all","photo"].includes(PT.phase)&&bk.dataset.sure!=="1"){bk.dataset.sure="1";bk.textContent="Wirklich abbrechen? Nochmals tippen";return}PT={phase:"setup"};ptSave();showView("heft");return}
+ const bk=t.closest("[data-ptback]");if(bk){if(PT&&["show","all","photo"].includes(PT.phase)&&bk.dataset.sure!=="1"){bk.dataset.sure="1";bk.textContent="Wirklich abbrechen? Nochmals tippen";return}PT={phase:"setup"};ptSave();ptLeave();return}
  if(t.closest("[data-ptnext]")){PT.i=Math.min(PT.list.length-1,PT.i+1);ptSave();ptRender();return}
  if(t.closest("[data-ptprev]")){PT.i=Math.max(0,PT.i-1);ptSave();ptRender();return}
  if(t.closest("[data-ptall]")){PT.phase="all";ptSave();ptRender();return}
