@@ -2347,30 +2347,59 @@ function splitUnits(U,lang){const n=U.length;let best=-1e9,bk=0;
  const hasComma=U.slice(0,-1).some((u,i)=>i>=1&&i<=n-3&&/[,;:]/.test(u.tail));
  if(n<=MAXW&&!(n>=10&&hasComma))return[U];if(!bk)return[U];
  return[...splitUnits(U.slice(0,bk),lang),...splitUnits(U.slice(bk),lang)]}
-// Natural dictation blocks, chosen per sentence by dynamic programming: 3–8 words, cut where a speaker pauses
-// (after a comma, before «und/weil/dass …»), never between article and noun, never a block of one or two words
-// (unless the whole sentence is that short) and never a lone word or two after a comma at the end of a block.
-const CHUNKV="c4";
+// Natural dictation blocks, chosen per sentence by dynamic programming: about 4–8 words, cut where a speaker pauses
+// (after a comma, before «und/weil/dass …», after a long opening phrase), never between article and noun, never a block
+// of one or two words (unless the whole sentence is that short) and never a lone word or two after a comma.
+// Long words count: a block is measured in syllables too («jeden Dienstagnachmittag» is not two short words).
+const CHUNKV="c5";
 const LISTW=/^(und|oder|sowie|and|or|et|ou|ni)$/i;
 // a comma inside an enumeration («Brot, Käse und Äpfel») is no place for a pause
 function listComma(U,m){if(!/,/.test(U[m].tail))return false;for(let k=m+1;k<Math.min(U.length,m+6);k++){if(LISTW.test(U[k].word))return k>m+1;if(U[k].tail)return false}return false}
-function cutCost(U,j,lang){let q=cutScore(U,j,lang);const a=U[j-1];
- if(listComma(U,j-1))q-=22;
- if(lang==="de"&&!a.tail&&/^[A-ZÄÖÜ]/.test(a.word)&&/^[A-ZÄÖÜ]/.test(U[j].word)&&j>1&&/^[a-zäöü]/.test(U[j-2].word))q-=12;   // «eine Flasche | Wasser»
- if((CONJ[lang]||CONJ.de).test(a.word)&&!a.tail)q-=35;     // never end a block with «und», «weil» …
- return -q+(q<7?34:0)}                                      // only at a real pause (comma, «und», «weil», «dass» …); elsewhere only if the block would get far too long
-function blockCost(U,i,j,n){const w=j-i;let c=w<=2?(n<=2?0:60):w===3?6:w<=8?0:w===9?1:w===10?2:w===11?5:w===12?9:w===13?20:35+(w-14)*15;
+// … in German only when a noun phrase follows («, packte meine Schultasche und rannte los» lists actions: a normal pause)
+function listComma2(U,m,lang){const a=U[m],b=U[m+1];if(!b||!/^,$/.test(a.tail)||!listComma(U,m))return false;
+ return lang!=="de"||/^[A-ZÄÖÜ]/.test(b.word)||FUNCW.de.test(b.word)}
+function sylCount(w,lang){const s=String(w).toLowerCase(),m=s.match(/[aeiouyäöüàâéèêëîïôûùœæ]+/g);let n=m?m.length:1;
+ if(lang!=="de"&&n>1&&/[^aeiouy](e|es|ent)$/.test(s)&&!/(ée|ées|ient)$/.test(s))n--;return Math.max(1,n)}
+const COORD=/^(und|oder|and|or|et|ou)$/i,PERS=/^(ich|du|er|sie|wir|ihr|i|you|he|she|we|they|moi|toi|lui|elle|nous|vous|eux|elles)$/i,ART2=/^(der|des|einer|eines)$/i;
+const DETS=/^(jeden|jede|jedes|diesen|dieses|diese|kein|keine|keinen|mein|meine|meinen|dein|deine|sein|seine|seinen|ihr|ihre|ihren|unser|unsere|unseren)$/;
+// German main clause: the first verb after the opening phrase («In der letzten Woche vor den Herbstferien | hatte …»)
+function vfIndex(U){for(let k=1;k<U.length;k++){const a=U[k-1],b=U[k];if(a.tail)return -1;
+  if((/^[A-ZÄÖÜ]/.test(a.word)||PRON_DE.test(a.word))&&/^[a-zäöüß]/.test(b.word)&&!FUNCW.de.test(b.word)&&!PREP.de.test(b.word)&&!CONJ.de.test(b.word)&&!PRON_DE.test(b.word)&&!/^(und|oder|sowie|nicht|auch|noch|schon|nur|sehr|so|dann|da|dort|hier|heute|immer|oft|einen|einem|eine|ein)$/i.test(b.word))return k}
+ return -1}
+const qOpen=u=>!!(u&&u.toks[0]&&QUOTES.has(u.toks[0].t)&&u.toks[0].q),nounish=u=>!!u&&(qOpen(u)||/^[A-ZÄÖÜ]/.test(u.word)||/[»”“"]/.test(u.tail));
+function cutCost(U,j,lang){let q=cutScore(U,j,lang);const a=U[j-1],b=U[j],c=U[j+1];
+ if(listComma2(U,j-1,lang))q-=6;                                    // an enumeration comma: only when the block would get long
+ if(a.tail==="."&&/^\d{1,4}$/.test(a.word))q-=30;                  // never after an ordinal: «am 3. | Mai»
+ if(lang==="de"&&!a.tail&&/^[A-ZÄÖÜ]/.test(a.word)&&/^[A-ZÄÖÜ]/.test(b.word)&&j>1&&/^[a-zäöü]/.test(U[j-2].word))q-=12;   // «eine Flasche | Wasser»
+ if((CONJ[lang]||CONJ.de).test(a.word)&&!a.tail)q-=35;              // never end a block with «und», «weil» …
+ if(COORD.test(b.word)&&!a.tail&&c&&PERS.test(c.word))q-=14;       // «mein Bruder | und ich», «my family | and I»
+ if(qOpen(b)&&!a.tail)q-=20;                                        // a quoted word inside the sentence: «das Wort «dass» schreibt»
+ if(lang==="de"&&COORD.test(b.word)&&!/[,;:.!?]/.test(a.tail)&&nounish(a)&&nounish(c))q-=10;   // «Schülerinnen | und Schüler»
+ if(lang==="de"){if(!a.tail&&ART2.test(b.word)&&/^[A-ZÄÖÜ]/.test(a.word))q-=6;   // genitive: «die Schüler | der sechsten Klasse»
+  if(!a.tail&&/^[A-ZÄÖÜ]/.test(a.word)&&DETS.test(b.word))q+=2;   // «unsere Klasse | jeden Dienstag»
+  if(j===vfIndex(U))q+=3}
+ else if(lang==="fr"&&!a.tail&&/^(pour|sans|afin)$/i.test(b.word)&&c&&/(er|ir|re|de)$/i.test(c.word))q+=5;   // «… avec ma mère | pour acheter …»
+ else if(!a.tail&&(SUBJ_P[lang]||/^$/).test(b.word))q+=1;           // «in the afternoon | we explored …»
+ return -q+(q>=7?0:q>=4?14:34)}                                     // real pause: free; phrase boundary: only for long blocks; elsewhere almost never
+function blockCost(U,i,j,n){const w=j-i;let c=w<=2?(n<=2?0:60):w===3?6:w<=8?0:w===9?1:w===10?3:w===11?7:w===12?12:w===13?20:35+(w-14)*15;
+ let sy=0;for(let m=i;m<j;m++)sy+=U[m].syl;
+ if(sy>17)c+=(sy-17)*2;
  for(let m=i;m<j-1;m++)if(/[,;:]/.test(U[m].tail)){const after=j-1-m;if(j<n&&after<=2)c+=45}   // no lone word or two after a comma
  return c}
-function chunkSentence(U,lang){const n=U.length;if(n<=9)return[U];const best=new Array(n+1).fill(1e9),from=new Array(n+1).fill(0);best[0]=0;
+function chunkSentence(U,lang){const n=U.length;let sy=0;U.forEach(u=>sy+=(u.syl=sylCount(u.word,lang)));
+ if(n<=9&&sy<=20)return[U];
+ const best=new Array(n+1).fill(1e9),from=new Array(n+1).fill(0);best[0]=0;
  for(let j=1;j<=n;j++)for(let i=Math.max(0,j-14);i<j;i++){if(best[i]>=1e9)continue;const c=best[i]+blockCost(U,i,j,n)+(j<n?cutCost(U,j,lang):0)+2;if(c<best[j]){best[j]=c;from[j]=i}}
  const out=[];let j=n;while(j>0){const i=from[j];out.unshift(U.slice(i,j));j=i}return out}
+// «am 3. Mai», «in der 6. Klasse»: the point after an ordinal number neither ends the sentence nor is spoken as «Punkt»
+const ORDN=/^(januar|februar|märz|april|mai|juni|juli|august|september|oktober|november|dezember|jahrhundert|jahrtausend|klasse|platz|stock|mal|geburtstag|tag|runde|stufe|etage|lektion|kapitel|liga|rang)$/i;
+const isOrdTok=(T,i)=>T[i].t==="."&&i>0&&/^\d{1,4}$/.test(T[i-1].t)&&!!T[i+1]&&ORDN.test(T[i+1].t);
 function makeChunks(T,lang,seg){
  const U=toUnits(T),S2=[];let cur=[];
- U.forEach(u=>{cur.push(u);if(/[.!?]["»”“]*$/.test(u.tail)){S2.push(cur);cur=[]}});if(cur.length)S2.push(cur);
+ U.forEach((u,i)=>{cur.push(u);if(/[.!?]["»”“]*$/.test(u.tail)&&!(u.tail==="."&&/^\d{1,4}$/.test(u.word)&&U[i+1]&&ORDN.test(U[i+1].word))){S2.push(cur);cur=[]}});if(cur.length)S2.push(cur);
  return S2.flatMap(sen=>chunkSentence(sen,lang||"de")).map(g=>g.flatMap(u=>u.toks))}
 function sentencesOf(chunks){const out=[];let cur=[];chunks.forEach(c=>{cur=cur.concat(c);const last=[...c].reverse().find(t=>!QUOTES.has(t.t));if(last&&/^[.!?]$/.test(last.t)){out.push(cur);cur=[]}});if(cur.length)out.push(cur);return out}
-function spokenChunk(ch,lang,punct){if(!punct)return joinPlain(ch);let o="";ch.forEach(tk=>{if(!isPunct(tk.t)){o+=" "+tk.t;return}const w=QUOTES.has(tk.t)?PW[lang][tk.q?"open":"close"]:PW[lang][tk.t];if(w)o+=", "+w+","});return o.replace(/^[\s,]+/,"").replace(/,\s*$/,".")}
+function spokenChunk(ch,lang,punct){if(!punct)return joinPlain(ch);let o="";ch.forEach((tk,i)=>{if(!isPunct(tk.t)){o+=" "+tk.t;return}if(isOrdTok(ch,i)){o+=".";return}const w=QUOTES.has(tk.t)?PW[lang][tk.q?"open":"close"]:PW[lang][tk.t];if(w)o+=", "+w+","});return o.replace(/^[\s,]+/,"").replace(/,\s*$/,".")}
 const ttsOK=()=>{try{return "speechSynthesis" in window&&typeof SpeechSynthesisUtterance!=="undefined"}catch(e){return false}};
 // Voice choice: rank installed voices so the most natural one wins (neural/premium/enhanced/online first, novelty and compact voices last)
 const NOVELTY=/^(albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|junior|ralph|fred|kathy|grandma|grandpa|eddy|flo|reed|rocko|sandy|shelley)\b/i;
@@ -2424,7 +2453,7 @@ function speakDev(text,lang,rate,pitch){return new Promise(res=>{if(!ttsOK())ret
  try{const u=new SpeechSynthesisUtterance(text);const v=dkVoice(lang);if(v)u.voice=v;u.lang=v?v.lang:VL[lang][0];u.rate=rate;u.pitch=pitch||1;u.onend=()=>fin("ok");u.onerror=e=>fin((e&&e.error)||"error");to=setTimeout(()=>fin("ok"),text.length*110/rate+5000);speechSynthesis.speak(u)}catch(e){fin("error")}})}
 // A dictation piece as separate phrases, with each punctuation mark spoken on its own after a short pause
 function chunkParts(ch,lang){const parts=[];let cur=[];const flush=()=>{if(cur.length){parts.push({t:joinPlain(cur)});cur=[]}};
- ch.forEach(tk=>{if(!isPunct(tk.t)){cur.push(tk);return}const w=QUOTES.has(tk.t)?PW[lang][tk.q?"open":"close"]:PW[lang][tk.t];if(w){flush();parts.push({t:w,p:true,k:QUOTES.has(tk.t)?(tk.q?"open":"close"):tk.t})}});flush();return parts}
+ ch.forEach((tk,i)=>{if(!isPunct(tk.t)||isOrdTok(ch,i)){cur.push(tk);return}const w=QUOTES.has(tk.t)?PW[lang][tk.q?"open":"close"]:PW[lang][tk.t];if(w){flush();parts.push({t:w,p:true,k:QUOTES.has(tk.t)?(tk.q?"open":"close"):tk.t})}});flush();return parts}
 
 // ---- Live-Stimme (Website): the PokeLearn voices as neural models on the device (voice/worker.js) – read any text, e.g. new dictations ----
 const LIVE=(()=>{const ok=STANDALONE&&typeof Worker!=="undefined"&&typeof WebAssembly!=="undefined";
@@ -2538,7 +2567,7 @@ function vKey(t,g){return`${t.lang}-${g||vGender(t.lang)}-${t.id}-${vHash(t)}`}
 function vRec(t){if(!t||!STANDALONE)return null;const r=VIDX.texts[vKey(t)];if(!r)return null;const pf=VIDX.punct[`${t.lang}-${vGender(t.lang)}`];
  return{file:VREPO+r.file,t:r,pf:pf?{file:VREPO+pf.file,map:pf.map}:null,v:true}}
 function vJob(t){const T=toks(t.text),ch=makeChunks(T,t.lang,t.seg),se=sentencesOf(ch);
- return{id:t.id,h:vHash(t),lang:t.lang,v:vGender(t.lang),title:String(t.title||"").slice(0,60),s:se.map(joinPlain),c:ch.map(joinPlain),p:ch.map(c=>chunkParts(c,t.lang).filter(x=>!x.p).map(x=>x.t))}}
+ return{id:t.id,h:vHash(t),lang:t.lang,v:vGender(t.lang),title:String(t.title||"").slice(0,60),s:se.map(joinPlain),c:ch.map(joinPlain),p:ch.map(c=>chunkParts(c,t.lang).filter(x=>!x.p).map(x=>x.t)),cv:CHUNKV}}
 // what comes next: per language the chosen level first, then the other levels, own texts, then the remaining collection
 function vJobsList(){const out=[],have=new Set(),add=t=>{if(!t||!t.text)return;const k=vKey(t);if(have.has(k))return;have.add(k);try{out.push(vJob(t))}catch(e){}};
  const langs=[S.dkLang||"de",...Object.keys(LANGN).filter(l=>l!==(S.dkLang||"de"))];
