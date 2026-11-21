@@ -63,14 +63,22 @@ def main():
     # the app's own upcoming dictations first, then the built-in collection (both voices) as background work
     bank = json.load(open("audio/v/bank-jobs.json")) if os.path.exists("audio/v/bank-jobs.json") else {"jobs": [], "punct": {}}
     punct = dict(bank.get("punct", {})); punct.update((data or {}).get("punct", {}))
+    bank_keys = {key(j) for j in bank.get("jobs", [])}
     for j in ((data or {}).get("jobs", []) + bank.get("jobs", [])):
             if key(j) in seen:
                 continue
             seen.add(key(j))
             if j.get("lang") not in ("de", "fr", "en") or j.get("v") not in ("f", "m"):
                 continue
-            # recordings made before the pieces were cut from the sentences are recorded again (the old one stays usable meanwhile)
-            if key(j) in idx["texts"] and idx["texts"][key(j)].get("cut", 0) >= 2:
+            # recordings made with an older cutting method are recorded again (the old one stays usable meanwhile):
+            # cut 3 (pieces only cut in real pauses) for the built-in texts and for texts of app versions with chunking c5+;
+            # older app versions keep their cut-2 recordings (their texts get new keys with the next app version anyway)
+            try:
+                cv = int(str(j.get("cv", "c4"))[1:])
+            except ValueError:
+                cv = 4
+            need = 3 if key(j) in bank_keys or cv >= 5 else 2
+            if key(j) in idx["texts"] and idx["texts"][key(j)].get("cut", 0) >= need:
                 continue
             todo.append(j)
     # single words and short phrases for the speaker buttons

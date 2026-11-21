@@ -97,18 +97,53 @@ def word_times(audio, lang):
     return out
 
 
-def cut_point(audio, t0, t1):
-    """quietest 10-ms spot between two words (that is where the speaker pauses)"""
+CUT = 3            # 3: pieces are only cut in real pauses and every cut piece is checked (2: cut at the quietest spot)
+PAUSE_DB = -45.0   # a real pause: this much quieter than the loudest 10-ms frame of the recording …
+PAUSE_MIN = 4      # … for at least 40 ms (closures inside words, like the t in «Kärtchen», are shorter or louder)
+
+
+def frame_db(x):
+    """level of every 10-ms frame in dB, relative to the loudest frame"""
     f = int(0.01 * SR)
-    a, b = max(0, int((min(t0, t1) - 0.06) * SR)), min(len(audio) - f, int((max(t0, t1) + 0.06) * SR))
-    if b <= a:
-        return int(t0 * SR)
-    best, bi = 9e9, a
-    for i in range(a, b, f // 2):
-        e = float(np.mean(audio[i:i + f] ** 2))
-        if e < best:
-            best, bi = e, i
-    return bi + f // 2
+    n = len(x) // f
+    if n == 0:
+        return np.zeros(0)
+    e = np.sqrt(np.mean(np.asarray(x[: n * f], dtype=np.float64).reshape(n, f) ** 2, axis=1))
+    return 20 * np.log10(e / (e.max() + 1e-12) + 1e-12)
+
+
+def pauses(audio):
+    """[(start s, end s)] of the real pauses inside a recording (silence at its edges does not count)"""
+    e, out, i = frame_db(audio), [], 0
+    while i < len(e):
+        if e[i] < PAUSE_DB:
+            j = i
+            while j < len(e) and e[j] < PAUSE_DB:
+                j += 1
+            if i > 0 and j < len(e) and j - i >= PAUSE_MIN:
+                out.append((i * 0.01, j * 0.01))
+            i = j
+        else:
+            i += 1
+    return out
+
+
+def ends_clean(w):
+    """False if the voice stopped in the middle of a sound (the last 10–40 ms are still loud)"""
+    e = frame_db(w)
+    return len(e) < 8 or float(np.mean(e[-4:-1])) < -30
+
+
+def says(x, text, lang):
+    """does the clip say exactly this text – nothing cut off at either end and nothing of the next word?"""
+    a16 = librosa.resample(x, orig_sr=SR, target_sr=16000)
+    segs, _ = ASR.transcribe(a16, language=WLANG[lang], beam_size=5, vad_filter=False, condition_on_previous_text=False)
+    heard = norm(" ".join(s.text for s in segs))
+    h, g = heard.replace(" ", ""), norm(text).replace(" ", "")
+    if not h or not g:
+        return False, heard
+    r = difflib.SequenceMatcher(None, h, g, autojunk=False).ratio()
+    return r >= 0.8 and h[:2] == g[:2] and h[-2:] == g[-2:], heard
 
 
 def lead_trim(x):
@@ -141,15 +176,26 @@ def soft(x):
     return x
 
 
+WT = {}
+
+
 def pieces_from_sentence(audio, sent_text, groups, lang):
     """Cut the dictation pieces out of the recorded sentence, so they sound exactly like the whole sentence
     (same voice, same melody). groups: list of texts that together make up the sentence, in order.
-    Returns a list of clips, or None if the words cannot be matched safely."""
+    A cut is only made in a real pause between two words: a fluent voice often runs words together
+    («vorbei‿und», «Kärtchen‿das»), and a cut there chops a word or keeps the start of the next one.
+    Returns a list with one clip per group – None where no clean cut was possible (that piece is then
+    recorded on its own) – or None if the words cannot be matched at all."""
     sw = norm(sent_text).split()
     gw = [norm(g).split() for g in groups]
     if sum(len(x) for x in gw) != len(sw) or [w for x in gw for w in x] != sw or any(not x for x in gw):
         return None
-    wt = word_times(audio, lang)
+    if len(groups) == 1:
+        return [audio]
+    key = (id(audio), len(audio))
+    if key not in WT:
+        WT[key] = word_times(audio, lang)   # the pieces and the parts of a sentence share one transcription
+    wt = WT[key]
     if not wt:
         return None
     sm = difflib.SequenceMatcher(None, [w for w, _, _ in wt], sw, autojunk=False)
@@ -157,25 +203,36 @@ def pieces_from_sentence(audio, sent_text, groups, lang):
     for a, b, n in sm.get_matching_blocks():
         for k in range(n):
             st[b + k], en[b + k] = wt[a + k][1], wt[a + k][2]
-    # a boundary needs both neighbouring words placed
-    cuts, pos = [0], 0
+    P = pauses(audio)
+    cuts, pos, used = [0], 0, set()
     for x in gw[:-1]:
         pos += len(x)
-        if en[pos - 1] is None or st[pos] is None:
-            return None
-        cuts.append(cut_point(audio, en[pos - 1], st[pos]))
+        cut = None
+        if en[pos - 1] is not None and st[pos] is not None:
+            # the speech recogniser's word times are rough (±0.2 s): take the real pause closest to the gap, longer ones first
+            lo, hi = min(en[pos - 1], st[pos]) - 0.3, max(en[pos - 1], st[pos]) + 0.3
+            mid = (en[pos - 1] + st[pos]) / 2
+            cand = [p for p in P if p[1] > lo and p[0] < hi and p not in used]
+            if cand:
+                p = min(cand, key=lambda p: abs((p[0] + p[1]) / 2 - mid) - 0.5 * (p[1] - p[0]))
+                used.add(p)
+                cut = int((p[0] + p[1]) / 2 * SR)
+        if cut is None:
+            print(f"  no pause: …{' '.join(sw[max(0, pos - 2):pos])} | {' '.join(sw[pos:pos + 2])}…", flush=True)
+        cuts.append(cut)
     cuts.append(len(audio))
-    if any(cuts[i + 1] - cuts[i] < int(0.25 * SR) for i in range(len(cuts) - 1)):
-        return None
     out = []
     for i, g in enumerate(groups):
-        x = soft(audio[cuts[i]:cuts[i + 1]])
-        x = lead_trim(x)   # a breath at the start of a piece (taken at the comma) is not played
-        if len(norm(g).split()) >= 2:
-            sim, heard = similarity(x, g, lang)
-            if sim < 0.8:
-                print(f"  cut check {sim:.2f}: {g} | heard: {heard}", flush=True)
-                return None
+        a, b = cuts[i], cuts[i + 1]
+        if a is None or b is None or b - a < int(0.25 * SR) or (i and cuts[i - 1] is not None and a <= cuts[i - 1]):
+            out.append(None)
+            continue
+        x = lead_trim(soft(audio[a:b]))   # a breath at the start of a piece (taken at the comma) is not played
+        ok, heard = says(x, g, lang)
+        if not ok or not ends_clean(x):
+            print(f"  cut check: {g} | heard: {heard}", flush=True)
+            out.append(None)
+            continue
         out.append(soft(x))
     return out
 
@@ -201,7 +258,7 @@ def synth(text, kind, lang, g):
     if key in cache:
         return cache[key]
     prompt = voice(lang, g)
-    best, best_sim, best_heard = None, -1, ""
+    best, best_sim, best_heard, best_end = None, -1, "", True
     words = len(norm(ct).split())
     for seed in (1234, 77, 4242):
         torch.manual_seed(seed)
@@ -217,11 +274,17 @@ def synth(text, kind, lang, g):
             sim, heard = 0.0, "(too long)"
         else:
             sim, heard = similarity(w, ct, lang) if words >= 2 else (1.0, "")
-        if sim > best_sim:
-            best, best_sim, best_heard = w, sim, heard
-        if sim >= 0.85:
+        # the model sometimes stops in the middle of the last sound («Länge-», «applaudiert-»): try another take
+        clean_end = ends_clean(w)
+        score = sim - (0 if clean_end else 0.1)
+        if score > best_sim:
+            best, best_sim, best_heard, best_end = w, score, heard, clean_end
+        if sim >= 0.85 and clean_end:
             break
     w = best
+    fd = min(len(w) // 3, int(0.06 * SR))
+    if not best_end and fd > 0:   # every take ended abruptly: let the last sound fade instead of a hard stop
+        w = np.concatenate([w[:-fd], w[-fd:] * np.linspace(1, 0, fd, dtype=np.float32) ** 1.5, np.zeros(int(0.06 * SR), dtype=np.float32)])
     if SPEED[kind] < 0.99:
         w = librosa.effects.time_stretch(w, rate=SPEED[kind]).astype(np.float32)
     pk = np.abs(w).max() or 1
@@ -325,6 +388,7 @@ def main():
         lang, g = j["lang"], j["v"]
         k = f'{lang}-{g}-{j["id"]}-{j["h"]}'
         t1 = time.time()
+        WT.clear()
         idx = load_index()
         newfiles = []
         pk = f"{lang}-{g}"
@@ -350,24 +414,26 @@ def main():
                 grp.append(c_pos); c_pos += 1
             sub = [(q, r, part) for q in grp for r, part in enumerate(j["p"][q])]
             sent_audio = clips[si[s_idx]]
+            # parts are only cut separately where a piece has punctuation inside (otherwise the part is the piece)
+            split = any(len(j["p"][q]) != 1 or norm(j["p"][q][0]) != norm(j["c"][q]) for q in grp)
             cc = pieces_from_sentence(sent_audio, sent, [j["c"][q] for q in grp], lang) if grp else None
-            pp = pieces_from_sentence(sent_audio, sent, [x[2] for x in sub], lang) if sub else None
-            if cc:
-                for q, x in zip(grp, cc):
-                    ci[q] = put(x)
-                cut_ok += len(grp)
-            if pp:
-                for (q, r, _), x in zip(sub, pp):
+            pp = pieces_from_sentence(sent_audio, sent, [x[2] for x in sub], lang) if sub and split else None
+            for q, x in zip(grp, cc or []):
+                if x is not None:
+                    ci[q] = si[s_idx] if x is sent_audio else put(x)   # a piece that is the whole sentence shares its clip
+                    cut_ok += 1
+            for (q, r, _), x in zip(sub, pp or []):
+                if x is not None:
                     pi_by[(q, r)] = put(x)
         for q in range(len(j["c"])):
             if ci[q] is None:
                 ci[q] = add(j["c"][q], "c")
-            pi[q] = [pi_by[(q, r)] if (q, r) in pi_by else (ci[q] if norm(part) == norm(j["c"][q]) else add(part, "p")) for r, part in enumerate(j["p"][q])]
+            pi[q] = [ci[q] if norm(part) == norm(j["c"][q]) else pi_by[(q, r)] if (q, r) in pi_by else add(part, "p") for r, part in enumerate(j["p"][q])]
         print(f"  {cut_ok}/{len(j['c'])} pieces cut from the sentences", flush=True)
         fn = f"{k}.mp3"
         t = build(clips, os.path.join(OUT, fn))
         idx["texts"][k] = {"lang": lang, "file": f"{OUT}/{fn}", "s": [t[i] for i in si], "c": [t[i] for i in ci],
-                           "p": [[t[i] for i in row] for row in pi], "at": int(time.time()), "clean": 1, "cut": 2}
+                           "p": [[t[i] for i in row] for row in pi], "at": int(time.time()), "clean": 1, "cut": CUT}
         json.dump(idx, open(os.path.join(OUT, "index.json"), "w"), ensure_ascii=False)
         NEW.add(k); newfiles.append(os.path.join(OUT, fn))
         done += 1
