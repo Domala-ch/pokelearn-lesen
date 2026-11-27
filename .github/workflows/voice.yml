@@ -32,7 +32,13 @@ jobs:
           key: voice-qwen17-v1
       - name: Install the voice model (CPU)
         run: |
-          sudo apt-get install -y -qq ffmpeg sox >/dev/null
+          # refresh the package list first (the runner image's list can be stale → 404 on security updates);
+          # no optional extras (pipewire etc.) and up to 3 tries if the mirror has a hiccup
+          for i in 1 2 3; do
+            sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg sox >/dev/null && break
+            echo "apt attempt $i failed, retrying in 20 s"; sleep 20
+          done
+          command -v ffmpeg >/dev/null && command -v sox >/dev/null
           pip install -q --extra-index-url https://download.pytorch.org/whl/cpu "torch==2.8.0+cpu" "torchaudio==2.8.0+cpu"
           pip install -q qwen-tts==0.1.1 faster-whisper==1.2.1 librosa soundfile
       - name: Record (stays on and keeps watching for new texts and words)
